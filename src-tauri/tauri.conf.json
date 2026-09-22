@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Hexglow",
+  "version": "0.1.0",
+  "identifier": "com.local.lol-augment-assistant",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [{
+      "title": "海萤 · Hexglow",
+      "width": 1280,
+      "height": 820,
+      "minWidth": 960,
+      "minHeight": 680
+    }],
+    "security": { "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; frame-src 'none'" }
+  },
+  "bundle": { "active": false, "icon": ["icons/icon.png"] }
+}

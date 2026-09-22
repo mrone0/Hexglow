@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">海萤 · Hexglow</title>
+  <desc id="desc">一枚浮游海中的发光水滴，双翼环绕六角萤芯。</desc>
+  <defs>
+    <linearGradient id="pearl" x1="30" y1="20" x2="223" y2="245" gradientUnits="userSpaceOnUse"><stop stop-color="#fcfaff"/><stop offset=".48" stop-color="#eee6fa"/><stop offset="1" stop-color="#dcf4ed"/></linearGradient>
+    <linearGradient id="water" x1="75" y1="58" x2="179" y2="216" gradientUnits="userSpaceOnUse"><stop stop-color="#9772d7"/><stop offset=".52" stop-color="#7960c0"/><stop offset="1" stop-color="#32a89a"/></linearGradient>
+    <linearGradient id="wing" x1="62" y1="93" x2="190" y2="166" gradientUnits="userSpaceOnUse"><stop stop-color="#b6e9df"/><stop offset="1" stop-color="#5cafac"/></linearGradient>
+    <linearGradient id="light" x1="111" y1="140" x2="148" y2="181" gradientUnits="userSpaceOnUse"><stop stop-color="#fff9e7"/><stop offset="1" stop-color="#f4b4ab"/></linearGradient>
+  </defs>
+  <rect x="12" y="12" width="232" height="232" rx="64" fill="url(#pearl)"/>
+  <path d="M128 35 209 82v93l-81 47-81-47V82z" stroke="#b8acd7" stroke-opacity=".5" stroke-width="2"/>
+  <path d="M128 51C119 77 79 103 74 140c-6 41 17 69 54 69s60-28 54-69c-5-37-45-63-54-89Z" fill="url(#water)"/>
+  <path d="M121 146C99 106 63 91 50 102c-10 27 16 61 61 59Z" fill="url(#wing)"/>
+  <path d="M135 146c22-40 58-55 71-44 10 27-16 61-61 59Z" fill="url(#wing)"/>
+  <path d="m128 133 23 13v27l-23 14-23-14v-27Z" fill="url(#light)"/>
+  <path d="m128 143 14 8v16l-14 9-14-9v-16Z" stroke="#fffaf2" stroke-width="2.5"/>
+  <path d="M121 120c-8-10-15-15-22-17m36 17c8-10 15-15 22-17" stroke="#fff5ff" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="98" cy="102" r="4" fill="#f4b4ab"/><circle cx="158" cy="102" r="4" fill="#f4b4ab"/>
+  <path d="M185 49v16m-8-8h16" stroke="#cc7b9b" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="64" cy="71" r="4" fill="#77bcb0"/>
+  <circle cx="195" cy="191" r="3" fill="#a28aca"/>
+</svg>

@@ -1,0 +1,7 @@
+{
+  "scope": "Minimal bootstrap registry only; not a complete champion roster or mechanics corpus.",
+  "champions": [
+    {"id": "ahri", "name": "阿狸", "aliases": ["Ahri", "九尾妖狐"], "game_id": "103"},
+    {"id": "garen", "name": "盖伦", "aliases": ["Garen", "德玛西亚之力"], "game_id": "86"}
+  ]
+}
