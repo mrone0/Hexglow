@@ -2,6 +2,7 @@
 name = "lol-augment-assistant"
 version = "0.1.0"
 edition = "2021"
+license = "AGPL-3.0-only"
 build = "build.rs"
 
 [lib]
