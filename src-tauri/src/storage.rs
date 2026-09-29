@@ -354,8 +354,7 @@ pub fn list_sessions_light(app: AppHandle, offset: Option<u64>) -> Result<Vec<Va
             r.get::<_, String>(0)
         })
         .map_err(|e| e.to_string())?;
-    rows.map(|r| parse(&r.map_err(|e| e.to_string())?).map(light))
-        .collect()
+    rows.map(|r| parse(&r.map_err(|e| e.to_string())?).map(light)).collect()
 }
 #[tauri::command]
 pub fn get_session(app: AppHandle, id: String) -> Result<Value, String> {
@@ -372,7 +371,8 @@ fn by_match(c: &Connection, id: &str) -> Result<Option<Value>, String> {
 }
 #[tauri::command]
 pub fn get_session_by_match(app: AppHandle, match_id: String) -> Result<Option<Value>, String> {
-    by_match(&db(&app)?, &match_id)
+    let out = by_match(&db(&app)?, &match_id);
+    out
 }
 fn prepared(session: &Value) -> Result<(String, String), String> {
     let mut v = session.clone();

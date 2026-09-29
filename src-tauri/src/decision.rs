@@ -201,7 +201,15 @@ pub fn sanitize_context(c: &Value) -> Value {
         out.insert("knowledge".into(), n);
     }
     if let Some(h) = c.get("history") {
-        let fields = ["ownChampion", "result", "outcome", "review", "notes"];
+        let fields = [
+            "ownChampion",
+            "ownAugments",
+            "chosen",
+            "result",
+            "outcome",
+            "review",
+            "notes",
+        ];
         let n = match h {
             Value::Array(a) => Value::Array(
                 a.iter()
@@ -529,11 +537,13 @@ mod tests {
     fn frontend_context_survives_without_player_identity() {
         let mut c=ctx(); c["players"][0]["name"]=json!("PRIVATE_PLAYER");c["notes"]=json!("打法说明");c["outcome"]=json!("结算观察");
         c["knowledge"]=json!({"documents":[{"path":"champions/a.md","title":"A","content":"关键机制","hash":"h"}],"warnings":["版本未知"],"missing":[]});
-        c["history"]=json!([{ "ownChampion":"A","review":{"summary":"历史观察","lessons":["条件"],"caveats":["反例"]},"result":{"status":"win","gameId":"SECRET_GAME"}}]);
+        c["history"]=json!([{ "ownChampion":"A","ownAugments":["泰坦的坚决"],"chosen":"One","review":{"summary":"历史观察","lessons":["条件"],"caveats":["反例"]},"result":{"status":"win","gameId":"SECRET_GAME"}}]);
         c["decisions"]=json!([{ "chosenId":"c1","context":{"players":c["players"],"ownPlayerId":"abc","candidates":c["candidates"]},"result":{"summary":"先前比较","ranking":[]}}]);
         let v=sanitize_context(&c);
         assert_eq!(v["knowledge"]["documents"][0]["content"],"关键机制");
         assert_eq!(v["history"][0]["review"]["summary"],"历史观察");
+        assert_eq!(v["history"][0]["ownAugments"][0],"泰坦的坚决");
+        assert_eq!(v["history"][0]["chosen"],"One");
         assert_eq!(v["decisions"][0]["context"]["players"]["p1"]["champion"],"A");
         assert_eq!(v["notes"],"打法说明");assert_eq!(v["outcome"],"结算观察");
         assert!(!v.to_string().contains("PRIVATE_PLAYER"));assert!(!v.to_string().contains("SECRET_GAME"));

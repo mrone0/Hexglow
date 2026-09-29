@@ -1,9 +1,9 @@
 //! Read-only, bounded local Riot lifecycle collection. No game automation.
 use chrono::Utc;
 use reqwest::{redirect::Policy, Client};
-use serde_json::{json, Value};
+use serde_json::{json, Map as JsonObject, Value};
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     fs::{self, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
@@ -465,6 +465,219 @@ fn outcome(live: &Value, session: &Value, eog: &Value, summoner: &Value, at: &st
     }
 }
 
+// 赛后补录：EOG / 比赛历史的字段结构由客户端版本决定，先递归扫描含 augment 的字段
+// 并记录路径，再按记录自身（或父记录）的身份键把海克斯归到玩家名下。
+fn postgame_augments(eog: &Value, history: &Value, game: Option<&str>) -> Value {
+    let mut fields = BTreeSet::new();
+    let mut players: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    scan_augments(eog, "", None, &mut fields, &mut players);
+    // 比赛历史可能混着旧局：没有可核对的对局 ID 就不采信，避免张冠李戴。
+    if let Some(game) = game {
+        let mut matches = Vec::new();
+        collect_history_games(history, game, &mut matches);
+        for entry in matches {
+            scan_augments(entry, "", None, &mut fields, &mut players);
+        }
+    }
+    let identified: Vec<(&String, &BTreeSet<String>)> = players
+        .iter()
+        .filter(|(key, _)| key.as_str() != "unknown")
+        .collect();
+    if identified.is_empty() {
+        return Value::Null;
+    }
+    json!({
+        "players":identified.iter()
+            .map(|(key, augments)| json!({"key":key,"augments":augments}))
+            .collect::<Vec<_>>(),
+        "fields":fields,
+    })
+}
+
+// 旧 v4 结构是 {games:{games:[{gameId,participants:[…]}]}}；按 gameId 只认这一局。
+fn collect_history_games<'a>(node: &'a Value, game: &str, out: &mut Vec<&'a Value>) {
+    match node {
+        Value::Object(map) => {
+            for (key, value) in map {
+                if key.eq_ignore_ascii_case("games") {
+                    if let Value::Array(items) = value {
+                        for item in items {
+                            if game_id(item).as_deref() == Some(game) {
+                                out.push(item);
+                            }
+                        }
+                    }
+                }
+                collect_history_games(value, game, out);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_history_games(item, game, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+// EOG 自己能不能给出挂到人身上的海克斯；拿不到就去比赛历史补。
+fn has_identified_augments(eog: &Value) -> bool {
+    !postgame_augments(eog, &Value::Null, None).is_null()
+}
+
+fn scan_augments(
+    node: &Value,
+    path: &str,
+    inherited: Option<String>,
+    fields: &mut BTreeSet<String>,
+    players: &mut BTreeMap<String, BTreeSet<String>>,
+) {
+    match node {
+        Value::Object(map) => {
+            let identity = identity_of(map).or(inherited);
+            for (key, value) in map {
+                if !key.to_ascii_lowercase().contains("augment") {
+                    continue;
+                }
+                let mut found = Vec::new();
+                collect_scalar_leaves(value, &mut found);
+                if found.is_empty() {
+                    continue;
+                }
+                fields.insert(format!("{path}/{key}"));
+                let who = identity.clone().unwrap_or_else(|| "unknown".to_string());
+                players.entry(who).or_default().extend(found);
+            }
+            for (key, value) in map {
+                scan_augments(
+                    value,
+                    &format!("{path}/{key}"),
+                    identity.clone(),
+                    fields,
+                    players,
+                );
+            }
+        }
+        Value::Array(items) => {
+            for (index, item) in items.iter().enumerate() {
+                scan_augments(
+                    item,
+                    &format!("{path}[{index}]"),
+                    inherited.clone(),
+                    fields,
+                    players,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+// 把数据挂到哪个人名下：优先记录自身的身份键，嵌套字段沿用父记录的身份。
+fn identity_of(map: &JsonObject<String, Value>) -> Option<String> {
+    let text = |key: &str| -> Option<String> {
+        map.get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    if let Some(name) = text("summonerName") {
+        return Some(name.to_ascii_lowercase());
+    }
+    if let Some(riot) = text("riotId") {
+        return Some(riot.to_ascii_lowercase());
+    }
+    let game = text("riotIdGameName").or_else(|| text("gameName"));
+    let tag = text("riotIdTagLine").or_else(|| text("tagLine"));
+    match (game, tag) {
+        (Some(game), Some(tag)) => Some(format!("{game}#{tag}").to_ascii_lowercase()),
+        (Some(game), None) => Some(game.to_ascii_lowercase()),
+        (None, _) => text("playerName").map(|name| name.to_ascii_lowercase()),
+    }
+}
+
+// 数字只收认得出的 id，文本保留客户端原话；都不编造名称。
+fn collect_scalar_leaves(value: &Value, out: &mut Vec<String>) {
+    match value {
+        Value::String(text) => {
+            if let Some(label) = crate::scoring::augment_label(text) {
+                if plausible_augment(&label) {
+                    out.push(label);
+                }
+            }
+        }
+        Value::Number(number) => {
+            if let Some(label) = crate::scoring::augment_label(&number.to_string()) {
+                out.push(label);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_scalar_leaves(item, out);
+            }
+        }
+        Value::Object(map) => {
+            for value in map.values() {
+                collect_scalar_leaves(value, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+// 拒绝明显不是名称的词（统计字段、枚举值），避免把元数据当海克斯。
+fn plausible_augment(label: &str) -> bool {
+    let lower = label.to_ascii_lowercase();
+    !matches!(
+        lower.as_str(),
+        "silver"
+            | "gold"
+            | "prismatic"
+            | "rarity"
+            | "legendary"
+            | "none"
+            | "null"
+            | "true"
+            | "false"
+            | "unknown"
+            | "augment"
+            | "augments"
+            | "inventory"
+    )
+}
+
+// 真实字段名未知：把扫描到的路径写进日志，拿到真实对局样本后照这条日志对结构。
+fn log_postgame_scan(app: &AppHandle, post: &Value) {
+    let Ok((_, logs)) = directories(app) else {
+        return;
+    };
+    let Ok(mut state) = state().lock() else {
+        return;
+    };
+    if !log_slot(&mut state, Instant::now()) {
+        return;
+    }
+    let fields = post["fields"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .take(8)
+                .collect::<Vec<_>>()
+                .join(",")
+        })
+        .unwrap_or_default();
+    let players = post["players"].as_array().map(Vec::len).unwrap_or(0);
+    let _ = append_log(
+        &logs,
+        "info",
+        "postgame-augment-scan",
+        &format!("players={players}; fields={fields}"),
+    );
+}
+
 // Raw API objects remain useful for records, but auth-like fields and known secrets
 // never cross IPC. Logs never receive these objects at all.
 fn sanitize(value: &mut Value, secret: Option<&str>) {
@@ -669,6 +882,7 @@ pub async fn collector_snapshot(
     let mut live = Value::Null;
     let mut session = Value::Null;
     let mut eog = Value::Null;
+    let mut history = Value::Null;
     let mut summoner = Value::Null;
     let mut phase = "Unknown";
     let mut lcu_connected = false;
@@ -708,7 +922,12 @@ pub async fn collector_snapshot(
             }
             Err(error) => warnings.push(format!("LCU session: {error}")),
         }
-        if end_phase(phase) {
+        // 赛后窗口可能在两次轮询之间滑过：进入赛后大厅也继续补录，
+        // 换局后由 gameId 关联把关，绝不会把旧局的海克斯挂到新局。
+        let capture_phase =
+            end_phase(phase) || matches!(phase, "Lobby" | "None" | "Matchmaking" | "ReadyCheck");
+        let quiet = !end_phase(phase);
+        if capture_phase {
             match get_json(
                 &client,
                 Some(c),
@@ -718,6 +937,8 @@ pub async fn collector_snapshot(
             .await
             {
                 Ok(value) => eog = value,
+                // 客户端不在赛后窗口时 404 属正常，不算错误。
+                Err(_) if quiet => {}
                 Err(error) => warnings.push(format!("LCU end-of-game: {error}")),
             }
             if !eog.is_null() {
@@ -730,7 +951,23 @@ pub async fn collector_snapshot(
                 .await
                 {
                     Ok(value) => summoner = value,
+                    Err(_) if quiet => {}
                     Err(error) => warnings.push(format!("LCU current summoner: {error}")),
+                }
+            }
+            // 赛后补录：EOG 里读不到挂到人身上的海克斯时，改从客户端比赛历史取本局的。
+            if (end_phase(phase) || !eog.is_null()) && !has_identified_augments(&eog) {
+                match get_json(
+                    &client,
+                    Some(c),
+                    "/lol-match-history/v1/products/lol/current-summoner/matches?begin=0&count=5",
+                    deadline,
+                )
+                .await
+                {
+                    Ok(value) => history = value,
+                    Err(_) if quiet => {}
+                    Err(error) => warnings.push(format!("LCU match history: {error}")),
                 }
             }
         }
@@ -768,12 +1005,18 @@ pub async fn collector_snapshot(
     };
     let observed_at = now();
     let result = outcome(&live, &session, &eog, &summoner, &observed_at);
+    // 结束阶段自动补上一局：把 EOG / 比赛历史读到的海克斯按身份归到玩家名下。
+    let post_game = postgame_augments(&eog, &history, game.as_deref());
+    if !post_game.is_null() {
+        log_postgame_scan(&app, &post_game);
+    }
     if let Err(message) = log_poll(&app, connection, phase, &warnings) {
         warnings.push(message);
     }
     let mut snapshot = json!({
         "platformSupported":cfg!(target_os = "windows"),"connection":connection,"phase":phase,
         "gameId":game,"liveData":live,"lcuSession":session,"endOfGame":eog,
+        "postGameAugments":post_game,
         "result":result,"observedAt":observed_at,"warnings":warnings
     });
     sanitize(
@@ -867,6 +1110,99 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn postgame_scan_maps_ids_and_inherits_parent_identity() {
+        let eog = json!({
+            "gameId": 4242424242_i64,
+            "playerStatSummaries": [
+                {"summonerName":"HexglowTest","augments":[1001,1067,9999]},
+                {"summonerName":"EnemyMid","augmentSlots":{"augmentIds":[1002]}},
+                {"teams":[{"players":[{"riotId":"Riot#KR1","augments":["旧版文本效果"]}]}]}
+            ]
+        });
+        let post = postgame_augments(&eog, &Value::Null, Some("4242424242"));
+        let players = post["players"].as_array().unwrap();
+        assert_eq!(players.len(), 3);
+        let by_key: std::collections::BTreeMap<&str, Vec<String>> = players
+            .iter()
+            .map(|entry| {
+                (
+                    entry["key"].as_str().unwrap(),
+                    entry["augments"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect(),
+                )
+            })
+            .collect();
+        assert_eq!(by_key["hexglowtest"], vec!["泰坦的坚决", "活力焕发"]);
+        assert_eq!(by_key["enemymid"], vec!["尖端发明家"]);
+        assert_eq!(by_key["riot#kr1"], vec!["旧版文本效果"]);
+        let fields = post["fields"].as_array().unwrap();
+        assert!(fields
+            .iter()
+            .any(|field| field.as_str().unwrap().ends_with("/augments")));
+        // 认不出的数字 id 不猜名字，只留能核对的字段路径。
+        assert!(!post["players"].to_string().contains("9999"));
+    }
+
+    #[test]
+    fn postgame_history_is_only_trusted_for_the_correlated_match() {
+        let history = json!({"games":{"games":[
+            {"gameId":111,"participants":[{"summonerName":"A","augments":[1001]}]},
+            {"gameId":222,"participants":[{"summonerName":"B","augments":[1002]}]}
+        ]}});
+        let post = postgame_augments(&Value::Null, &history, Some("222"));
+        let players = post["players"].as_array().unwrap();
+        assert_eq!(players.len(), 1);
+        assert_eq!(players[0]["key"], "b");
+        assert_eq!(players[0]["augments"], json!(["尖端发明家"]));
+        // 没有可核对的对局 ID 就不采信历史，避免挂错人。
+        assert_eq!(postgame_augments(&Value::Null, &history, None), Value::Null);
+        assert_eq!(
+            postgame_augments(&Value::Null, &history, Some("333")),
+            Value::Null
+        );
+    }
+
+    #[test]
+    fn postgame_scan_keeps_client_text_and_rejects_stat_words() {
+        let eog = json!({"teams":[{"players":[
+            {"summonerName":"A","augmentRarity":"silver","augments":["旧版文本效果","Silver"]},
+            {"summonerName":"B","augmentStats":{"stacks":12}}
+        ]}]});
+        let post = postgame_augments(&eog, &Value::Null, None);
+        let players = post["players"].as_array().unwrap();
+        assert_eq!(players.len(), 1);
+        assert_eq!(players[0]["key"], "a");
+        assert_eq!(players[0]["augments"], json!(["旧版文本效果"]));
+        assert!(has_identified_augments(&eog));
+        assert!(!has_identified_augments(&json!({"gameId":1,"teams":[]})));
+        // 有海克斯但挂不到人身上时，同样需要比赛历史来补身份。
+        assert!(!has_identified_augments(&json!({"augments":[1001]})));
+    }
+
+    #[test]
+    fn augment_labels_resolve_packaged_ids_aliases_and_reject_unknown_numbers() {
+        assert_eq!(
+            crate::scoring::augment_label("1001"),
+            Some("泰坦的坚决".into())
+        );
+        assert_eq!(
+            crate::scoring::augment_label("古式佳酿"),
+            Some("活力焕发".into())
+        );
+        assert_eq!(
+            crate::scoring::augment_label("泰坦的坚决"),
+            Some("泰坦的坚决".into())
+        );
+        assert_eq!(crate::scoring::augment_label("9999"), None);
+        assert_eq!(crate::scoring::augment_label("  "), None);
     }
 
     #[test]

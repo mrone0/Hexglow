@@ -4,8 +4,9 @@ export type Recommendation = { ranking: { candidateId: string; score: number; re
 export type Review = { summary: string; lessons: string[]; caveats: string[] };
 export type MatchResult = { status: 'win'|'loss'|'unknown'; source: 'live-game-end'|'lcu-eog'|'manual'|'unknown'; observedAt: string; gameId?: string; evidence?: unknown };
 export type TimelineEntry = { at: string; phase: string; connection: string };
-export type Session = { sampleCount?:number; schemaVersion?: number; id: string; createdAt: string; updatedAt?: string; endedAt?: string; matchId: string; ownPlayerId: string; players: Player[]; candidates: Candidate[]; notes: string; liveData: unknown; decisions: { at: string; result: Recommendation; context: unknown; chosenId?: string }[]; outcome: string; review?: Review; result?: MatchResult; phase?: string; timeline?: TimelineEntry[]; samples?: { at: string; data: unknown }[]; lcuSession?: unknown; endOfGame?: unknown; archived?: boolean };
-export type CollectorSnapshot = { platformSupported: boolean; connection: string; phase: string; gameId: string|null; liveData: any|null; lcuSession: unknown|null; endOfGame: unknown|null; result: MatchResult|null; observedAt: string; warnings: string[] };
+export type Session = { sampleCount?:number; schemaVersion?: number; id: string; createdAt: string; updatedAt?: string; endedAt?: string; matchId: string; ownPlayerId: string; players: Player[]; candidates: Candidate[]; notes: string; liveData: unknown; decisions: { at: string; result: Recommendation; context: unknown; chosenId?: string }[]; outcome: string; review?: Review; result?: MatchResult; phase?: string; timeline?: TimelineEntry[]; samples?: { at: string; data: unknown }[]; lcuSession?: unknown; endOfGame?: unknown; postGameFilledAt?: string; archived?: boolean };
+export type PostGameAugments = { players: { key: string; augments: string[] }[]; fields: string[] };
+export type CollectorSnapshot = { platformSupported: boolean; connection: string; phase: string; gameId: string|null; liveData: any|null; lcuSession: unknown|null; endOfGame: unknown|null; postGameAugments?: PostGameAugments|null; result: MatchResult|null; observedAt: string; warnings: string[] };
 export const newSession = (): Session => ({ schemaVersion:2,id: crypto.randomUUID(), createdAt: new Date().toISOString(), matchId: '', ownPlayerId: '', players: [], candidates: [1,2,3].map(n => ({id: String(n), name:'', description:''})), notes:'', liveData:null, decisions:[], outcome:'', timeline:[], samples:[], result:{status:'unknown',source:'unknown',observedAt:new Date().toISOString()} });
 export const endPhases = new Set(['PreEndOfGame','EndOfGame','WaitingForStats']);
 export function mergeLive(session: Session, raw: any): Session {
@@ -20,6 +21,21 @@ export function mergeLive(session: Session, raw: any): Session {
   });
   const active = raw.activePlayer?.riotId || raw.activePlayer?.summonerName;
   return { ...session, liveData: raw, players, ownPlayerId: players.some((p: Player) => p.id === session.ownPlayerId) ? session.ownPlayerId : players.find((p: Player) => p.id === active)?.id || '' };
+}
+const keyOf=(value?:string)=>String(value||'').trim().toLowerCase();
+// 赛后证据按身份挂回玩家：只做并集与已核实标记，不覆盖已录入的内容。
+export function fillPostGameAugments(session:Session, entries:{key:string;augments:string[]}[]):Session {
+  if(!entries?.length||!session.players.length) return session;
+  const players=session.players.map(player=>{
+    const names=new Set([player.id,player.name,player.id.split('#')[0],player.name.split('#')[0]].map(keyOf).filter(Boolean));
+    const entry=entries.find(item=>names.has(keyOf(item.key)));
+    if(!entry?.augments?.length) return player;
+    const augments=[...player.augments];
+    for(const augment of entry.augments) if(augment.trim()&&!augments.includes(augment)) augments.push(augment);
+    return augments.length===player.augments.length&&player.augmentsConfirmed?player:{...player,augments,augmentsConfirmed:true};
+  });
+  if(players.every((player,index)=>player===session.players[index])) return session;
+  return {...session,players,postGameFilledAt:new Date().toISOString()};
 }
 export function applySnapshot(current: Session, snap: CollectorSnapshot): {session:Session; completed?:Session} {
   const hasLive = Array.isArray(snap.liveData?.allPlayers) && snap.liveData.allPlayers.length>0;
@@ -42,6 +58,8 @@ export function applySnapshot(current: Session, snap: CollectorSnapshot): {sessi
   if(snap.lcuSession) session.lcuSession=snap.lcuSession;
   // End-game payload is retained only when collector provides a matching game ID.
   if(snap.endOfGame && snap.gameId && session.matchId===String(snap.gameId)) session.endOfGame=snap.endOfGame;
+  // 对局结束后自动补上一局：把 EOG / 比赛历史读到的海克斯挂回本局玩家。
+  if(snap.postGameAugments?.players?.length && snap.gameId && session.matchId===String(snap.gameId)) session=fillPostGameAugments(session,snap.postGameAugments.players);
   if(snap.result && snap.result.status!=='unknown' && (!snap.result.gameId || snap.result.gameId===session.matchId)) {
     // Never overwrite automatic evidence with an unconfirmed/manual observation.
     session.result=snap.result;

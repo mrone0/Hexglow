@@ -242,6 +242,38 @@ fn augment_by_id(id: &str) -> Option<&'static Augment> {
     augments().iter().find(|augment| augment.id == id)
 }
 
+/// 客户端给的海克斯 id / 名称 / 别名 → 打包数据里的标准名称。
+/// 认不出的纯数字 id 返回 None：宁可缺一条，也不编造名称。
+pub fn augment_label(raw: &str) -> Option<String> {
+    let text = raw.trim();
+    if text.is_empty() {
+        return None;
+    }
+    if let Some(augment) = augment_by_id(text) {
+        return Some(augment.name.clone());
+    }
+    if let Some(augment) = augments()
+        .iter()
+        .find(|augment| augment.name.eq_ignore_ascii_case(text))
+    {
+        return Some(augment.name.clone());
+    }
+    let lower = text.to_ascii_lowercase();
+    if let Some(augment) = augments().iter().find(|augment| {
+        augment
+            .aliases
+            .iter()
+            .any(|alias| alias.to_ascii_lowercase() == lower)
+    }) {
+        return Some(augment.name.clone());
+    }
+    if text.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    // 客户端给的本体文本（可能比打包数据新）按原样保留，属于真实观测。
+    Some(text.to_string())
+}
+
 /// 当前上下文下的本地契合度打分：0-100 相对契合度，与胜率无关。
 pub fn rank(
     ids: &[String],

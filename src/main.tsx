@@ -34,7 +34,7 @@ function App(){
  const [lockfile,setLockfile]=useState(()=>localStorage.getItem('hexlens-lockfile')||'');
  const [auto,setAuto]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[view,setView]=useState('live');
  const [snapshot,setSnapshot]=useState<CollectorSnapshot|null>(null),[diag,setDiag]=useState<Diagnostics|null>(null),[saved,setSaved]=useState('尚未保存');
- const [historical,setHistorical]=useState(false);const reading=useRef(false),epoch=useRef(0),lastSaved=useRef(0),busyRef=useRef(false);const writeQueue=useRef<Promise<unknown>>(Promise.resolve());const saver=useRef(new SaveQueue<Session>(value=>invoke('save_session',{session:value})));
+ const [historical,setHistorical]=useState(false);const reading=useRef(false),readingSince=useRef(0),pollSeq=useRef(0),epoch=useRef(0),lastSaved=useRef(0),busyRef=useRef(false);const writeQueue=useRef<Promise<unknown>>(Promise.resolve());const saver=useRef(new SaveQueue<Session>(value=>invoke('save_session',{session:value})));
  const config=useRef({lockfile,auto,historical,view});config.current={lockfile,auto,historical,view};const nextPoll=useRef(0),idleFailures=useRef(0);const trigger=useRef<TriggerState>({matchId:'',fired:[]});
  const notifyOverlay=(level:number)=>{
   if(!isTauri())return;
@@ -64,8 +64,10 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
  const logs=async()=>setDiag(await invoke<Diagnostics>('diagnostics'));
  async function save(s=current.current){if(s.id==='preview-only')return;const copy=structuredClone(s);const task=saver.current.enqueue(copy);writeQueue.current=saver.current.idle();await task;setSaved(new Date().toLocaleTimeString());lastSaved.current=Date.now();if(config.current.view==='archive')await refreshHistory();}
  async function poll(){
-  if(!isTauri()||demoRef.current||reading.current||busyRef.current||config.current.historical)return;
-  reading.current=true;const ticket=epoch.current;
+  if(!isTauri()||demoRef.current||busyRef.current||config.current.historical)return;
+  // 卡死的 invoke 不能让采集永久停摆：超过 30 秒作废上一次任务，重新开始。
+  if(reading.current){if(Date.now()-readingSince.current<30000)return;epoch.current++;}
+  reading.current=true;readingSince.current=Date.now();const ticket=epoch.current;const seq=++pollSeq.current;
   try{
    const snap=await invoke<CollectorSnapshot>('collector_snapshot',{lockfilePath:config.current.lockfile.trim()||null});
    if(ticket!==epoch.current)return;setSnapshot(snap);
@@ -76,12 +78,14 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
    // Recover this exact identified game after restarting the assistant; never guess by hero/name.
    if(!previous.players.length&&!previous.matchId&&snap.gameId){const match=await invoke<Session|null>('get_session_by_match',{matchId:String(snap.gameId)});if(ticket!==epoch.current)return;if(match)base=match;}
     const applied=applySnapshot(base,snap);commit(applied.session);
+    // 补录窗口不能被“窗口隐藏”的退避节奏错过：对局进行中最多 5 秒一次，结束后 60 秒内 3 秒一次。
+    if(!applied.session.postGameFilledAt){const sinceEnd=applied.session.endedAt?Date.now()-Date.parse(applied.session.endedAt):Number.POSITIVE_INFINITY;const capture=applied.session.endedAt?sinceEnd<60000:applied.session.players.length>0;if(capture)nextPoll.current=Date.now()+(applied.session.endedAt?3000:Math.min(5000,nextPoll.current-Date.now()));}
     const levelStep=nextTriggers(trigger.current,applied.session.matchId,ownLevel(applied.session.liveData));trigger.current=levelStep.state;levelStep.fired.forEach(notifyOverlay);
    if(applied.completed)await save(applied.completed);
    if(ticket!==epoch.current||current.current.id!==applied.session.id)return;
-   if((applied.session.players.length||applied.session.matchId)&&(!!applied.completed||Date.now()-lastSaved.current>60000||previous.phase!==applied.session.phase||previous.result?.status!==applied.session.result?.status))await save(current.current);
+   if((applied.session.players.length||applied.session.matchId)&&(!!applied.completed||Date.now()-lastSaved.current>60000||previous.phase!==applied.session.phase||previous.result?.status!==applied.session.result?.status||previous.postGameFilledAt!==applied.session.postGameFilledAt))await save(current.current);
    // Logs are loaded only when the user opens the diagnostics page.
-  }catch(e){setError(String(e));}finally{reading.current=false;}
+  }catch(e){setError(String(e));}finally{if(pollSeq.current===seq)reading.current=false;}
  }
  useEffect(()=>{if(!isTauri())return;const cleanup=setInterval(()=>{if(!busyRef.current&&!reading.current&&!current.current.players.length)void refreshStorage().then(s=>maintenance(s.budgetMb,s.retentionDays)).catch(e=>setError(String(e)));},30*60*1000);return()=>clearInterval(cleanup);},[]);
  useEffect(()=>{if(!isTauri())return;void poll();const timer=setInterval(()=>{if(config.current.auto&&Date.now()>=nextPoll.current)void poll();},3000);return()=>{clearInterval(timer);epoch.current++;};},[]);
@@ -95,7 +99,7 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
    const {samples,decisions,...rest}=selected;
    const recent=await invoke<Session[]>('list_sessions_light',{offset:0});
    const evidence=await invoke<KnowledgeResult>('knowledge_retrieve',{context:selected});setKnowledge(evidence);
-   const context={...rest,knowledge:evidence,decisions:mode==='review'?decisions:[],history:recent.filter(h=>h.id!==selected.id&&h.review).sort((a,b)=>Number(b.players.find(p=>p.id===b.ownPlayerId)?.champion===selected.players.find(p=>p.id===selected.ownPlayerId)?.champion)-Number(a.players.find(p=>p.id===a.ownPlayerId)?.champion===selected.players.find(p=>p.id===selected.ownPlayerId)?.champion)).slice(0,5).map(h=>({ownChampion:h.players.find(p=>p.id===h.ownPlayerId)?.champion,result:h.result,outcome:h.outcome.slice(0,1000),review:h.review?{summary:h.review.summary.slice(0,1500),lessons:h.review.lessons.slice(0,5).map(x=>x.slice(0,400)),caveats:h.review.caveats.slice(0,3).map(x=>x.slice(0,300))}:undefined}))};
+   const context={...rest,knowledge:evidence,decisions:mode==='review'?decisions:[],history:recent.filter(h=>h.id!==selected.id&&h.review).sort((a,b)=>Number(b.players.find(p=>p.id===b.ownPlayerId)?.champion===selected.players.find(p=>p.id===selected.ownPlayerId)?.champion)-Number(a.players.find(p=>p.id===a.ownPlayerId)?.champion===selected.players.find(p=>p.id===selected.ownPlayerId)?.champion)).slice(0,5).map(h=>{const own=h.players.find(p=>p.id===h.ownPlayerId);const last=h.decisions.at(-1);const chosen=last?.chosenId?(last.context as Session)?.candidates?.find(c=>c.id===last.chosenId)?.name:undefined;return {ownChampion:own?.champion,ownAugments:(own?.augments||[]).slice(0,6),chosen,result:h.result,outcome:h.outcome.slice(0,1000),review:h.review?{summary:h.review.summary.slice(0,1500),lessons:h.review.lessons.slice(0,5).map(x=>x.slice(0,400)),caveats:h.review.caveats.slice(0,3).map(x=>x.slice(0,300))}:undefined};})};
    const result=await invoke<Recommendation|Review>('analyze_structured',{request:{mode,context,model:{...model,provider:model.provider||'openai',apiKey}}});
    const next=mode==='recommend'?{...selected,decisions:[...selected.decisions,{at:new Date().toISOString(),context,result:result as Recommendation}]}:{...selected,review:result as Review};commit(next);await save(next);
   }catch(e){setError(String(e));}finally{busyRef.current=false;setBusy(false);}
@@ -112,7 +116,7 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
  useEffect(()=>{if(!isTauri())return;if(view==='archive')void refreshHistory().catch(e=>setError(String(e)));if(view==='settings')void refreshStorage().catch(e=>setError(String(e)));if(view==='logs')void logs().catch(e=>setError(String(e)));},[view]);
  const errors=blockers(session),last=session.decisions.at(-1),own=session.players.find(p=>p.id===session.ownPlayerId);
  const updatePlayer=(id:string,p:Partial<Session['players'][number]>)=>patch({players:session.players.map(x=>x.id===id?{...x,...p}:x)});
- const verified=session.players.filter(p=>p.augmentsConfirmed).length;
+ const verified=session.players.filter(p=>p.id===session.ownPlayerId&&p.augmentsConfirmed).length;
  return <div className="shell"><nav className="rail"><img className="emblem" src="/brand.svg" alt="海萤 Logo"/><span className="rail-label">HEXGLOW</span>{[['live','◈','对局洞察'],['knowledge','▧','知识工坊'],['archive','▤','对局档案'],['logs','⌁','运行日志'],['settings','⚙','本地设置']].map(([id,icon,label])=><button className={view===id?'nav-item active':'nav-item'} key={id} onClick={()=>setView(id)}><span>{icon}</span>{label}</button>)}<div className="rail-bottom"><i/>LOCAL FIRST<br/><small>WINDOWS · MAC PREVIEW</small></div></nav>
  <div className="workspace"><header><div><strong>海萤 <span>/ HEXGLOW</span></strong><small>海克斯决策 · 对局记忆</small></div><div className="header-status"><i className={snapshot?.liveData?'pulse':''}/>{historical?'历史回看':phaseLabel(snapshot?.phase)}<span>本地运行</span></div></header>
  {view!=='live'&&<section className="hero"><div><div className="eyebrow">READ THE RIFT. REFINE THE CHOICE.</div><h1>{view==='live'?'让每一次选择，都有微光指引。':view==='archive'?'让每场对局，成为下一次依据。':view==='logs'?'每一次连接，清晰可追溯。':'你的模型，你的数据。'}</h1><p>海萤 · 以当前英雄为核心，连接对局上下文与本地推理。</p></div><img className="hero-mark" src="/brand.svg" alt="海萤 · 微光照见每种可能"/></section>}

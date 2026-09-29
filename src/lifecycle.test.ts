@@ -11,4 +11,24 @@ describe('automatic lifecycle',()=>{
  it('does not carry a completed result into an unidentified later game even when time increases',()=>{const a=applySnapshot(newSession(),snapshot({result:{status:'win',source:'lcu-eog',gameId:'100',observedAt:'now'}})).session;const r=applySnapshot(a,snapshot({gameId:null,lcuSession:null,connection:'live-only',liveData:live(200)}));expect(r.completed?.id).toBe(a.id);expect(r.session.matchId).toBe('');expect(r.session.result?.status).toBe('unknown');});
  it('bounds samples and deduplicates stages',()=>{let s=newSession();for(let i=0;i<245;i++)s=applySnapshot(s,snapshot({observedAt:new Date(i*15000).toISOString(),liveData:live(i*15)})).session;expect(s.samples).toHaveLength(30);expect(s.timeline).toHaveLength(1);});
  it('records end phase without claiming a result',()=>{const s=applySnapshot(newSession(),snapshot({phase:'EndOfGame',liveData:null})).session;expect(s.endedAt).toBeDefined();expect(s.result?.status).toBe('unknown');});
+ it('backfills both teams augments from the post-game payload and marks them confirmed',()=>{
+  const s=applySnapshot(newSession(),snapshot()).session;
+  const r=applySnapshot(s,snapshot({phase:'EndOfGame',postGameAugments:{players:[{key:'me',augments:['泰坦的坚决','活力焕发']},{key:'enemy',augments:['尖端发明家']},{key:'stranger',augments:['不该出现']}],fields:['/teams/0/players/0/augments']}}));
+  expect(r.session.players.find(p=>p.id==='me')?.augments).toEqual(['泰坦的坚决','活力焕发']);
+  expect(r.session.players.find(p=>p.id==='me')?.augmentsConfirmed).toBe(true);
+  expect(r.session.players.find(p=>p.id==='enemy')?.augments).toEqual(['尖端发明家']);
+  expect(r.session.players.every(p=>!p.augments.includes('不该出现'))).toBe(true);
+ });
+ it('adds client observations without discarding what the player already recorded',()=>{
+  let s=applySnapshot(newSession(),snapshot()).session;
+  s.players[0].augments=['我手录的'];s.players[0].augmentsConfirmed=true;
+  const r=applySnapshot(s,snapshot({postGameAugments:{players:[{key:'me',augments:['我手录的','尖端发明家']}],fields:[]}}));
+  expect(r.session.players[0].augments).toEqual(['我手录的','尖端发明家']);
+  expect(r.session.players[0].augmentsConfirmed).toBe(true);
+ });
+ it('never attributes post-game augments without a verifiable match id',()=>{
+  const s=applySnapshot(newSession(),snapshot()).session;
+  const r=applySnapshot(s,snapshot({gameId:null,postGameAugments:{players:[{key:'me',augments:['泰坦的坚决']}],fields:[]}}));
+  expect(r.session.players.find(p=>p.id==='me')?.augments).toEqual([]);
+ });
 });

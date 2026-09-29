@@ -106,15 +106,14 @@ fn cursor_overlays(window: &WebviewWindow) -> bool {
         && cursor.y <= y + size.height as f64
 }
 
+/// 让旧 watcher 自行退出，绝不 join。
+/// watcher 每 100ms 都会调用需要主线程的窗口 API（set_size / cursor_position 等），
+/// 一旦从主线程或 IPC 线程 join，就会与"等主线程"互相等待而卡死整个应用。
+/// 旧线程在下一轮循环看到 generation 变化后自行结束，句柄随 drop 分离。
 fn stop_watcher() {
-    let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    GENERATION.fetch_add(1, Ordering::SeqCst);
     if let Ok(mut guard) = WATCHER.lock() {
-        if let Some((owner, handle)) = guard.take() {
-            if owner == generation - 1 {
-                drop(guard);
-                let _ = handle.join();
-            }
-        }
+        guard.take();
     }
 }
 
