@@ -1,6 +1,11 @@
+pub mod capture;
 pub mod collector;
 pub mod decision;
 pub mod knowledge;
+pub mod ocr;
+pub mod overlay;
+pub mod scoring;
+mod seed_augments;
 pub mod storage;
 pub mod backend {
     use reqwest::{redirect::Policy, Client};

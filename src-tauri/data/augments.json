@@ -1,0 +1,4752 @@
+{
+ "meta": {
+  "patch": "16.19.1",
+  "fetchedAt": "2026-09-28T09:20:45.228Z",
+  "pool": "ARAM Mayhem（海克斯大乱斗）",
+  "count": 211,
+  "rarityOrder": [
+   "silver",
+   "gold",
+   "prismatic"
+  ],
+  "sources": {
+   "registry": "communitydragon.org（id / 中英文名称 / 稀有度 / 图标路径）",
+   "effect": "aramgg.com（主源，第三方，未校验）",
+   "verify": "hexdata.com.cn（交叉校验，第三方，未校验）"
+  },
+  "excluded": [
+   "winRate",
+   "pickRate",
+   "tier",
+   "hexScore"
+  ],
+  "note": "全部条目 verified:false；效果文本未经游戏内核验，以游戏内描述为准。禁用胜率类字段（Riot 开发者政策）。",
+  "conflicts": 51,
+  "verifiedBySecondSource": 200,
+  "withoutSecondSource": [
+   2134,
+   2135,
+   2136,
+   2137,
+   2138,
+   2139,
+   2140,
+   2141,
+   2143,
+   2144,
+   2157
+  ]
+ },
+ "augments": [
+  {
+   "id": 1001,
+   "nameId": "ARAM_ImTheJuggernaut",
+   "name": "泰坦的坚决",
+   "nameEn": "Titan's Resolve",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "在承受或造成伤害时获得层数。每10层，获得适应之力、护甲、魔法抗性、体型和韧性。",
+   "category": "defense",
+   "tags": [
+    "tank",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/IAmTheJuggernaut_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1002,
+   "nameId": "ARAM_ApexInventor",
+   "name": "尖端发明家",
+   "nameEn": "Apex Inventor",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得100装备急速(相当于50%装备冷却缩减)。\n\n装备急速可缩减所有装备技能的冷却时间。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ApexInventor_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1004,
+   "nameId": "ARAM_BacktoBasics",
+   "name": "回归基本功",
+   "nameEn": "Back To Basics",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得提升过的技能伤害、治疗效果、护盾和技能急速，但你不能使用你的终极技能。",
+   "category": "defense",
+   "tags": [
+    "haste",
+    "sustain",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/BackToBasics_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1005,
+   "nameId": "ARAM_WeeWooWeeWoo",
+   "name": "喂呜喂呜",
+   "nameEn": "Wee Woo Wee Woo",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在朝着低生命值的友军移动时，获得移动速度。你的治疗和护盾获得提升，基于你目标的低生命值程度。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/WeeWooWeeWoo_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1006,
+   "nameId": "ARAM_BladeWaltz",
+   "name": "利刃华尔兹",
+   "nameEn": "Blade Waltz",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得利刃华尔兹作为一个召唤师技能。",
+   "category": "utility",
+   "tags": [
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/BladeWaltz_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1007,
+   "nameId": "ARAM_BluntForce",
+   "name": "大力",
+   "nameEn": "Blunt Force",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得20%攻击力。",
+   "category": "damage",
+   "tags": [
+    "ad"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/BluntForce_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1011,
+   "nameId": "ARAM_CantTouchThis",
+   "name": "你摸不到",
+   "nameEn": "Can't Touch This",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "施放你的终极技能会使你进入短时间的免疫伤害状态。",
+   "category": "damage",
+   "tags": [
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/CantTouchThis_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1013,
+   "nameId": "ARAM_CelestialBody",
+   "name": "星界躯体",
+   "nameEn": "Celestial Body",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得1500生命值，但你造成的伤害降低10%。",
+   "category": "damage",
+   "tags": [
+    "hp"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/CelestialBody_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1015,
+   "nameId": "ARAM_CircleofDeath",
+   "name": "死亡之环",
+   "nameEn": "Circle of Death",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "治疗效果和生命回复效果还会对相距最近的那个敌方英雄造成魔法伤害。",
+   "category": "defense",
+   "tags": [
+    "ap",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/CircleOfDeath_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1018,
+   "nameId": "ARAM_CourageoftheColossus",
+   "name": "巨像的勇气",
+   "nameEn": "Courage of the Colossus",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "定身或缚地一个敌方英雄后获得一层护盾。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/CourageOfTheColossus_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "定身或缚地一个敌方英雄后获得?护盾值。"
+  },
+  {
+   "id": 1019,
+   "nameId": "ARAM_Dashing",
+   "name": "全凭身法",
+   "nameEn": "Dashing",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的冲刺、跳跃、闪烁或传送类技能获得175技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Dashing_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1020,
+   "nameId": "ARAM_DawnbringersResolve",
+   "name": "黎明使者的坚决",
+   "nameEn": "Dawnbringer's Resolve",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在跌到50%生命值以下时，在3秒里持续回复共30%最大生命值。\n阵亡时或每45秒重置。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/DawnbringersResolve_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1022,
+   "nameId": "ARAM_Deft",
+   "name": "灵巧",
+   "nameEn": "Deft",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得 60%攻击速度。",
+   "category": "damage",
+   "tags": [
+    "as"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Deft_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1025,
+   "nameId": "ARAM_DiveBomber",
+   "name": "俯冲轰炸",
+   "nameEn": "Dive Bomber",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在你阵亡时爆炸，造成巨量真实伤害。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/DiveBomber_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1026,
+   "nameId": "ARAM_DontBlink",
+   "name": "唯快不破",
+   "nameEn": "Don't Blink",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你每比目标多10移动速度，则对其多造成1%额外伤害。",
+   "category": "damage",
+   "tags": [
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/DontBlink_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1027,
+   "nameId": "ARAM_Earthwake",
+   "name": "大地苏醒",
+   "nameEn": "Earthwake",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的冲刺、闪烁或传送类技能会留下一条在0.75秒后爆炸的轨迹。",
+   "category": "utility",
+   "tags": [
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Earthwake_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1028,
+   "nameId": "ARAM_Erosion",
+   "name": "侵蚀",
+   "nameEn": "Erosion",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "对敌人造成伤害时会施加一层持续4秒且可叠加的护甲和魔法抗性击碎效果。",
+   "category": "defense",
+   "tags": [
+    "tank",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Erosion_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1029,
+   "nameId": "ARAM_EtherealWeapon",
+   "name": "虚幻武器",
+   "nameEn": "Ethereal Weapon",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的技能可施加攻击特效。每个目标有1秒冷却时间。",
+   "category": "utility",
+   "tags": [
+    "onhit",
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/EtherealWeapon_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1030,
+   "nameId": "ARAM_Eureka",
+   "name": "尤里卡",
+   "nameEn": "Eureka",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得相当于30%法术强度的技能急速。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Eureka_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1034,
+   "nameId": "VeilOfWarding",
+   "name": "防护面纱",
+   "nameEn": "Veil of Warding",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "每30秒获得一层法术护盾来格挡下一个敌方技能。",
+   "category": "defense",
+   "tags": [
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Poltergeist_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1036,
+   "nameId": "ARAM_Firebrand",
+   "name": "火上浇油",
+   "nameEn": "Firebrand",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的攻击会施加一个可无限叠加的灼烧攻击特效，持续造成伤害。",
+   "category": "damage",
+   "tags": [
+    "onhit",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Firebrand_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1037,
+   "nameId": "ARAM_FirstAidKit",
+   "name": "急救用具",
+   "nameEn": "First-Aid Kit",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得20%治疗和护盾强度。",
+   "category": "defense",
+   "tags": [
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/FirstAidKit_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1038,
+   "nameId": "ARAM_FromBeginningToEnd",
+   "name": "有始有终",
+   "nameEn": "From Beginning To End",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得先攻和黑暗收割基石符文。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/FromBeginningToEnd_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1041,
+   "nameId": "ARAM_Goliath",
+   "name": "歌利亚巨人",
+   "nameEn": "Goliath",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "体型变大，获得35%生命值和15%适应之力。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "tank"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Goliath_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1044,
+   "nameId": "ARAM_IceCold",
+   "name": "冰寒",
+   "nameEn": "Ice Cold",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你的减速效果可使移动速度降低额外的75。",
+   "category": "utility",
+   "tags": [
+    "mobility",
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/IceCold_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1045,
+   "nameId": "ARAM_InfernalConduit",
+   "name": "炼狱导管",
+   "nameEn": "Infernal Conduit",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的技能会施加一层可叠加的灼烧，持续造成魔法伤害。\n\n你的灼烧效果会降低你各基础技能的冷却时间。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "haste",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/InfernalConduit_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1046,
+   "nameId": "ARAM_InfernalSoul",
+   "name": "炼狱龙魂",
+   "nameEn": "Infernal Soul",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你获得炼狱龙魂，使用技能或攻击命中敌人时造成额外伤害。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/InfernalSoul_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1047,
+   "nameId": "ARAM_ItsCritical",
+   "name": "关键暴击",
+   "nameEn": "It's Critical",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得50%暴击几率。",
+   "category": "damage",
+   "tags": [
+    "crit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ItsCritical_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1048,
+   "nameId": "ARAM_JeweledGauntlet",
+   "name": "珠光护手",
+   "nameEn": "Jeweled Gauntlet",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的技能可以造成暴击。获得 额外暴击几率。",
+   "category": "damage",
+   "tags": [
+    "crit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/JeweledGauntlet_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "你的技能可以造成暴击。\n\n获得 ?暴击几率。"
+  },
+  {
+   "id": 1051,
+   "nameId": "ARAM_LightemUp",
+   "name": "点亮他们！",
+   "nameEn": "Light 'Em Up!",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "每第4次攻击发射4个飞弹以造成魔法伤害攻击特效。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "onhit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/LightEmUp_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1053,
+   "nameId": "ARAM_MadScientist",
+   "name": "科学狂人",
+   "nameEn": "Mad Scientist",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "每次重生时，你的体型要么变大(获得适应之力和生命值)，要么变小(获得技能急速和移动速度)。",
+   "category": "defense",
+   "tags": [
+    "haste",
+    "hp",
+    "tank",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/MadScientist_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1054,
+   "nameId": "ARAM_MasterofDuality",
+   "name": "物法皆修",
+   "nameEn": "Master of Duality",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的每次攻击为你提供可叠加的法术强度，并且你的每次技能在伤害敌人时为你提供可叠加的攻击力。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "ap",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/MasterOfDuality_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1056,
+   "nameId": "ARAM_MindtoMatter",
+   "name": "由心及物",
+   "nameEn": "Mind to Matter",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "使你的最大生命值提升，数额相当于你一半的法力值。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "mana"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/MindToMatter_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1057,
+   "nameId": "ARAM_MountainSoul",
+   "name": "山脉龙魂",
+   "nameEn": "Mountain Soul",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你获得山脉龙魂，在脱离战斗之后获得一个持续一小段时间的护盾。",
+   "category": "defense",
+   "tags": [
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/MountainSoul_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1058,
+   "nameId": "ARAM_MysticPunch",
+   "name": "秘术冲拳",
+   "nameEn": "Mystic Punch",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "攻击特效使你的各个技能的冷却时间缩减1.25秒。",
+   "category": "utility",
+   "tags": [
+    "onhit",
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/MysticPunch_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1060,
+   "nameId": "ARAM_OceanSoul",
+   "name": "海洋龙魂",
+   "nameEn": "Ocean Soul",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得【海洋龙魂】，在对敌方英雄造成伤害后提供高额的生命和法力回复。",
+   "category": "damage",
+   "tags": [
+    "sustain",
+    "mana"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/OceanSoul_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1061,
+   "nameId": "ARAM_OkBoomerang",
+   "name": "回力OK镖",
+   "nameEn": "Ok Boomerang",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "周期性地朝着一个附近的敌人自动施放投掷一个回力镖。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/OKBoomerang_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "每?秒朝着一个附近的敌人自动施放投掷一个回力镖。"
+  },
+  {
+   "id": 1062,
+   "nameId": "ARAM_OmniSoul",
+   "name": "全能龙魂",
+   "nameEn": "Omni Soul",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得3个随机龙魂。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/OmniSoul_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1063,
+   "nameId": "ARAM_OutlawsGrit",
+   "name": "狂徒豪气",
+   "nameEn": "Outlaw's Grit",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在使用一次冲刺、闪烁或传送之后，你获得12护甲和魔法抗性，这个效果至多可叠加至5层。",
+   "category": "defense",
+   "tags": [
+    "tank",
+    "mobility",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/OutlawsGrit_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1067,
+   "nameId": "ARAM_RabbleRousing",
+   "name": "活力焕发",
+   "nameEn": "Rejuvenation",
+   "aliases": [
+    "古式佳酿"
+   ],
+   "rarity": "gold",
+   "effect": "使用【指定技能】时回复生命值。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/RabbleRousing_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "使用【?】技能时回复生命值。"
+  },
+  {
+   "id": 1068,
+   "nameId": "ARAM_Recursion",
+   "name": "循环往复",
+   "nameEn": "Recursion",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得60技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Recursion_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1071,
+   "nameId": "ARAM_ScopierWeapons",
+   "name": "更万用的瞄准镜",
+   "nameEn": "Scopier Weapons",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得150攻击距离，如果你是远程英雄则降低至100攻击距离。",
+   "category": "utility",
+   "tags": [
+    "range"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ScopierWeapons_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得?攻击距离。"
+  },
+  {
+   "id": 1072,
+   "nameId": "ARAM_SearingDawn",
+   "name": "炽烈黎明",
+   "nameEn": "Searing Dawn",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的技能会标记敌人，使其在被你的友军的下一个攻击或技能命中时会受到额外魔法伤害。",
+   "category": "damage",
+   "tags": [
+    "ap"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SearingDawn_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1073,
+   "nameId": "ARAM_ShadowRunner",
+   "name": "暗影疾奔",
+   "nameEn": "Shadow Runner",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在使用一个冲刺、闪烁或传送类技能或离开潜行状态之后，获得移动速度。",
+   "category": "utility",
+   "tags": [
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ShadowRunner_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1074,
+   "nameId": "ARAM_ShrinkRay",
+   "name": "缩小射线",
+   "nameEn": "Shrink Ray",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的攻击会将目标的伤害与体型削减15%攻击特效。",
+   "category": "damage",
+   "tags": [
+    "onhit",
+    "tank"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ShrinkRay_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1076,
+   "nameId": "ARAM_SonicBoom",
+   "name": "天音爆",
+   "nameEn": "Sonic Boom",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在为你的友军提供增益效果、治疗效果或护盾效果时，会对其附近的敌人们造成伤害和减速。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SonicBoom_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1077,
+   "nameId": "ARAM_SoulSiphon",
+   "name": "灵魂虹吸",
+   "nameEn": "Soul Siphon",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "暴击造成伤害的12%会等额治疗你自身。\n\n获得 25%暴击几率。",
+   "category": "damage",
+   "tags": [
+    "crit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SoulSiphon_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1079,
+   "nameId": "ARAM_SymphonyofWar",
+   "name": "战争交响乐",
+   "nameEn": "Symphony of War",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得致命节奏和征服者基石符文。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SymphonyOfWar_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1080,
+   "nameId": "ARAM_TankItOrLeaveIt",
+   "name": "会心防御",
+   "nameEn": "Tank It Or Leave It",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你可以使用你的暴击几率(最大50%几率)来进行会心防御，使你有一定几率来使所受伤害降低。\n\n获得25%暴击几率。",
+   "category": "damage",
+   "tags": [
+    "crit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/TankItOrLeaveIt_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1081,
+   "nameId": "ARAM_TapDancer",
+   "name": "踢踏舞",
+   "nameEn": "Tap Dancer",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的攻击会为你提供移动速度。基于你的移动速度获得攻击速度。",
+   "category": "utility",
+   "tags": [
+    "as",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/TapDancer_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1084,
+   "nameId": "ARAM_ThreadtheNeedle",
+   "name": "穿针引线",
+   "nameEn": "Thread the Needle",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得18%护甲穿透和法术穿透。",
+   "category": "defense",
+   "tags": [
+    "ad",
+    "ap",
+    "tank"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ThreadTheNeedle_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1087,
+   "nameId": "ARAM_Typhoon",
+   "name": "台风",
+   "nameEn": "Typhoon",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你的攻击会对一个额外目标发射一个飞弹，从而造成削减过的伤害并施加攻击特效。",
+   "category": "damage",
+   "tags": [
+    "onhit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Typhoon_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1088,
+   "nameId": "ARAM_UltimateRevolution",
+   "name": "终极刷新",
+   "nameEn": "Ultimate Revolution",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "在施放终极技能后刷新你的终极技能(75秒冷却时间或阵亡时重置)。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/UltimateRevolution_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1092,
+   "nameId": "ARAM_Vulnerability",
+   "name": "易损",
+   "nameEn": "Vulnerability",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的装备效果和持续伤害效果可以暴击。\n\n获得 25%暴击几率。",
+   "category": "damage",
+   "tags": [
+    "crit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Vulnerability_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1095,
+   "nameId": "ARAM_WindspeakersBlessing",
+   "name": "风语者的祝福",
+   "nameEn": "Windspeaker's Blessing",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的治疗效果和护盾效果还会提升目标的护甲和魔法抗性，这些加成持续3秒。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "tank"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/WindspeakersBlessing_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1097,
+   "nameId": "ARAM_WitchfulThinking",
+   "name": "巫师式思考",
+   "nameEn": "Witchful Thinking",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得额外法术强度。",
+   "category": "damage",
+   "tags": [
+    "ap"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/WitchfulThinking_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得?法术强度。"
+  },
+  {
+   "id": 1098,
+   "nameId": "ARAM_WithHaste",
+   "name": "急急小子",
+   "nameEn": "With Haste",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得移动速度，相当于你的70%技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/WithHaste_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1103,
+   "nameId": "ARAM_BreadAndButter",
+   "name": "面包和黄油",
+   "nameEn": "Bread And Butter",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的【指定技能】获得100技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "你的【?】技能获得100技能急速。"
+  },
+  {
+   "id": 1104,
+   "nameId": "ARAM_Minionmancer",
+   "name": "仆从大师",
+   "nameEn": "Minionmancer",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的召唤物获得40%体型提升、生命值和伤害。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "tank"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Minionmancer_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1105,
+   "nameId": "ARAM_Homeguard",
+   "name": "家园卫士",
+   "nameEn": "Homeguard",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得100%移动速度，在受到伤害后失效6秒。",
+   "category": "damage",
+   "tags": [
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Homeguard_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1112,
+   "nameId": "ARAM_UltimateUnstoppable",
+   "name": "终极不可阻挡",
+   "nameEn": "Ultimate Unstoppable",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在你使用你的终极技能后，你获得持续3秒的控制免疫。 (8秒冷却时间)。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/UltimateUnstoppable_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1113,
+   "nameId": "ARAM_SkilledSniper",
+   "name": "老练狙神",
+   "nameEn": "Skilled Sniper",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "用一个非终极技能狙击一个敌人时，返还该技能80%冷却时间(周期性技能返还65%)。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SkilledSniper_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "用一个非终极技能命中一个远处的敌人时，返还该技能80%冷却时间(周期性技能返还65%)。"
+  },
+  {
+   "id": 1115,
+   "nameId": "ARAM_ScopiestWeapons",
+   "name": "最万用的瞄准镜",
+   "nameEn": "Scopiest Weapons",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得额外攻击距离。",
+   "category": "utility",
+   "tags": [
+    "ad",
+    "range"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ScopiestWeapons_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得?攻击距离。"
+  },
+  {
+   "id": 1116,
+   "nameId": "ARAM_Flashy",
+   "name": "闪现向前",
+   "nameEn": "Flashy",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的闪现有3层充能。在120秒后，再次获得所有充能。",
+   "category": "utility",
+   "tags": [
+    "mobility",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Flashy_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1118,
+   "nameId": "ARAM_CriticalHealing",
+   "name": "会心治疗",
+   "nameEn": "Critical Healing",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的治疗和护盾可以暴击，造成40%额外数额的效果。获得 25%暴击几率。",
+   "category": "damage",
+   "tags": [
+    "crit",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/CriticalHealing_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1129,
+   "nameId": "ARAM_Marksmage",
+   "name": "神射法师",
+   "nameEn": "Marksmage",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的攻击造成相当于你75%法术强度的额外物理伤害。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "ap"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Marksmage_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1133,
+   "nameId": "ARAM_MagicMissile",
+   "name": "魔法飞弹",
+   "nameEn": "Magic Missile",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "造成技能伤害会对其发射3个飞弹，每个造成基于飞行距离的百分比最大生命值的真实伤害。",
+   "category": "damage",
+   "tags": [
+    "hp"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/Maps/Particles/Kiwi/MagicMissile_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "造成技能伤害会对其发射3个爆飞弹，每个造成基于飞行距离的百分比最大生命值的真实伤害。"
+  },
+  {
+   "id": 1134,
+   "nameId": "ARAM_DrawYourSword",
+   "name": "亮出你的剑",
+   "nameEn": "Draw Your Sword",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "变为近战状态，并且获得攻击力、生命值、攻击速度、生命偷取和移动速度 (每个属性都基于舍弃的攻击距离而进一步提升)。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "as",
+    "hp",
+    "sustain",
+    "mobility",
+    "range"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/DrawYourSword_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1136,
+   "nameId": "ARAM_SlapAround",
+   "name": "扇巴掌",
+   "nameEn": "Slap Around",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "每当你定身或缚地一个敌人时，获得10适应之力。阵亡时损失50%。",
+   "category": "utility",
+   "tags": [
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SlapAround_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1138,
+   "nameId": "ARAM_Goredrink",
+   "name": "渴血",
+   "nameEn": "Goredrink",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得15%全能吸血。",
+   "category": "utility",
+   "tags": [
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/GoreDrink_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1141,
+   "nameId": "ARAM_AllForYou",
+   "name": "全心为你",
+   "nameEn": "All For You",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的治疗和护盾在用在一个友军身上时会变强。",
+   "category": "defense",
+   "tags": [
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/AllForYou_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1149,
+   "nameId": "ARAM_Impassable",
+   "name": "不动如山",
+   "nameEn": "Impassable",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获余震和冰川增幅基石符文。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Impassable_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得余震和冰川增幅基石符文。"
+  },
+  {
+   "id": 1150,
+   "nameId": "ARAM_BreadAndJam",
+   "name": "面包和果酱",
+   "nameEn": "Bread And Jam",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的【指定技能】获得100技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "你的【?】技能获得100技能急速。"
+  },
+  {
+   "id": 1151,
+   "nameId": "ARAM_BreadAndCheese",
+   "name": "面包和奶酪",
+   "nameEn": "Bread and Cheese",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的【指定技能】获得100技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "你的【?】技能获得100技能急速。"
+  },
+  {
+   "id": 1152,
+   "nameId": "ARAM_Quest_SteelYourHeart",
+   "name": "钢化你心",
+   "nameEn": "Steel Your Heart",
+   "aliases": [
+    "任务：钢化你心"
+   ],
+   "rarity": "gold",
+   "effect": "任务：持有【心之钢】且层数在300层或以上。\n\n奖励：将你的【心之钢】层数乘以3。",
+   "category": "utility",
+   "tags": [
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Quest_SteelYourHeart_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1154,
+   "nameId": "ARAM_Quest_UrfsChampion",
+   "name": "海牛阿福的勇士",
+   "nameEn": "Urf's Champion",
+   "aliases": [
+    "任务：海牛阿福的勇士"
+   ],
+   "rarity": "prismatic",
+   "effect": "需求：参与击杀一定次数。奖励：金铲铲",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Quest_UrfsChampion_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "任务：参与击杀?次。\n\n奖励：金铲铲"
+  },
+  {
+   "id": 1156,
+   "nameId": "ARAM_Quest_WoogletsWitchcap",
+   "name": "沃格勒特的巫师帽",
+   "nameEn": "Wooglet's Witchcap",
+   "aliases": [
+    "任务：沃格勒特的巫师帽"
+   ],
+   "rarity": "prismatic",
+   "effect": "立刻获得一个无用大棒。\n\n任务：持有灭世者的死亡之帽和中娅沙漏。\n\n奖励：获得沃格勒特的巫师帽。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Quest_WoogletsWitchcap_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1170,
+   "nameId": "ARAM_ScopedWeapons",
+   "name": "万用瞄准镜",
+   "nameEn": "Scoped Weapons",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得75攻击距离，如果你是远程英雄则降低至50攻击距离。",
+   "category": "utility",
+   "tags": [
+    "range"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ScopedWeapons_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得?攻击距离。"
+  },
+  {
+   "id": 1180,
+   "nameId": "ARAM_BigBrain",
+   "name": "超强大脑",
+   "nameEn": "Big Brain",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "每拥有1法术强度就会获得3护盾值。阵亡时或耗尽后70秒重置。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/BigBrain_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1181,
+   "nameId": "ARAM_HeavyHitter",
+   "name": "重量级打击手",
+   "nameEn": "Heavy Hitter",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你的攻击造成相当于你3.5%最大生命值的额外物理伤害。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "hp"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/HeavyHitter_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1187,
+   "nameId": "ARAM_Flashbang",
+   "name": "闪光弹",
+   "nameEn": "Flashbang",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你的【闪现】会引发一次爆炸，造成伤害和减速（阵亡时重置）。",
+   "category": "damage",
+   "tags": [
+    "mobility",
+    "cc",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Flashbang_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1194,
+   "nameId": "ARAM_FeyMagic",
+   "name": "精怪魔法",
+   "nameEn": "Fey Magic",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的终极技能的伤害会对敌人造成持续若干秒的变形效果。",
+   "category": "damage",
+   "tags": [
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/FeyMagic_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1195,
+   "nameId": "ARAM_GiantSlayer",
+   "name": "巨人杀手",
+   "nameEn": "Giant Slayer",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "体型变小，获得移动速度，并基于敌方英雄体型大于你的程度获得额外伤害。",
+   "category": "defense",
+   "tags": [
+    "tank",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/GiantSlayer_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1204,
+   "nameId": "ARAM_StackosaurusRex",
+   "name": "叠角龙",
+   "nameEn": "Stackosaurus Rex",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在你获得一个技能的永久层数时，多获得100%！",
+   "category": "utility",
+   "tags": [
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/StackosaurusRex_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1205,
+   "nameId": "ARAM_ADAPt",
+   "name": "物理转魔法",
+   "nameEn": "ADAPt",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "将额外攻击力转化为法术强度。获得15%法术强度。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "ap"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ADAPt_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1206,
+   "nameId": "ARAM_escAPADe",
+   "name": "魔法转物理",
+   "nameEn": "escAPADe",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "将法术强度转化为额外攻击力。获得15%攻击力。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "ap"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Escapade_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1211,
+   "nameId": "ARAM_ItsKillingTime",
+   "name": "杀戮时间到了",
+   "nameEn": "It's Killing Time",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在施放你的终极技能后，标记所有敌人并存储你对他们造成的伤害。当它结束时，引爆该伤害。",
+   "category": "damage",
+   "tags": [
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ItsKillingTime_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1214,
+   "nameId": "ARAM_SpinToWin",
+   "name": "旋转至胜",
+   "nameEn": "Spin To Win",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你的旋转类技能获得30技能急速并且多造成30%伤害。",
+   "category": "damage",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SpinToWin_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "旋转至胜会改变英雄的技能或战斗属性；具体触发技能和数值以游戏内当前 Patch 文本为准。"
+  },
+  {
+   "id": 1220,
+   "nameId": "ARAM_FanTheHammer",
+   "name": "连拨击锤",
+   "nameEn": "Fan The Hammer",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "对敌方英雄的攻击会发射5个额外飞弹，造成随距离提升的额外伤害。每个方向的冷却时间独立计算。",
+   "category": "damage",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/FanTheHammer_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "对敌方英雄的攻击会发射5个额外爆竹，造成随距离提升的额外伤害。每个方向的冷却时间独立计算。"
+  },
+  {
+   "id": 1225,
+   "nameId": "ARAM_DualWield",
+   "name": "双刀流",
+   "nameEn": "Dual Wield",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "在攻击时，发射一个箭矢，它施加效能削减的攻击特效。获得10%总攻击速度。",
+   "category": "damage",
+   "tags": [
+    "as",
+    "onhit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/DualWield_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1237,
+   "nameId": "ARAM_TransmuteGold",
+   "name": "质变：黄金阶",
+   "nameEn": "Transmute: Gold",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得1个随机黄金阶强化符文。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/TransmuteGold_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1238,
+   "nameId": "ARAM_TransmutePrismatic",
+   "name": "质变：棱彩阶",
+   "nameEn": "Transmute: Prismatic",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得1个随机棱彩阶强化符文。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/TransmutePrismatic_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1243,
+   "nameId": "ARAM_TransmuteChaos",
+   "name": "质变：混沌",
+   "nameEn": "Transmute: Chaos",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得2个随机强化符文。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/TransmuteChaos_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1301,
+   "nameId": "ARAM_DivineIntervention",
+   "name": "神圣干预",
+   "nameEn": "Divine Intervention",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "每35秒，自动施放一颗护体星星。在它着陆时，你和附近的友军们进入持续若干秒的免疫伤害状态。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SlowActingPainkillers_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1305,
+   "nameId": "ARAM_LegDay",
+   "name": "练腿日",
+   "nameEn": "Leg Day",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得50移动速度和40%减速抗性。",
+   "category": "utility",
+   "tags": [
+    "mobility",
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/LegDay_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1308,
+   "nameId": "ARAM_Firefox",
+   "name": "火狐",
+   "nameEn": "FireFox",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "自动施放\n获得移动速度并召唤3道烈焰环绕于你，瞄准距离内相距最近的那个可见英雄并造成魔法伤害。",
+   "category": "utility",
+   "tags": [
+    "ap",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Firfox_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1310,
+   "nameId": "ARAM_ClownCollege",
+   "name": "小丑学院",
+   "nameEn": "Clown College",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得召唤师技能欺诈魔术。\n获得背刺被动。\n在你阵亡时，生成一个爆炸盒子来对附近的敌人们造成大量真实伤害和恐惧。",
+   "category": "damage",
+   "tags": [
+    "cc",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ClownCollege_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得召唤师技能欺诈魔术。获得背刺被动。在你阵亡时，对附近的敌人们造成大量真实伤害和恐惧。"
+  },
+  {
+   "id": 1311,
+   "nameId": "ARAM_Overflow",
+   "name": "溢流",
+   "nameEn": "Overflow",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的法力消耗翻倍。\n\n你的技能的治疗效果、护盾效果和伤害获得提升，提升幅度基于你的最大法力值。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "mana"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Overflow_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1314,
+   "nameId": "MightyShield",
+   "name": "强力护盾",
+   "nameEn": "Mighty Shield",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "当你获得护盾时，获得额外适应之力，持续3秒。(5秒冷却时间)",
+   "category": "defense",
+   "tags": [
+    "haste",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/MightyShield_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "当你获得护盾时，获得?适应之力，持续3秒。(5秒冷却时间)"
+  },
+  {
+   "id": 1315,
+   "nameId": "SwiftAndSafe",
+   "name": "快中求稳",
+   "nameEn": "Swift and Safe",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在冲刺或闪烁后，获得护盾值。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SwiftandSafe_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1318,
+   "nameId": "ARAM_Upgrade_ZH",
+   "name": "升级：中娅",
+   "nameEn": "Upgrade Zhonya's",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "【中娅沙漏】的冷却时间降低至45秒。你现在可以在【中娅沙漏】、【探索者的护臂】或【沃格勒特的巫师帽】凝滞状态持续期间移动并获得移动速度。\n\n获得250金币。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "mobility",
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeZH_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1319,
+   "nameId": "ARAM_Upgrade_Immolate",
+   "name": "升级：献祭",
+   "nameEn": "Upgrade Immolate",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "【璀璨回响】和【日炎圣盾】每当有目标受到【献祭】效果影响时，提供12 金币 。获得250金币。",
+   "category": "economy",
+   "tags": [
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeImmolate_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1320,
+   "nameId": "ARAM_Upgrade_Collector",
+   "name": "升级：收集者",
+   "nameEn": "Upgrade Collector",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在每次使用【收集者】的被动处决敌人时，会提升处决阈值，并且提供额外金币。\n获得250金币。",
+   "category": "damage",
+   "tags": [
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeCollector_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1322,
+   "nameId": "ARAM_GetExcited",
+   "name": "罪恶快感",
+   "nameEn": "Get Excited!",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "参与击杀后，在4秒内提升移动速度和攻击速度。",
+   "category": "damage",
+   "tags": [
+    "as",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GetExcited_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1323,
+   "nameId": "ARAM_Cruelty",
+   "name": "残忍",
+   "nameEn": "Cruelty",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "定身或缚地一个英雄时，召唤一颗会在短暂延迟后着陆的彗星，对附近的敌人们造成魔法伤害。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Cruelty_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1324,
+   "nameId": "ARAM_ProteinShake",
+   "name": "蛋白粉奶昔",
+   "nameEn": "Protein Shake",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得一定比例的治疗和护盾强度，基于额外护甲和魔抗。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "tank"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/ProteinShake_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得?%治疗和护盾强度，基于额外护甲和魔抗。"
+  },
+  {
+   "id": 1325,
+   "nameId": "GlassCannon",
+   "name": "玻璃大炮",
+   "nameEn": "Glass Cannon",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "减少30%最大生命值。造成额外真实伤害。",
+   "category": "damage",
+   "tags": [
+    "hp"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GlassCannon_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1326,
+   "nameId": "Nightstalking",
+   "name": "夜狩",
+   "nameEn": "Nightstalking",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在对敌人造成伤害的3秒内参与击杀该敌人会为你提供移动速度并使你进入隐身状态。",
+   "category": "damage",
+   "tags": [
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Nightstalking_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1328,
+   "nameId": "CriticalRhythm",
+   "name": "暴击律动",
+   "nameEn": "Critical Rhythm",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的普攻在暴击时获得可叠加的攻击速度。\n\n获得 25%暴击几率。",
+   "category": "damage",
+   "tags": [
+    "as",
+    "crit",
+    "onhit",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/CriticalRhythm_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1329,
+   "nameId": "BiggestSnowballEver",
+   "name": "史上最大雪球",
+   "nameEn": "Biggest Snowball Ever",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的雪球获得100技能急速。\n\n你的雪球现在变得非常大，并且可以穿过小兵。它会减速， 击飞英雄，并造成额外伤害。\n\n如果你没有雪球，则获得一个雪球。",
+   "category": "damage",
+   "tags": [
+    "haste",
+    "mobility",
+    "cc",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/BiggestSnowballEver_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1331,
+   "nameId": "EmpyreanPromise",
+   "name": "至高天诺言",
+   "nameEn": "Empyrean Promise",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得15%治疗和护盾强度。获得至高天诺言作为一个召唤师技能。警惕。传送至你的友军并在着陆时提供持续3秒的一层护盾。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/EmpyreamPromise_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得15%治疗和护盾强度。获得至高天诺言作为一个召唤师技能。\n\n警惕\n传送至你的友军并在着陆时提供持续3秒的?护盾值。"
+  },
+  {
+   "id": 1332,
+   "nameId": "OminousPact",
+   "name": "不祥契约",
+   "nameEn": "Ominous Pact",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "基于已损失生命值，获得法术强度、移动速度和全能吸血，每次你施放技能时会对自身造成伤害。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "hp",
+    "sustain",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/WisdomOfAges_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1333,
+   "nameId": "EscapePlan",
+   "name": "逃跑计划",
+   "nameEn": "Escape Plan",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在降至35%生命值时，获得巨量持续衰减的护盾、持续衰减的移动速度和持续衰减的缩小效果。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/EscapePlan_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1335,
+   "nameId": "Goldrend",
+   "name": "夺金",
+   "nameEn": "Goldrend",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "用攻击或技能对一个英雄造成伤害时会造成额外魔法伤害，并为你提供金币和 移动速度。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "mobility",
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Goldrend_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1336,
+   "nameId": "ARAM_Upgrade_IE",
+   "name": "升级：无尽之刃",
+   "nameEn": "Upgrade Infinity Edge",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得500金币。\n装备无尽之刃后，可使你的暴击几率在每次攻击都会提供随机的暴击伤害。",
+   "category": "damage",
+   "tags": [
+    "crit",
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeIE_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1337,
+   "nameId": "KingMe",
+   "name": "尊我为王",
+   "nameEn": "King Me",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "当你第一次携带一件传说级装备并乘坐敌人的传送门时，你会加冕为王，升级你的装备并获得一个随机棱彩阶强化符文。",
+   "category": "utility",
+   "tags": [
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/KingMe_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1344,
+   "nameId": "FinalForm",
+   "name": "最终形态",
+   "nameEn": "Final Form",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "在施放你的终极技能时，获得持续10秒的最大生命值护盾、全能吸血和移动速度。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain",
+    "mobility",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/FinalForm_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1345,
+   "nameId": "ARAM_SpiritualPurification",
+   "name": "心灵净化",
+   "nameEn": "Spiritual Purification",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "参与击杀时，产生一次爆炸，对附近其它敌人们造成60%减速，并且造成基于他们当前生命值的伤害。",
+   "category": "damage",
+   "tags": [
+    "hp",
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SpiritualPurification_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1347,
+   "nameId": "Poltergeist",
+   "name": "吵闹鬼",
+   "nameEn": "Poltergeist",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得【吵闹鬼】作为一个召唤师技能。\n\n吵闹鬼会同时施放召唤师技能【屏障】和【幽灵疾步】。",
+   "category": "utility",
+   "tags": [
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Poltergeist_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1348,
+   "nameId": "Flash2",
+   "name": "闪闪现现",
+   "nameEn": "Flash 2",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得第二个【闪现】召唤师技能和70召唤师技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "mobility",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Flash2_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1349,
+   "nameId": "UltimateAwakening",
+   "name": "终极唤醒",
+   "nameEn": "Ultimate Awakening",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得30终极技能急速。\n在施放你的终极技能后，刷新你的所有基础技能并获得持续15秒的300基础技能急速。(20秒冷却时间)",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/ZeroHour_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1353,
+   "nameId": "ARAM_TankEngine",
+   "name": "坦克引擎",
+   "nameEn": "Tank Engine",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "参与击杀时，获得一个层数，使你的体型增大并提升最大生命值。阵亡时损失层数。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "tank",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Tank_Engine_Small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1356,
+   "nameId": "CriticalMissile",
+   "name": "暴击飞弹",
+   "nameEn": "Critical Missile",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "当你暴击时，发射飞弹造成魔法伤害。\n\n获得 25%暴击几率。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "crit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/CriticalMissile_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1358,
+   "nameId": "PinballSnowball",
+   "name": "弹球",
+   "nameEn": "Pinball",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的雪球获得技能急速并且造成额外的真实伤害。\n\n当雪球从墙体上反弹时，它的体型和伤害获得提升，并缩短它的冷却时间。",
+   "category": "damage",
+   "tags": [
+    "haste",
+    "tank",
+    "mobility",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/PinballSnowball_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1361,
+   "nameId": "ARAM_Quest_VoidImmolation",
+   "name": "艾卡西亚的陷落",
+   "nameEn": "Icathia's Fall",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "即刻：获得1个【斑比的熔渣】。\n\n任务：持有日炎圣盾和璀璨回响。\n\n奖励：将这些装备合成为虚空献祭。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Quest_VoidImmolation_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1373,
+   "nameId": "ShrinkEngine",
+   "name": "缩小引擎",
+   "nameEn": "Shrink Engine",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "参与击杀后会让你变小并且获得技能急速和移动速度。\n\n阵亡时损失65%层数。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "mobility",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/ShrinkEngine_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1375,
+   "nameId": "SoulEater",
+   "name": "吞噬灵魂",
+   "nameEn": "Soul Eater",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "吞噬灵魂会改变英雄的技能或战斗属性；具体触发技能和数值以游戏内当前 Patch 文本为准。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SoulEater_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "定身一个敌方英雄时会提供20最大生命值。\n\n如果是你的第二个强化符文，会自带?生命值。"
+  },
+  {
+   "id": 1379,
+   "nameId": "Upgrade_SwordOfBlossom",
+   "name": "升级：花晓之剑",
+   "nameEn": "Upgrade Sword of Blossoming Dawn",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得100%攻击速度。\n\n你对英雄的攻击会使来自【花晓之剑】的治疗效果提升250%。",
+   "category": "damage",
+   "tags": [
+    "as",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeMikaelsBlessing_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1384,
+   "nameId": "Donation",
+   "name": "捐赠",
+   "nameEn": "Donation",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得1750金币。无需多问。",
+   "category": "economy",
+   "tags": [
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Donation_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1386,
+   "nameId": "YouSpinMeRightRound",
+   "name": "转得我眩晕了",
+   "nameEn": "Spin Me Right Round",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "将一个召唤师技能替换为骄行荡寇。\n\n骄行荡寇发射一根钩爪，吸附在地形上，在此之后，你可以再次施放来绕着它摆荡。在摆荡状态下，自动攻击相距最近的那个敌人。在与一个敌方英雄碰撞或再次施放时结束摆荡。",
+   "category": "utility",
+   "tags": [
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/YouSpinMeRightRound_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1388,
+   "nameId": "InfiniteRecursion",
+   "name": "无限循环往复",
+   "nameEn": "Infinite Recursion",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得60技能急速，外加每次参与击杀3技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/InfiniteRecursion_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1389,
+   "nameId": "HandOfBaron",
+   "name": "男爵之手",
+   "nameEn": "Hand of Baron",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得25%适应之力。附近友方小兵都获得极大增强。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/HandofBaron_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1390,
+   "nameId": "ARAM_PhenomenalEvil",
+   "name": "超凡邪恶",
+   "nameEn": "Phenomenal Evil",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在你用技能对敌人造成伤害时永久获得1法术强度。\n\n如果是作为你的第二个强化符文，则自带40法术强度。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/ARAM_PhenomenalEvil_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1392,
+   "nameId": "GoldenSnowball",
+   "name": "神圣雪球",
+   "nameEn": "Holy Snowball",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "雪球获得100技能急速。\n\n你在用【雪球】冲刺后短暂免疫伤害。\n\n如果你没有雪球，获得一个雪球。",
+   "category": "damage",
+   "tags": [
+    "haste",
+    "mobility",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GoldenSnowball_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1401,
+   "nameId": "GrowthSpurt",
+   "name": "生机迸发",
+   "nameEn": "Growth Spurt",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得生机迸发作为一个召唤师技能。\n\n生机迸发会猛然提升你的体型，击飞附近的敌人们并提供最大生命值。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "tank",
+    "cc",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GrowthSpurt_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1402,
+   "nameId": "ARAM_StatsOnStatsOnStats",
+   "name": "属性叠属性叠属性！",
+   "nameEn": "Stats on Stats on Stats!",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得4个【属性锻造器】，有更高几率出现黄金阶和棱彩阶锻造器！\n\n在你的下一次强化符文选取时，每个栏位获得一次额外的刷新。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/StatsOnStatsOnStats_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1403,
+   "nameId": "ARAM_StatsOnStats",
+   "name": "属性叠属性！",
+   "nameEn": "Stats on Stats!",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得3个【属性锻造器】，有更高几率出现黄金阶和棱彩阶锻造器！",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/StatsOnStats_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1404,
+   "nameId": "ARAM_Stats",
+   "name": "属性！",
+   "nameEn": "Stats!",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得2个【属性锻造器】！",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Stats_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1413,
+   "nameId": "ARAM_StuckInHereWithMe",
+   "name": "和我一起困在这里",
+   "nameEn": "Stuck In Here With Me",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "使用你的终极技能时会嘲讽附近的敌人们并提供给你伤害减免。\n\n获得30终极技能急速。",
+   "category": "damage",
+   "tags": [
+    "haste",
+    "tank",
+    "cc",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/StuckInHereWithMe_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1415,
+   "nameId": "Twinfire",
+   "name": "双生火焰",
+   "nameEn": "Twin Fire",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "造成技能伤害时，发射多枚飞弹，每个造成魔法伤害。此外，获得25%暴击几率。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "crit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/TwinFire_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "造成技能伤害时，发射1+?个飞弹，每个造成?魔法伤害。\n\n此外，获得25%暴击几率。"
+  },
+  {
+   "id": 1416,
+   "nameId": "HextechSoul",
+   "name": "海克斯科技龙魂",
+   "nameEn": "Hextech Soul",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "周期性地使你的下一个伤害型技能或攻击触发一道闪电爆裂，连锁穿过敌人以造成伤害和减速。",
+   "category": "damage",
+   "tags": [
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/InfernalSoul_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1420,
+   "nameId": "Sonata",
+   "name": "咏叹奏鸣",
+   "nameEn": "Sonata",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "每10秒，以一个不断交替的旋律来自动施放坚毅咏叹调和迅捷奏鸣曲。\n\n坚毅咏叹调治疗附近友军并提供一个临时的护盾光环。\n\n迅捷奏鸣曲提供一个临时光环来提供额外移动速度。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Sonata_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1421,
+   "nameId": "PromQueen",
+   "name": "舞会女王",
+   "nameEn": "Prom Queen",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "每35秒，自动施放一道闪亮宝冠降临在你头上。当它着陆时，获得洛的终极技能，魅惑你碰到的敌人们。",
+   "category": "utility",
+   "tags": [
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/PromQueen_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 1996,
+   "nameId": "ARAM_Upgrade_Sheen",
+   "name": "升级：耀光",
+   "nameEn": "Upgrade Sheen",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的咒刃效果造成额外伤害并治疗你自身，治疗量相当于目标生命值的一定百分比。此外，获得250金币。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeSheen_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2004,
+   "nameId": "ARAM_EmpoweredByTheFaithful",
+   "name": "信念者的强化",
+   "nameEn": "Empowered By The Faithful",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "为友军提供治疗或护盾会赐福他们，使其伤害填充你的虔诚。\n\n当你拥有足够的虔诚时，释放一道冲击波来造成魔法伤害并处决低生命值的敌人们。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "hp",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/EmpoweredByTheFaithful_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2005,
+   "nameId": "ARAM_InfernoTriggered",
+   "name": "扳机炼狱",
+   "nameEn": "Triggered Inferno",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得悍勇本色。在你达到S评价等级时，自动使用炼狱扳机。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/MadScientist_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2006,
+   "nameId": "ARAM_Dropkick",
+   "name": "飞身踢",
+   "nameEn": "Dropkick",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的攻击和技能会处决低生命值的敌方英雄，从而击退并引发一次爆炸，同时治疗你自身。",
+   "category": "defense",
+   "tags": [
+    "hp"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Dropkick_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2009,
+   "nameId": "ARAM_Zealot",
+   "name": "狂热者",
+   "nameEn": "Zealot",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得额外暴击几率和额外攻击速度（随法术强度变化）。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "ap",
+    "as",
+    "crit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Zealot_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得?暴击几率和?攻击速度（随法术强度变化）。"
+  },
+  {
+   "id": 2010,
+   "nameId": "ARAM_DoubleTap",
+   "name": "双发快射",
+   "nameEn": "Double Tap",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的暴击施加一次额外的攻击特效。获得 额外暴击几率。",
+   "category": "damage",
+   "tags": [
+    "crit",
+    "onhit"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/DualWield_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "你的暴击施加一次额外的攻击特效。\n\n获得 ?暴击几率。"
+  },
+  {
+   "id": 2016,
+   "nameId": "ARAM_Juiced",
+   "name": "注魔",
+   "nameEn": "Juiced",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "攻击特效消耗法力值以造成魔法伤害，这个伤害可以暴击。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "crit",
+    "onhit",
+    "mana"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Juiced_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2018,
+   "nameId": "ARAM_Purist_Caster",
+   "name": "纯粹主义者 - 术师",
+   "nameEn": "Purist - Caster",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得百分比冷却缩减并将你的所有攻击速度转化为技能急速。",
+   "category": "utility",
+   "tags": [
+    "as",
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/PuristCaster_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2024,
+   "nameId": "CritNCast",
+   "name": "由暴生急",
+   "nameEn": "Crit 'n Cast",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得相当于你40%暴击几率的技能急速。",
+   "category": "damage",
+   "tags": [
+    "crit",
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/CritnCast_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2026,
+   "nameId": "KillSecured",
+   "name": "杀意翻涌",
+   "nameEn": "Kill Secured",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "在朝着低生命值的敌人时，获得额外移动速度。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/KillSecure_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2031,
+   "nameId": "ARAM_DropBear",
+   "name": "空投熊",
+   "nameEn": "DropBear",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "阵亡时，一个具有你所有强化符文的巨大提伯斯从天而降并伤害附近的敌人们。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Drop_Bear_Small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2032,
+   "nameId": "FishBait",
+   "name": "鲨鱼诱饵",
+   "nameEn": "Shark Bait",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在阵亡之后的若干秒，一头鲨鱼会啃噬所有附近的敌人们。你可以在阵亡后进行移动，以给鲨鱼攻击进行定位。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/FishBait_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2034,
+   "nameId": "SharkTempest",
+   "name": "鲨鱼暴风",
+   "nameEn": "Shark Tempest",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "鲨鱼们环绕着你的【雪球】，对附近的敌人们造成伤害和减速。当你的【雪球】命中一个英雄时，其会陷入一阵鲨鱼风暴之中！",
+   "category": "damage",
+   "tags": [
+    "mobility",
+    "cc",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SharkTempest_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2042,
+   "nameId": "BrushPower",
+   "name": "藏身草丛",
+   "nameEn": "Hide on Bush",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在进入草丛后，多造成20%伤害，持续2秒。留在草丛中会刷新这个效果。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/BrushPower_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2043,
+   "nameId": "NatureIsHealing",
+   "name": "自然即是治愈",
+   "nameEn": "Nature is Healing",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "进入草丛时回复大量生命值。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/NatureIsHealing_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2046,
+   "nameId": "PoroCharge_Active",
+   "name": "魄罗蛮冲",
+   "nameEn": "Poro Stampede",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "任务：收集【魄罗佳肴】并投喂一定数量的魄罗。奖励：获得【魄罗冲锋】召唤师技能，可让魄罗们对敌方队伍发动几波攻势。每任务等级都会解锁额外的波次。“噢吼！它们可真萌啊！”——魄罗驯养人",
+   "category": "utility",
+   "tags": [
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/QuestPoroCharge_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "任务：收集【魄罗佳肴】并投喂?只魄罗\n\n奖励：获得【魄罗冲锋】召唤师技能，可让魄罗们对敌方队伍发动几波攻势。每任务等级都会解锁额外的波次。\n\n“噢吼！它们可真萌啊！”——魄罗驯养人"
+  },
+  {
+   "id": 2054,
+   "nameId": "SpellVolley",
+   "name": "三重射击",
+   "nameEn": "Tripleshot",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的【指定技能】会瞄准你前方2个额外的敌人。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Prismatic.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "你的【?】技能会瞄准你前方2个额外的敌人。"
+  },
+  {
+   "id": 2055,
+   "nameId": "ARAM_Multishot",
+   "name": "多重射击",
+   "nameEn": "Multishot",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "任务：用【指定技能】命中敌方英雄一定次数。奖励：发射数量基于任务等级的额外飞弹。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Prismatic.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "任务：用【?】技能命中敌方英雄?次。\n\n奖励：发射数量基于任务等级的额外飞弹。"
+  },
+  {
+   "id": 2062,
+   "nameId": "Ability_SelfAOE_DoubleCast",
+   "name": "回响施放",
+   "nameEn": "Echo Cast",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "施放你的【指定技能】时会朝你的鼠标位置派出一个复制体并再次施放该技能。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Prismatic.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "施放你的【?】技能时会朝你的鼠标位置派出一个复制体并再次施放该技能。"
+  },
+  {
+   "id": 2063,
+   "nameId": "DimensionShift_Active",
+   "name": "位面转移",
+   "nameEn": "Dimension Shift",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "获得当黑暗到来召唤师技能。生成一个地带来将它其中的所有人传送到另一个位面。",
+   "category": "utility",
+   "tags": [
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/WhenTheDarknessComes_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2064,
+   "nameId": "ARAM_Quickstep",
+   "name": "快步",
+   "nameEn": "Quickstep",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "当你使用【指定技能】时，朝你的鼠标指针进行冲刺。",
+   "category": "utility",
+   "tags": [
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "当你使用【?】技能时，朝你的鼠标指针进行冲刺。"
+  },
+  {
+   "id": 2065,
+   "nameId": "ARAM_Terror",
+   "name": "惊惧",
+   "nameEn": "Terror",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "每当你施放【指定技能】时，恐惧你周围的敌人们.",
+   "category": "utility",
+   "tags": [
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Desecrator_large.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "每当你施放【?】技能时，恐惧你周围的敌人们."
+  },
+  {
+   "id": 2072,
+   "nameId": "Missile_Split",
+   "name": "咒语裂变",
+   "nameEn": "Spell Split",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "在命中时、最大距离时或再次施放时，你的【指定技能】的飞弹会分裂为两部分。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Prismatic.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "在命中时、最大距离时或再次施放时，你的【?】技能的飞弹会分裂为两部分。"
+  },
+  {
+   "id": 2073,
+   "nameId": "ARAM_SustainingStrike",
+   "name": "虹吸",
+   "nameEn": "Siphon",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "用【指定技能】伤害敌方英雄时会治疗你。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Silver.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "用【?】技能伤害敌方英雄时会治疗你。"
+  },
+  {
+   "id": 2076,
+   "nameId": "TitansPulse",
+   "name": "保持坚定",
+   "nameEn": "Stay Resolute",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "当【指定技能】对敌方英雄造成伤害时，获得额外护甲和魔法抗性。",
+   "category": "defense",
+   "tags": [
+    "tank"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Silver.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "当【?】技能对敌方英雄造成伤害时，获得?护甲和魔法抗性。"
+  },
+  {
+   "id": 2077,
+   "nameId": "DarkWind",
+   "name": "贪欲束缚",
+   "nameEn": "Ravenous Bind",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "用你的【指定技能】定身或缚地敌方英雄时造成额外伤害并对你进行治疗。",
+   "category": "damage",
+   "tags": [
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeHubris_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "用你的【?】技能定身或缚地敌方英雄时造成额外伤害并对你进行治疗。"
+  },
+  {
+   "id": 2078,
+   "nameId": "ChainReaction",
+   "name": "连锁反应",
+   "nameEn": "Chain Reaction",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "如果一个被【指定技能】击退的目标命中了另一个英雄，则二者都会被击飞并受到伤害。在与地形产生碰撞时，该击飞时长会延长并且他们会受到额外伤害。",
+   "category": "damage",
+   "tags": [
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "如果一个被【?】技能击退的目标命中了另一个英雄，则二者都会被击飞并受到伤害。在与地形产生碰撞时，该击飞时长会延长并且他们会受到额外伤害。"
+  },
+  {
+   "id": 2080,
+   "nameId": "Snowbomb",
+   "name": "冰雪爆裂",
+   "nameEn": "Snowblast",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "再次施放雪球会造成提升伤害、击飞该目标、并击退附近的敌人们。",
+   "category": "damage",
+   "tags": [
+    "mobility",
+    "cc",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Snowbomb_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2082,
+   "nameId": "Equilibrium",
+   "name": "我们的治疗",
+   "nameEn": "Our Healing",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "每当你周围的某人进行治疗时，你获得相当于其15%治疗效果的治疗效果。从敌方治疗中获得双倍。",
+   "category": "defense",
+   "tags": [
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Equillibrium_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2083,
+   "nameId": "BurstingTeeth",
+   "name": "牙仙子",
+   "nameEn": "Tooth Fairy",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "爆裂敌人会掉落牙齿。拾取牙齿会提供给你永久的穿甲和法术穿透。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "ap"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/QuestBurstingTeeth_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2087,
+   "nameId": "ARAM_Archmage",
+   "name": "大法师",
+   "nameEn": "Archmage",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "施放一个技能会返还另一个随机技能的花费，数额相当于30%原技能冷却时间。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Eureka_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2088,
+   "nameId": "ARAM_Snowday",
+   "name": "下雪天",
+   "nameEn": "Snowday",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你的【雪球】获得100技能急速。在命中一名敌人时造成额外魔法伤害。如果你没有【雪球】，则获得一个【雪球】。",
+   "category": "damage",
+   "tags": [
+    "ap",
+    "haste",
+    "mobility",
+    "summoner"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Snowday_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2089,
+   "nameId": "ARAM_YowchMyCoins",
+   "name": "哎哟，我的硬币！",
+   "nameEn": "Yowch, My Coins!",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在参与击杀敌方英雄后，该英雄会在附近掉落多枚硬币，你和友军可以收集它们。每枚硬币价值15金币。",
+   "category": "economy",
+   "tags": [
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/YouchMyCoins_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2091,
+   "nameId": "EndlessDecimation",
+   "name": "无尽大杀四方",
+   "nameEn": "Endless Decimation",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在战斗状态下，自动施放一次环形斧头挥舞从而造成物理伤害。被斧刃命中的敌人们受到额外伤害并治疗你。",
+   "category": "damage",
+   "tags": [
+    "ad"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/EndlessDecimate_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2095,
+   "nameId": "ARAM_HighRoller",
+   "name": "掷骰狂人",
+   "nameEn": "High Roller",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "附近敌人在阵亡时有几率掉落【属性锻造器】。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/HighRoller_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2096,
+   "nameId": "LittleExtraHelp",
+   "name": "小小的额外帮助",
+   "nameEn": "Lil' Extra Help",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在你的【指定技能】持续期间获得额外攻击距离和额外攻击速度。",
+   "category": "damage",
+   "tags": [
+    "ad",
+    "as",
+    "range"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "在你的【?】技能持续期间获得?攻击距离和?攻击速度。"
+  },
+  {
+   "id": 2098,
+   "nameId": "ARAM_EndlessHunt",
+   "name": "吃过路兵",
+   "nameEn": "En Passant",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "周期性地识别出敌方英雄身上的破绽。 用攻击或技能命中它们时，会造成最大生命值真实伤害、回复生命值并提供移动速度。这些效果可以叠加。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain",
+    "mobility",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Dashing_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "周期性地识别出敌方英雄身上的破绽。用攻击或技能命中破绽时，会造成最大生命值真实伤害、回复生命值并提供移动速度。这些效果可以叠加。"
+  },
+  {
+   "id": 2099,
+   "nameId": "ARAM_DivineDomain",
+   "name": "飞升仪式",
+   "nameEn": "Rite of Ascension",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "参与击杀敌方英雄后会留下其精华。攻击该精华会提供移动速度并重置基础技能冷却时间。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GlassCannon_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2100,
+   "nameId": "ARAM_SpecializedRecursion",
+   "name": "急速之追求",
+   "nameEn": "Pursuit of Haste",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "任务：用【指定技能】命中敌方英雄一定次数。奖励：【指定技能】获得技能急速，基于任务等级逐步提升。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "任务：用【?】技能命中敌方英雄?次\n\n奖励：【?】技能获得技能急速，基于任务等级，至多至?。"
+  },
+  {
+   "id": 2102,
+   "nameId": "PressureCooker",
+   "name": "高压锅",
+   "nameEn": "Pressure Cooker",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "每一秒，对附近的敌方英雄们施加一层可叠加的灼烧，这个效果受益于你的最大生命值。\n\n任务：对敌方英雄造成灼烧伤害\n\n奖励：提升【高压锅】的规模和伤害，基于任务等级。",
+   "category": "damage",
+   "tags": [
+    "hp",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/QuestPressureCooker_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "每一秒，对附近的敌方英雄们施加一层可叠加的灼烧，这个效果受益于你的最大生命值。任务：对敌方英雄造成灼烧伤害。奖励：每任务等级都会提升体型和伤害。"
+  },
+  {
+   "id": 2103,
+   "nameId": "ARAM_BangBang",
+   "name": "狙神飞星",
+   "nameEn": "From Downtown",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "任务：用技能狙击一定数量的敌方英雄。奖励：一颗流星会飞向被狙击的敌方英雄，在其周围的一个区域内造成魔法伤害",
+   "category": "damage",
+   "tags": [
+    "ap"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/QuestBangBang_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "任务：用技能狙击?个敌方英雄\n\n奖励：一颗流星会飞向被狙击的敌方英雄，在其周围的一个区域内造成魔法伤害"
+  },
+  {
+   "id": 2104,
+   "nameId": "ARAM_SpiritBomb",
+   "name": "灵魄炸弹",
+   "nameEn": "Spirit Bomb",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "为友方英雄提供治疗和护盾时会为你积攒一颗【灵魄炸弹】。在满层时，投掷该炸弹至生命值最低的那个友军，从而对其和附近友军们提供治疗和护盾。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SpiritBomb_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2107,
+   "nameId": "ARAM_Hellbent",
+   "name": "濒死悟道",
+   "nameEn": "Hellbent",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "用攻击或技能伤害敌方英雄时会提供层数。在满层时，你在阵亡时会进行强化复活。",
+   "category": "damage",
+   "tags": [
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Hellbent_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "用攻击或技能伤害敌方英雄时会提供层数。在满层时，你会在阵亡时进行复活强化。"
+  },
+  {
+   "id": 2111,
+   "nameId": "Bonk",
+   "name": "邦！",
+   "nameEn": "BONK!",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "被【指定技能】强化的攻击或技能会对目标和附近的敌人们造成额外伤害。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Bonk_large.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "被【?】技能强化的攻击或技能会对目标和附近的敌人们造成额外伤害。"
+  },
+  {
+   "id": 2115,
+   "nameId": "SquishySlappyGrab",
+   "name": "软弹啪叽抓",
+   "nameEn": "Squishy Slappy Grab",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "偶尔对所有附近的敌方英雄放出软弹啪叽的手，然后用灵链系住。你的下次攻击将拉拽所有被系住的敌人。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SquishySlappyGrab_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2116,
+   "nameId": "SpecializedEmpowerment",
+   "name": "威能之追求",
+   "nameEn": "Pursuit of Power",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "任务：用【指定技能】命中敌人一定次数。奖励：永久提升【指定技能】伤害。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Marksmage_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "任务：用【?】技能命中敌人?次。\n\n奖励：永久提升【?】技能伤害。"
+  },
+  {
+   "id": 2118,
+   "nameId": "SkipTheBasics",
+   "name": "大招工具人",
+   "nameEn": "Ult Bot",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "你的技能急速仅作用于终极技能，但效果多50%。获得100技能急速。",
+   "category": "utility",
+   "tags": [
+    "haste",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SkipTheBasic_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2119,
+   "nameId": "Overextender",
+   "name": "过量延伸者",
+   "nameEn": "Overextender",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "回城并进入到你的加农炮发射器。它的距离、飞行速度和伤害已经得到显著提升。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Overextender_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "回城并进入到你的加农炮发射器。它的范围、飞行速度和伤害已经得到显著提升。"
+  },
+  {
+   "id": 2123,
+   "nameId": "Overloaded",
+   "name": "超负荷",
+   "nameEn": "Overloaded",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "使用另一个技能会重置【指定技能】的冷却时间。",
+   "category": "utility",
+   "tags": [
+    "haste"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Prismatic.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "使用另一个技能会重置【?】技能的冷却时间。"
+  },
+  {
+   "id": 2125,
+   "nameId": "ItsGoTime",
+   "name": "前进时间到",
+   "nameEn": "It's Go Time",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "激活【指定技能】会在其持续期间为你提供移动速度。",
+   "category": "utility",
+   "tags": [
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Silver.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "激活【?】技能会在其持续期间为你提供移动速度。"
+  },
+  {
+   "id": 2127,
+   "nameId": "ForgedByTheMaster",
+   "name": "大师铸就",
+   "nameEn": "Forged By The Master",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "使你的装备和强化符文造成的伤害获得提升。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/ForgedByTheMaster_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "使你的装备和强化符文伤害提升?。"
+  },
+  {
+   "id": 2128,
+   "nameId": "BloodMoneyBurn",
+   "name": "炽燃利息",
+   "nameEn": "Combusting Interest",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "英雄身上的灼烧和持续伤害会生成金币。",
+   "category": "damage",
+   "tags": [
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/BloodMoney2_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2129,
+   "nameId": "Terraind",
+   "name": "地形专家",
+   "nameEn": "Terrain'd",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你的【指定技能】会在它周围的一个区域内造成伤害。",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/LightningStrikes_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "你的【?】技能会在它周围的一个区域内造成伤害。"
+  },
+  {
+   "id": 2131,
+   "nameId": "DontChangeTheChannel",
+   "name": "别停止引导",
+   "nameEn": "Don't Change the Channel",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "你每引导一秒都会获得护盾值。",
+   "category": "defense",
+   "tags": [
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/DontChangeTheChannel_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  },
+  {
+   "id": 2132,
+   "nameId": "WarlockJuicebox",
+   "name": "术士果汁盒",
+   "nameEn": "Warlock Juicebox",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "获得额外全能吸血。",
+   "category": "utility",
+   "tags": [
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/WarlockJuicebox_small.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "获得?全能吸血。"
+  },
+  {
+   "id": 2133,
+   "nameId": "MercysStrike",
+   "name": "仁慈打击",
+   "nameEn": "Mercy's Strike",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "在使用【指定技能】为你的友军提供治疗或护盾之后，你的下一次普攻获得攻击距离、攻击速度并造成额外最大生命值魔法伤害。",
+   "category": "defense",
+   "tags": [
+    "ap",
+    "as",
+    "onhit",
+    "hp",
+    "sustain",
+    "range"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png",
+   "verified": false,
+   "effectSource": "hexdata.com.cn",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ],
+   "conflicts": [
+    "effect"
+   ],
+   "effectAlt": "在使用【?】技能为你的友军提供治疗或护盾之后，你的下一次普攻获得攻击距离、攻击速度并造成额外最大生命值魔法伤害。"
+  },
+  {
+   "id": 2134,
+   "nameId": "SurgeField",
+   "name": "电涌力场",
+   "nameEn": "Surge Field",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "在施放终极技能时，在你周围生成一个地带来提供技能急速和移动速度。在其中时，它会发射飞弹，飞弹造成相当于你造成的20%伤害。",
+   "category": "damage",
+   "tags": [
+    "haste",
+    "mobility",
+    "ultimate"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SurgeField_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2135,
+   "nameId": "Overkill",
+   "name": "针插垫",
+   "nameEn": "Pin Cushion",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "在【?】技能期间进行攻击会对你的目标凿下大钉。大钉会积累伤害、处决、并在到期时提供移动速度。",
+   "category": "damage",
+   "tags": [
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SymphonyOfWar_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2136,
+   "nameId": "TrustyWeapon",
+   "name": "可靠武器",
+   "nameEn": "Trusty Weapon",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "用【?】技能打击敌方英雄时会铸造一条友谊纽带。\n\n【?】技能基于你的友谊等级获得到临时提升伤害",
+   "category": "damage",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Silver.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2137,
+   "nameId": "PatOnTheBack",
+   "name": "轻拍背部",
+   "nameEn": "Pat On The Back",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "友军会在你走过时鼓励你，为你提供护盾和移动速度。",
+   "category": "defense",
+   "tags": [
+    "sustain",
+    "mobility"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/PatOnTheBack_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2138,
+   "nameId": "WardingWeapon",
+   "name": "自适应防护",
+   "nameEn": "Adaptive Ward",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "用【?】技能打击一个敌方英雄时，为你提供持续6秒的?护甲或魔法抗性，基于该技能的伤害类型。这个效果可以叠加。",
+   "category": "defense",
+   "tags": [
+    "tank",
+    "stack"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Silver.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2139,
+   "nameId": "PinCushion",
+   "name": "豪猪",
+   "nameEn": "Porcupine",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "承受来自英雄的伤害会积攒一次尖针迸发，这些尖针会从你身上飞出，对附近的敌人们造成伤害和减速。",
+   "category": "damage",
+   "tags": [
+    "cc"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/PinCushion_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2140,
+   "nameId": "Upgrade_Ravenous",
+   "name": "升级：贪欲九头蛇",
+   "nameEn": "Upgrade Ravenous Hydra",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "你对敌人的技能命中会触发顺劈。提升【贪欲九头蛇】的生命偷取至?。\n\n获得500金币.",
+   "category": "economy",
+   "tags": [
+    "sustain",
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeSheen_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2141,
+   "nameId": "Quest_UltraHydra",
+   "name": "终极九头蛇",
+   "nameEn": "Ultra Hydra",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "在完成一个【九头蛇】装备时，获得一个提亚马特。\n\n任务：拥有巨型九头蛇，贪欲九头蛇和亵渎九头蛇。\n\n奖励：获得【终极九头蛇】",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UltraHydra_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2143,
+   "nameId": "Upgrade_SunderedSky",
+   "name": "升级：焚天",
+   "nameEn": "Upgrade Sundered Sky",
+   "aliases": [],
+   "rarity": "gold",
+   "effect": "将【焚天】对每个目标的冷却时间缩短至?秒，并且治疗你?已损失生命值。\n\n获得?金币。",
+   "category": "defense",
+   "tags": [
+    "haste",
+    "hp",
+    "economy"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeIE_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2144,
+   "nameId": "DoubleDefense",
+   "name": "加固护盾",
+   "nameEn": "Bolstered",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "来自【?】技能的护盾变得更强并且受益于目标的已损失生命值。",
+   "category": "defense",
+   "tags": [
+    "hp",
+    "sustain"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Silver.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 2157,
+   "nameId": "Upgrade_DeathDance",
+   "name": "升级：死亡之舞",
+   "nameEn": "Upgrade Death's Dance",
+   "aliases": [],
+   "rarity": "silver",
+   "effect": "获得 ?。\n\n你所受的?伤害会在周期内持续扣除。\n在参与一次击杀后，即刻治疗更多生命值。",
+   "category": "defense",
+   "tags": [
+    "hp"
+   ],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeDeathDance_small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com"
+   ]
+  },
+  {
+   "id": 12317,
+   "nameId": "ARAM_PandorasBox",
+   "name": "潘朵拉的盒子",
+   "nameEn": "Pandora's Box",
+   "aliases": [],
+   "rarity": "prismatic",
+   "effect": "将你的所有强化符文变为随机的棱彩阶强化符文。",
+   "category": "utility",
+   "tags": [],
+   "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Pandoras_Box_Small.png",
+   "verified": false,
+   "effectSource": "aramgg.com",
+   "sources": [
+    "communitydragon",
+    "aramgg.com",
+    "hexdata.com.cn"
+   ]
+  }
+ ]
+}

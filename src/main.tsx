@@ -1,6 +1,7 @@
 import React, {useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {invoke,isTauri} from '@tauri-apps/api/core';
+import {emit,listen} from '@tauri-apps/api/event';
 import {applySnapshot,blockers,newSession,phaseLabel,resultLabel,type Session,type CollectorSnapshot,type Recommendation,type Review} from './domain';
 import './style.css';
 import './comfort.css';
@@ -11,10 +12,16 @@ import {SaveQueue} from './saveQueue';
 import './knowledge.css';
 import {KnowledgePanel} from './KnowledgePanel';
 import {previewSession} from './preview';
+import {nextTriggers,ownLevel,type TriggerState} from './level';
+import {OverlayApp} from './OverlayApp';
 type KnowledgeResult={documents:{path:string;title:string;content:string;hash:string}[];missing:string[];warnings:string[];fingerprint:string};
 type StorageStats={databaseBytes:number;sessionCount:number;sampleCount:number;budgetMb:number;retentionDays:number;budgetReached?:boolean};
 type ModelConfig={provider?:'jev'|'openai';baseUrl:string;name:string;jsonMode?:boolean;maxTokens?:number};
 type Diagnostics={entries:{at:string;level:string;event:string;message:string}[];logDirectory:string;dataDirectory:string};
+export type OcrLine={text:string;score:number;x:number;y:number;width:number;height:number};
+export type ScoredCandidate={id:string;name:string;description:string;rarity:string;category:string;score:number;reason:string;risks:string[]};
+export type OcrScan={lines:OcrLine[];candidates:ScoredCandidate[];elapsedMs:number;source:string;model:string};
+export type ScoreResult={ranking:ScoredCandidate[];summary:string;profile?:{champion?:string;role?:string;ranged?:boolean|null;damage?:string}};
 function App(){
  const [session,setSession]=useState<Session>(newSession), [history,setHistory]=useState<Session[]>([]),[archivePage,setArchivePage]=useState(0);const archiveOffset=useRef(0);
  const current=useRef(session); const activeSession=useRef<Session|null>(null); const commit=(s:Session)=>{current.current=s;setSession(s);};
@@ -28,8 +35,30 @@ function App(){
  const [auto,setAuto]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[view,setView]=useState('live');
  const [snapshot,setSnapshot]=useState<CollectorSnapshot|null>(null),[diag,setDiag]=useState<Diagnostics|null>(null),[saved,setSaved]=useState('尚未保存');
  const [historical,setHistorical]=useState(false);const reading=useRef(false),epoch=useRef(0),lastSaved=useRef(0),busyRef=useRef(false);const writeQueue=useRef<Promise<unknown>>(Promise.resolve());const saver=useRef(new SaveQueue<Session>(value=>invoke('save_session',{session:value})));
- const config=useRef({lockfile,auto,historical,view});config.current={lockfile,auto,historical,view};const nextPoll=useRef(0),idleFailures=useRef(0);
- useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[model]);
+ const config=useRef({lockfile,auto,historical,view});config.current={lockfile,auto,historical,view};const nextPoll=useRef(0),idleFailures=useRef(0);const trigger=useRef<TriggerState>({matchId:'',fired:[]});
+ const notifyOverlay=(level:number)=>{
+  if(!isTauri())return;
+  void invoke('overlay_open',{level})
+   .then(()=>invoke<OcrScan>('ocr_scan',{}))
+   .then(scan=>{void emit('overlay:ocr',{level,scan});})
+   .catch(error=>{void emit('overlay:ocr',{level,error:String(error)});});
+ };
+ useEffect(()=>{
+  if(!isTauri())return;
+  let active=true;const stops:(()=>void)[]=[];
+  void listen<{level:number;scan?:OcrScan;error?:string}>('overlay:ocr',(event)=>{
+   if(!active)return;
+   const payload=event.payload||{};const matched=payload.scan?.candidates||[];
+   if(matched.length<2)return;
+   patch({candidates:matched.slice(0,3).map(c=>({id:c.id,name:c.name,description:c.description}))});
+   const own=current.current.players.find(p=>p.id===current.current.ownPlayerId);
+   void invoke<ScoreResult>('score_candidates',{ids:matched.map(c=>c.id),champion:own?.champion||null,level:payload.level??null,owned:own?.augments||[]})
+    .then(ranking=>{void emit('overlay:scored',{level:payload.level,ranking});})
+    .catch(()=>undefined);
+  }).then(unlisten=>{if(active)stops.push(unlisten);else unlisten();}).catch(()=>undefined);
+  return ()=>{active=false;stops.forEach(stop=>stop());};
+ },[]);
+useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[model]);
  useEffect(()=>{localStorage.setItem('hexlens-lockfile',lockfile);},[lockfile]);
  const refreshHistory=async()=>{const items=await invoke<Session[]>('list_sessions_light',{offset:archiveOffset.current*50});setHistory(items);return items;};
  const logs=async()=>setDiag(await invoke<Diagnostics>('diagnostics'));
@@ -46,7 +75,8 @@ function App(){
    if(!snap.liveData&&!snap.gameId&&!previous.players.length)return; // idle: no knowledge/history DB load
    // Recover this exact identified game after restarting the assistant; never guess by hero/name.
    if(!previous.players.length&&!previous.matchId&&snap.gameId){const match=await invoke<Session|null>('get_session_by_match',{matchId:String(snap.gameId)});if(ticket!==epoch.current)return;if(match)base=match;}
-   const applied=applySnapshot(base,snap);commit(applied.session);
+    const applied=applySnapshot(base,snap);commit(applied.session);
+    const levelStep=nextTriggers(trigger.current,applied.session.matchId,ownLevel(applied.session.liveData));trigger.current=levelStep.state;levelStep.fired.forEach(notifyOverlay);
    if(applied.completed)await save(applied.completed);
    if(ticket!==epoch.current||current.current.id!==applied.session.id)return;
    if((applied.session.players.length||applied.session.matchId)&&(!!applied.completed||Date.now()-lastSaved.current>60000||previous.phase!==applied.session.phase||previous.result?.status!==applied.session.result?.status))await save(current.current);
@@ -109,4 +139,9 @@ function App(){
  {view==='settings'&&<div className="settings-grid"><section className="panel"><div className="eyebrow">MODEL ADAPTER</div><h2>自定义模型接口</h2><label>协议 / 服务商<Select value={model.provider||'openai'} onChange={e=>{setConsent(false);setModels([]);setModel(e.target.value==='jev'?{provider:'jev',baseUrl:'https://api.typesafe.ai/v1',name:'jev-1.13.0'}:{provider:'openai',baseUrl:'http://127.0.0.1:11434/v1',name:''});}}><option value="jev">TypeSafe Jev · System One</option><option value="openai">OpenAI 兼容 · 第三方 / 本地</option></Select></label><div className="model-presets">{[['Ollama','http://127.0.0.1:11434/v1'],['LM Studio','http://127.0.0.1:1234/v1'],['自定义本地','http://127.0.0.1:8080/v1']].map(([name,url])=><button key={name} onClick={()=>setModel({...model,provider:'openai',baseUrl:url})}>{name}</button>)}</div><label>OpenAI 兼容地址<input value={model.baseUrl} onChange={e=>setModel({...model,baseUrl:e.target.value})}/></label><label>已安装的模型名称<input placeholder="jev 的准确模型名待提供" value={model.name} onChange={e=>setModel({...model,name:e.target.value})}/></label><label>API Key（可选，仅本次内存，不保存）<input type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)}/></label><label>输出 Token 上限<input type="number" min={256} max={4096} value={model.maxTokens||2200} onChange={e=>setModel({...model,maxTokens:Number(e.target.value)})}/></label><label><input type="checkbox" checked={model.jsonMode!==false} onChange={e=>setModel({...model,jsonMode:e.target.checked})}/>发送 JSON 模式参数（不兼容时关闭，仍校验响应 JSON）</label><button disabled={!isTauri()} onClick={()=>void testModel()}>测试连接 / 获取模型</button><p className="hint">{modelStatus}</p>{models.length>0&&<label>服务可用模型<Select value={model.name} onChange={e=>setModel({...model,name:e.target.value})}><option value="">请选择</option>{models.map(m=><option key={m}>{m}</option>)}</Select></label>}<p className="hint">Jev 使用官方 System One 协议；普通模型使用统一判断问题的 JSON 适配。支持第三方 HTTPS 和本机 HTTP；不会自动切换服务商。模型费用由用户账号承担。</p><label><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我同意将英雄、海克斯、文档片段和历史摘要发送给所配置服务商；原始账号标识不发送，但手填文字可能包含个人信息。</label><p className="hint">API Key 不保存，关闭应用后需重新填写。</p></section><section className="panel"><div className="eyebrow">CLIENT DISCOVERY</div><h2>Windows 客户端发现</h2><p className="hint">启动即自动发现 LeagueClientUx；可在已进入游戏后启动本工具。发现失败时，可指定客户端 lockfile 绝对路径。</p><label>lockfile 路径（可选）<input placeholder="C:\Riot Games\League of Legends\lockfile" value={lockfile} onChange={e=>setLockfile(e.target.value)}/></label><p className="hint">凭据只在 Rust 内存中用于本地请求，不回传界面、不写入日志。不需要管理员权限；权限不足时不会尝试提权。</p><button disabled={!isTauri()||busy} onClick={()=>{resumeLive();}}>重新检测</button></section><section className="panel"><div className="eyebrow">STORAGE & MEMORY</div><h2>让记忆轻盈，保留关键</h2><div className="storage-meter"><strong>{((storage?.databaseBytes||0)/1024/1024).toFixed(1)} MB <small>/ {budget} MB 预算</small></strong><progress max={budget} value={(storage?.databaseBytes||0)/1024/1024}/><p>{storage?.sessionCount||0} 场对局 · {storage?.sampleCount||0} 份采样</p></div><label>SQLite 预算（32–2048 MB）<input type="number" min={32} max={2048} value={budget} onChange={e=>setBudget(Number(e.target.value))}/></label><label>原始采样保留天数（1–365）<input type="number" min={1} max={365} value={days} onChange={e=>setDays(Number(e.target.value))}/></label><button disabled={busy||!isTauri()} onClick={()=>setConfirmation({title:'应用预算并清理原始采样？',detail:'清理过期或超预算的原始快照并回收数据库空间；不自动删除核心决策与复盘。原始快照删除后不可恢复。',action:()=>maintenance()})}>应用预算 / 清理空间</button><p className="hint">启动及每 30 分钟维护。内存只保留近期 30 份采样与 50 条历史摘要；按需读取完整对局。超预算且无法清理时拒绝新增保存，不默默删除核心记录。数据库维护可能临时需要额外磁盘空间。</p><p className="hint">推荐优先检索同英雄的最多 5 份复盘；限制历史摘要长度，单次上下文不超过 256 KiB。并非自动训练或固定进程内存上限。</p></section><section className="panel"><div className="eyebrow">TRUST & POLICY</div><h2>保持透明，保留判断</h2><p className="hint">独立第三方原型，未经 Riot 审核或背书。LCU 不保证稳定；运行在本地不等于自动符合平台政策。发布前需核对官方规则与产品注册要求。</p><p className="hint">应用关闭后停止采集，不安装开机自启或系统服务。当前只在界面打开期间自动跟踪。</p></section></div>}
  {confirmation&&<div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-label={confirmation.title}><h2>{confirmation.title}</h2><p>{confirmation.detail}</p><div className="archive-actions"><button onClick={()=>setConfirmation(null)}>取消</button><button className="danger" disabled={busy} onClick={()=>{const action=confirmation.action;setConfirmation(null);void action().catch(e=>setError(String(e)));}}>确认执行</button></div></section></div>}<footer><span>海萤 · HEXGLOW</span> 本地优先 / 证据驱动 / 由你决策 <span>0.2 · WINDOWS TARGET</span></footer></div></div>;
 }
-createRoot(document.getElementById('root')!).render(<App/>);
+function isOverlayWindow():boolean{
+ if(new URLSearchParams(window.location.search).has('overlay'))return true;
+ const internals=(window as unknown as {__TAURI_INTERNALS__?:{metadata?:{currentWindow?:{label?:string}}}}).__TAURI_INTERNALS__;
+ return internals?.metadata?.currentWindow?.label==='overlay';
+}
+createRoot(document.getElementById('root')!).render(isOverlayWindow()?<OverlayApp/>:<App/>);

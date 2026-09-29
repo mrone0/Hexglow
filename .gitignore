@@ -4,3 +4,5 @@ src-tauri/target/
 *.tsbuildinfo
 .DS_Store
 .env
+.data-cache/
+.idea/

@@ -22,7 +22,13 @@ fn main() {
             lol_augment_assistant_lib::storage::get_session,
             lol_augment_assistant_lib::storage::get_session_by_match,
             lol_augment_assistant_lib::collector::collector_snapshot,
-            lol_augment_assistant_lib::collector::diagnostics
+            lol_augment_assistant_lib::collector::diagnostics,
+            lol_augment_assistant_lib::overlay::overlay_open,
+            lol_augment_assistant_lib::overlay::overlay_ready,
+            lol_augment_assistant_lib::overlay::overlay_close,
+            lol_augment_assistant_lib::overlay::overlay_set_collapsed,
+            lol_augment_assistant_lib::ocr::ocr_scan,
+            lol_augment_assistant_lib::scoring::score_candidates
         ])
         .run(tauri::generate_context!())
         .unwrap()

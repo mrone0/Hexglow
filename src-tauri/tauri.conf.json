@@ -10,6 +10,7 @@
     "beforeBuildCommand": "pnpm build"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [{
       "title": "海萤 · Hexglow",
       "width": 1280,

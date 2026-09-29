@@ -177,6 +177,13 @@ fn discovery_ttl(found: bool) -> Duration {
 
 fn discover(manual: Option<&str>) -> (Option<Credentials>, Vec<String>) {
     let mut warnings = Vec::new();
+    // Development only: lets a mock Live Client API stand in for the game during local testing.
+    #[cfg(debug_assertions)]
+    let env_lockfile = std::env::var("HEXGLOW_LOCKFILE").ok();
+    #[cfg(debug_assertions)]
+    let manual = manual
+        .filter(|s| !s.is_empty())
+        .or_else(|| env_lockfile.as_deref().filter(|s| !s.is_empty()));
     if cfg!(target_os = "windows") {
         let cached = state()
             .lock()
@@ -495,7 +502,7 @@ fn sanitize(value: &mut Value, secret: Option<&str>) {
         _ => {}
     }
 }
-fn directories(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
+pub(crate) fn directories(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     let data = app
         .path()
         .app_data_dir()
@@ -546,7 +553,7 @@ fn cap_existing_log(path: &Path) -> std::io::Result<u64> {
 }
 
 // Production callers hold STATE across rotation/write/read (single-process logger).
-fn append_log(logs: &Path, level: &str, event: &str, message: &str) -> std::io::Result<()> {
+pub(crate) fn append_log(logs: &Path, level: &str, event: &str, message: &str) -> std::io::Result<()> {
     let bytes = log_entry(level, event, message);
     let path = logs.join("collector.jsonl");
     let previous = logs.join("collector.previous.jsonl");

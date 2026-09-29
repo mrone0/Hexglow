@@ -8,7 +8,10 @@
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
     "build": "tsc -b && vite build",
     "tauri": "tauri",
-    "test": "vitest run"
+    "test": "vitest run",
+    "data:fetch": "node scripts/fetch-data.mjs",
+    "data:knowledge": "node scripts/build-knowledge.mjs",
+    "mock:live": "node scripts/mock-live.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

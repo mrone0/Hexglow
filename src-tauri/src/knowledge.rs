@@ -169,6 +169,24 @@ fn root_at(data: &Path) -> Result<PathBuf, String> {
             atomic(&confined(&root, path)?, content)?;
         }
     }
+    // v2：增量补齐海克斯 OKF 种子。只新增缺失文件，不覆盖用户编辑，也不恢复用户删除的文件。
+    let marker_v2 = data.join(".knowledge-seeded-v2");
+    no_link(&marker_v2)?;
+    if !marker_v2.exists() {
+        let mut added = 0usize;
+        for (path, content) in crate::seed_augments::AUGMENT_SEEDS {
+            let target = confined(&root, path)?;
+            if target.exists() {
+                continue;
+            }
+            atomic(&target, content)?;
+            added += 1;
+        }
+        atomic(&marker_v2, "seed attempted v2\n")?;
+        if added > 0 {
+            indexes(&root)?;
+        }
+    }
     if seed || !root.join("index.md").exists() {
         indexes(&root)?;
     }
@@ -264,6 +282,20 @@ fn validate(kind: &str, path: &str, content: &str) -> Value {
             }
             if !string_list(&h["aliases"]) {
                 errors.push("hexglow.aliases must be a string list".into());
+            }
+            // 扩展字段：类型校验，未知键原样保留（不报错）。
+            for key in ["rarity", "category", "scaling", "name_en", "effect_source"] {
+                if !h[key].is_null() && !nonempty(&h[key]) {
+                    errors.push(format!("hexglow.{key} must be a nonempty string"));
+                }
+            }
+            for key in ["tags", "sources", "source", "role_fit", "synergy_tags"] {
+                if !h[key].is_null() && !string_list(&h[key]) {
+                    errors.push(format!("hexglow.{key} must be a string list"));
+                }
+            }
+            if !h["verified"].is_null() && !h["verified"].is_boolean() {
+                errors.push("hexglow.verified must be a boolean".into());
             }
             if !h["game_id"].is_null() && !nonempty(&h["game_id"]) && !h["game_id"].is_u64() {
                 errors.push("hexglow.game_id must be a string or unsigned integer".into());
@@ -791,6 +823,62 @@ mod tests {
                 validate(kind, path, text)
             );
         }
+    }
+    #[test]
+    fn v2_seed_is_incremental_and_preserves_user_edits() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let target = root.join("augments/1170.md");
+        assert!(target.exists(), "v2 seed must add generated augment docs");
+        fs::write(&target, "手工编辑\n").unwrap();
+        let removed = root.join("augments/1134.md");
+        fs::remove_file(&removed).unwrap();
+        let root = root_at(&temp.0).unwrap();
+        assert_eq!(
+            fs::read_to_string(root.join("augments/1170.md")).unwrap(),
+            "手工编辑\n"
+        );
+        assert!(!removed.exists(), "deleted documents must not come back");
+        assert!(root.join("augments/custom-example.md").exists());
+        assert!(root.join("champions/ahri.md").exists());
+    }
+
+    #[test]
+    fn augment_seed_module_covers_generated_docs() {
+        assert!(crate::seed_augments::AUGMENT_SEEDS.len() >= 211);
+        for (path, content) in crate::seed_augments::AUGMENT_SEEDS {
+            assert!(path.starts_with("augments/"), "{path}");
+            assert_eq!(validate("Augment", path, content)["valid"], true, "{path}");
+        }
+    }
+
+    #[test]
+    fn generated_augment_seeds_validate() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../knowledge-seed/augments");
+        let mut checked = 0usize;
+        let mut failures = Vec::<String>::new();
+        for entry in fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            let name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let rel = format!("augments/{name}");
+            let text = fs::read_to_string(&path).unwrap();
+            let result = validate("Augment", &rel, &text);
+            checked += 1;
+            if result["valid"] != true {
+                failures.push(format!("{rel}: {result}"));
+            }
+        }
+        assert!(checked >= 211, "expected at least 211 seed docs, got {checked}");
+        assert!(
+            failures.is_empty(),
+            "{} invalid docs:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
     }
     #[test]
     fn ui_template_and_okf_statuses() {

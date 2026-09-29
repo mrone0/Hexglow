@@ -1,0 +1,8 @@
+{
+  "generator": "scripts/build-knowledge.mjs",
+  "input": "src-tauri/data/augments.json",
+  "patch": "16.19.1",
+  "generatedAt": "2026-09-28T10:48:46.792Z",
+  "count": 211,
+  "note": "仅新增/覆盖由本脚本生成的 <id>.md，不触碰 custom-example.md 或 champions/。"
+}
