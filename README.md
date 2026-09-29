@@ -6,7 +6,7 @@
 
 ## Mac 看效果 / 本轮第一版
 
-Mac 可执行 `pnpm tauri dev` 打开真实桌面 UI；也可编译后直接运行 `./src-tauri/target/debug/Hexglow`。点击“查看模拟对局 · Mac UI 预览”检查阵容、候选、推荐布局。演示不调用模型、不保存对局，不冒充真实 API；知识工坊编辑仍是真实文件操作。
+Mac 可执行 `pnpm tauri dev` 打开真实桌面 UI；也可编译后直接运行 `./src-tauri/target/debug/Hexglow`。知识工坊编辑是真实文件操作；界面不再提供演示/模拟对局入口，布局以真实数据与截图验收。
 
 ### OKF 知识工坊
 

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "data:fetch": "node scripts/fetch-data.mjs",
     "data:knowledge": "node scripts/build-knowledge.mjs",
-    "mock:live": "node scripts/mock-live.mjs"
+    "data:sync": "node scripts/sync-hexdata.mjs",
+    "data:import": "node scripts/import-hexdata-knowledge.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

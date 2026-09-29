@@ -5,4 +5,5 @@ src-tauri/target/
 .DS_Store
 .env
 .data-cache/
+.local-data/
 .idea/
