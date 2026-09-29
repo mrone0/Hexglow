@@ -1,14 +1,16 @@
 # Hexglow minimal OKF knowledge seed
 
-These are **unverified placeholders**, not a complete or authoritative game corpus. The champion registry intentionally includes only Ahri and Garen; it does not claim complete roster coverage. `custom-example` is not a real augment.
+These are **unverified placeholders**, not a complete or authoritative game corpus. The champion registry is generated from `src-tauri/data/champions.json` and covers the full 173-champion roster (attributes only, no mechanics). `custom-example` is not a real augment.
 
-The Rust backend embeds these three Markdown documents and the registry at compile time. On the first explicit knowledge command, it copies seeds into the app data directory's `knowledge` tree only if that tree and the sibling `.knowledge-seeded-v1` marker do not exist. The marker is written before copying: interruptions may leave a partial seed, but deleted documents are never silently restored. Existing trees are never merged with defaults. Nothing loads at application startup.
+Documents are produced by `scripts/build-knowledge.mjs`: 211 augment files from `src-tauri/data/augments.json` and 171 champion files (the hand-maintained `ahri.md` and `garen.md` are never overwritten). Every generated file is `status: draft` / `verified: false`, carries no win-rate-like fields, and names no third-party source site — provenance stays in the JSON data files, not in the knowledge documents.
+
+The Rust backend embeds the seed documents, the generated seeds (`src-tauri/src/seed_generated.rs`) and the registry at compile time. On the first explicit knowledge command it copies v1 seeds into the app data directory's `knowledge` tree only if that tree and the sibling `.knowledge-seeded-v1` marker do not exist; `.knowledge-seeded-v2` and `.knowledge-seeded-v3` then add only missing generated files. Each marker is written after copying, and all of them are one-shot: interruptions may leave a partial seed, but deleted documents are never silently restored and existing files are never overwritten. Existing trees are never merged with defaults. Nothing loads at application startup.
 
 ## Profile
 
 Root YAML fields: `title`, `description`, `type` (`Champion` or `Augment`), `tags` (string list), `status` (`draft`, `stable`, or `deprecated`). `hexglow` contains `schema_version: 1`, `mode: hextech-aram`, `patch` (quoted string recommended), `champion_id` or `augment_id`, `aliases` (string list), and optional `game_id` (null, string, or unsigned integer). Unknown keys, Markdown, and original formatting are retained exactly on save. Verification is separate metadata in `verified`, not a lifecycle status; any verification declaration is not backend certification.
 
-Paths are `champions/<id>.md` and `augments/<id>.md`, lowercase ASCII letters/digits/hyphens only. IDs must match the filename after case normalization; champion IDs must occur in the small bundled registry. IDs, type, and existing game ID cannot be changed by save. Champions cannot be deleted. Duplicate same-kind titles, aliases, and IDs are rejected on save; externally-created ambiguity is never resolved arbitrarily.
+Paths are `champions/<id>.md` and `augments/<id>.md`, lowercase ASCII letters/digits/hyphens only. IDs must match the filename after case normalization; champion IDs must occur in the bundled registry (generated from `champions.json`). IDs, type, and existing game ID cannot be changed by save. Champions cannot be deleted. Duplicate same-kind titles, aliases, and IDs are rejected on save; externally-created ambiguity is never resolved arbitrarily.
 
 Required headings (level one `#` or level two `##`):
 

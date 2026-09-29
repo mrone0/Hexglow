@@ -1,44 +1,174 @@
+/* 海萤 · Hexglow 悬浮窗：与主界面同一套浅色主题（style.css 变量口径）。
+   360×640，折叠 44×640；默认鼠标穿透，悬停停留才可交互。 */
 html, body, #root { height: 100%; }
-body { margin: 0; background: transparent; min-width: 0; }
-.overlay-root { height: 100vh; display: flex; align-items: stretch; justify-content: flex-end; padding: 8px; }
+body {
+  margin: 0; min-width: 0; background: transparent;
+  font-family: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  color: #283246;
+  -webkit-font-smoothing: antialiased;
+}
+.overlay-root {
+  height: 100vh; display: flex; align-items: stretch; justify-content: flex-end;
+  padding: 8px 0 8px 8px; box-sizing: border-box;
+}
 .overlay-card {
-  flex: 1; display: flex; flex-direction: column; min-width: 0;
-  background: linear-gradient(160deg, #fffffff2, #f6f2fdf4 55%, #edf8f5f2);
-  border: 1px solid #dcd9ee; border-radius: 18px;
-  box-shadow: 0 12px 40px #2a245026, 0 2px 6px #2a245012;
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  background: linear-gradient(165deg, #fffffff7, #f5f1fbf7 62%, #eaf7f4f7);
+  border: 1px solid #e3e3ef;
+  border-right: 0;
+  border-radius: 18px 0 0 18px;
+  box-shadow: 0 5px 24px #393a651f, 0 1px 3px #393a6512;
   overflow: hidden;
 }
-.overlay-head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 10px; border-bottom: 1px solid #e6e4f1; }
-.overlay-head > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.overlay-brand { font-size: 8px; font-weight: 750; letter-spacing: 2.4px; color: #7a68a6; }
-.overlay-head strong { font-size: 15px; letter-spacing: .4px; color: #2f3347; }
-.overlay-level { margin-left: auto; font-size: 11px; font-weight: 700; color: #5d45a5; background: #ede6fb; border: 1px solid #d9cdf5; border-radius: 20px; padding: 4px 10px; }
-.overlay-close { width: 26px; height: 26px; padding: 0; border-radius: 8px; font-size: 16px; line-height: 1; color: #7a8093; background: #fff; }
-.overlay-status { display: flex; align-items: center; gap: 8px; margin: 10px 14px; padding: 8px 10px; font-size: 12px; color: #5b6377; background: #f4f5fa; border: 1px solid #e5e6ef; border-radius: 10px; }
-.overlay-status i { width: 6px; height: 6px; border-radius: 50%; background: #a8adc0; flex-shrink: 0; }
-.overlay-status[data-status='capturing'] i, .overlay-status[data-status='ocr'] i { background: #7151c7; animation: overlay-pulse 1s ease-in-out infinite; }
-.overlay-status[data-status='matched'] i { background: #137e78; }
-.overlay-status[data-status='error'] i { background: #b94e60; }
-.overlay-list { flex: 1; overflow-y: auto; padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
-.overlay-empty { margin-top: 18px; text-align: center; color: #8b8fa2; padding: 0 8px; }
-.overlay-empty span { display: block; font-size: 30px; color: #a9a0c4; margin-bottom: 10px; }
-.overlay-empty p { font-size: 12px; line-height: 1.8; margin: 0 0 8px; }
-.overlay-empty small { font-size: 11px; color: #a1a6b6; }
-.overlay-lines { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 4px 0 10px; }
-.overlay-lines small { max-width: 100%; padding: 4px 9px; border: 1px solid #ded9ef; border-radius: 999px; background: #f7f5fd; color: #4b4567; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-.overlay-item { position: relative; padding: 12px 13px; border: 1px solid #e4e3ef; border-radius: 13px; background: #fbfbfe; }
-.overlay-item:first-child { background: linear-gradient(140deg, #f1ebfc, #f0faf7); border-color: #cec3e9; }
-.overlay-item h3 { margin: 0 34px 6px 0; font-size: 14px; color: #33384d; line-height: 1.5; }
-.overlay-item b { position: absolute; top: 11px; right: 12px; font-size: 13px; color: #6a4fbb; }
-.overlay-item p { margin: 0; font-size: 12px; line-height: 1.75; color: #6b7186; }
-.overlay-item small { display: block; margin-top: 7px; font-size: 11px; color: #7d7597; line-height: 1.6; }
-.overlay-foot { padding: 9px 14px; border-top: 1px solid #e6e4f1; font-size: 10px; letter-spacing: .6px; color: #9296a8; text-align: center; }
-@keyframes overlay-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 
-.overlay-actions { display: flex; gap: 6px; margin-left: auto; }
-.overlay-root.is-collapsed { align-items: stretch; }
-.overlay-handle { width: 44px; height: 100%; border: 1px solid #ded9ef; border-right: 0; border-radius: 14px 0 0 14px; background: linear-gradient(180deg, #f4f1fd, #eef7f4); color: #4b4567; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; cursor: pointer; padding: 12px 0; }
-.overlay-handle:hover { background: linear-gradient(180deg, #ece6fb, #e4f2ed); }
+/* ---- 头部：与主界面 header / nav 同语言 ---- */
+.overlay-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 14px 11px;
+  border-bottom: 1px solid #dfe3eb;
+  background: linear-gradient(110deg, #f6f1ff, #f2faf8);
+}
+.overlay-head > div:first-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.overlay-brand { font-size: 8px; font-weight: 750; letter-spacing: 3.2px; color: #75608e; }
+.overlay-head strong { font-size: 15px; font-weight: 700; letter-spacing: .6px; color: #283246; }
+.overlay-level {
+  margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: .4px;
+  color: #6043a7; background: #e9e0fa; border: 1px solid #ded3f3;
+  border-radius: 20px; padding: 4px 10px;
+}
+.overlay-actions { display: flex; gap: 6px; margin-left: 8px; }
+.overlay-close {
+  width: 26px; height: 26px; padding: 0; border-radius: 8px;
+  font-size: 15px; line-height: 1; color: #7a8093;
+  background: #fff; border: 1px solid #d8dbe7; cursor: pointer;
+}
+.overlay-close:hover { border-color: #b8a5e2; background: #f7f3ff; color: #6043a7; }
+
+/* ---- 状态条 ---- */
+.overlay-status {
+  display: flex; align-items: center; gap: 8px;
+  margin: 11px 14px; padding: 8px 10px;
+  font-size: 12px; line-height: 1.55; color: #5b6377;
+  background: #f4f5fa; border: 1px solid #e5e6ef; border-radius: 10px;
+}
+.overlay-status i {
+  width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%;
+  background: #a8adc0; box-shadow: 0 0 0 3px #a8adc01f;
+}
+.overlay-status[data-status='capturing'] i, .overlay-status[data-status='ocr'] i {
+  background: #7151c7; box-shadow: 0 0 0 3px #7151c726;
+  animation: overlay-pulse 1.05s ease-in-out infinite;
+}
+.overlay-status[data-status='matched'] i { background: #137e78; box-shadow: 0 0 0 3px #137e7826; }
+.overlay-status[data-status='matched'] { color: #246b64; border-color: #cfe7e2; background: #f0faf7; }
+.overlay-status[data-status='error'] i { background: #b94e60; box-shadow: 0 0 0 3px #b94e6026; }
+.overlay-status[data-status='error'] { color: #a44657; border-color: #efd6db; background: #fdf3f5; }
+
+/* ---- 列表 ---- */
+.overlay-list {
+  flex: 1; overflow-y: auto; padding: 2px 14px 14px;
+  display: flex; flex-direction: column; gap: 11px;
+  scrollbar-width: thin; scrollbar-color: #cdd2e3 transparent;
+}
+.overlay-list::-webkit-scrollbar { width: 6px; }
+.overlay-list::-webkit-scrollbar-thumb { background: #cdd2e3; border-radius: 999px; }
+.overlay-list::-webkit-scrollbar-track { background: transparent; }
+
+.overlay-item {
+  position: relative; padding: 12px 13px 13px;
+  background: #fbfbfe; border: 1px solid #e4e3ef; border-radius: 13px;
+  overflow: hidden;
+}
+.overlay-item::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: #eceaf6;
+}
+.overlay-item.top {
+  background: linear-gradient(140deg, #f1ebfc, #f0faf7);
+  border-color: #cec3e9;
+  box-shadow: 0 4px 14px #6a4fbb14;
+}
+.overlay-item.top::before { background: linear-gradient(180deg, #8b70d4, #137e78); }
+
+.overlay-item-head { display: flex; align-items: center; gap: 8px; }
+.overlay-rank {
+  font-size: 10px; font-weight: 750; letter-spacing: .8px;
+  color: #7a68a6; background: #f4f1fd; border: 1px solid #e4dcf5;
+  border-radius: 7px; padding: 2px 6px;
+}
+.overlay-item.top .overlay-rank { color: #fff; background: #7151c7; border-color: #7151c7; }
+.overlay-item h3 {
+  margin: 0; min-width: 0; flex: 1;
+  font-size: 14.5px; font-weight: 700; line-height: 1.45; color: #2f3347;
+  overflow-wrap: anywhere;
+}
+.overlay-score {
+  flex-shrink: 0; min-width: 34px; text-align: center;
+  font-size: 13px; font-weight: 700; color: #5d45a5;
+  background: #ede6fb; border: 1px solid #d9cdf5;
+  border-radius: 9px; padding: 3px 7px;
+}
+.overlay-meter {
+  display: block; height: 4px; margin: 9px 0;
+  background: #e8eaf3; border-radius: 999px; overflow: hidden;
+}
+.overlay-meter i {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #7151c7, #137e78);
+  transition: width .35s ease;
+}
+.overlay-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip {
+  font-size: 10.5px; letter-spacing: .4px; line-height: 1.6;
+  padding: 2px 8px; border-radius: 999px;
+  color: #647086; background: #f7f8fc; border: 1px solid #e5e6ef;
+}
+.chip.rarity-silver { color: #5b6377; background: #eef0f5; border-color: #dcdfeb; }
+.chip.rarity-gold { color: #6043a7; background: #ede6fb; border-color: #d9cdf5; }
+.chip.rarity-prismatic {
+  color: #246b64; background: #effaf5; border-color: #cce5df;
+}
+.overlay-effect { margin: 0; font-size: 12px; line-height: 1.75; color: #6b7186; overflow-wrap: anywhere; }
+.overlay-reason {
+  display: block; margin-top: 8px; font-size: 11.5px; line-height: 1.7; color: #4b4567;
+  border-left: 2px solid #b8a5e2; padding-left: 8px;
+}
+.overlay-risks { display: block; margin-top: 7px; font-size: 11px; line-height: 1.65; color: #b94e60; }
+
+/* ---- 空态 ---- */
+.overlay-empty { margin-top: 24px; text-align: center; padding: 0 6px; }
+.overlay-empty span { display: block; margin-bottom: 10px; font-size: 30px; color: #a9a0c4; }
+.overlay-empty p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.85; color: #647086; }
+.overlay-empty small { font-size: 11px; color: #778095; }
+.overlay-lines { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 6px 0 11px; }
+.overlay-lines small {
+  max-width: 100%; padding: 4px 9px; border-radius: 999px;
+  font-size: 11px; line-height: 1.5; color: #4b4567;
+  background: #f7f5fd; border: 1px solid #ded9ef; overflow-wrap: anywhere;
+}
+
+/* ---- 页脚 ---- */
+.overlay-foot {
+  padding: 10px 14px; border-top: 1px solid #e6e4f1;
+  background: #fbfbfe;
+  font-size: 10px; letter-spacing: 1.2px; text-align: center; color: #74828e;
+}
+
+/* ---- 折叠把手：与左侧菜单 rail 同一渐变 ---- */
+.overlay-root.is-collapsed { align-items: stretch; padding: 8px 0 8px 8px; }
+.overlay-handle {
+  width: 44px; height: 100%; padding: 12px 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  color: #615278;
+  background: linear-gradient(165deg, #fffffff5, #f5f1fbf5 62%, #eaf7f4f5);
+  border: 1px solid #e3e3ef; border-right: 0; border-radius: 14px 0 0 14px;
+  box-shadow: -4px 0 16px #393a6514;
+}
+.overlay-handle:hover { background: linear-gradient(165deg, #f7f3ff, #efe8fdf7 62%, #e6f5f1f5); }
 .overlay-handle-mark { font-size: 17px; color: #6a4fbb; }
-.overlay-handle-text { writing-mode: vertical-rl; font-size: 10px; letter-spacing: 2.4px; color: #6b6486; }
-.overlay-handle-level { writing-mode: vertical-rl; font-size: 10px; color: #6a4fbb; }
+.overlay-handle-text { writing-mode: vertical-rl; font-size: 10px; letter-spacing: 3px; color: #6b6486; }
+.overlay-handle-level { writing-mode: vertical-rl; font-size: 10px; font-weight: 700; color: #6043a7; }
+
+@keyframes overlay-pulse { 0%, 100% { opacity: .32; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .overlay-status i, .overlay-meter i { animation: none; transition: none; }
+}

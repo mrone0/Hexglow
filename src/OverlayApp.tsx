@@ -5,7 +5,7 @@ import {AUGMENT_LEVELS} from './level';
 import type {OcrScan,ScoreResult} from './main';
 import './overlay.css';
 
-export type OverlayCandidate = {id: string; name: string; description: string; score?: number; reason?: string; risks?: string[]};
+export type OverlayCandidate = {id: string; name: string; description: string; score?: number; reason?: string; risks?: string[]; rarity?: string; category?: string};
 export type OverlayState = {
   level: number | null;
   status: 'idle' | 'capturing' | 'ocr' | 'matched' | 'error';
@@ -13,6 +13,9 @@ export type OverlayState = {
   lines: string[];
   candidates: OverlayCandidate[];
 };
+
+const RARITY_LABEL: Record<string, string> = {silver: '银', gold: '金', prismatic: '棱彩'};
+const CATEGORY_LABEL: Record<string, string> = {damage: '输出', utility: '功能', defense: '防御', economy: '经济'};
 
 const initial: OverlayState = {
   level: null,
@@ -35,12 +38,20 @@ export function OverlayApp() {
     void listen<{level: number}>('overlay:level', (event) => {
       if (!active) return;
       const level = event.payload?.level ?? null;
+      setCollapsed(false); // Rust 侧主动弹出，前端跟随展开
       setState((current) => ({...current, level, lines: [], status: 'capturing', message: '已检测到海克斯等级，截屏识别中…'}));
     })
       .then((unlisten) => (active ? (stop = unlisten) : unlisten()))
       .catch(() => {
         if (active) setState((current) => ({...current, status: 'error', message: '无法接收主窗口事件'}));
       });
+    let stopCollapsed: (() => void) | undefined;
+    void listen<{collapsed: boolean; reason?: string}>('overlay:collapsed', (event) => {
+      if (!active) return;
+      if (event.payload?.collapsed) setCollapsed(true); // 无人交互自动收起
+    })
+      .then((unlisten) => (active ? (stopCollapsed = unlisten) : unlisten()))
+      .catch(() => undefined);
     void listen<{level: number; scan?: OcrScan; error?: string}>('overlay:ocr', (event) => {
       if (!active) return;
       const {scan, error} = event.payload ?? {};
@@ -75,6 +86,8 @@ export function OverlayApp() {
           score: item.score,
           reason: item.reason,
           risks: item.risks,
+          rarity: item.rarity,
+          category: item.category,
         })),
       }));
     })
@@ -85,6 +98,7 @@ export function OverlayApp() {
       stop?.();
       stopOcr?.();
       stopScored?.();
+      stopCollapsed?.();
     };
   }, []);
 
@@ -136,13 +150,25 @@ export function OverlayApp() {
         </p>
         <div className="overlay-list">
           {state.candidates.length ? (
-            state.candidates.map((candidate) => (
-              <article className="overlay-item" key={candidate.id}>
-                <h3>{candidate.name}</h3>
-                {typeof candidate.score === 'number' && <b>{candidate.score}</b>}
-                <p>{candidate.description}</p>
-                {candidate.reason && <small>{candidate.reason}</small>}
-                {!!candidate.risks?.length && <small>{candidate.risks.join('；')}</small>}
+            state.candidates.map((candidate, index) => (
+              <article className={index === 0 ? 'overlay-item top' : 'overlay-item'} key={candidate.id}>
+                <div className="overlay-item-head">
+                  <span className="overlay-rank">{String(index + 1).padStart(2, '0')}</span>
+                  <h3>{candidate.name}</h3>
+                  {typeof candidate.score === 'number' && <b className="overlay-score">{candidate.score}</b>}
+                </div>
+                {typeof candidate.score === 'number' && (
+                  <span className="overlay-meter">
+                    <i style={{width: `${Math.max(6, Math.min(100, candidate.score))}%`}} />
+                  </span>
+                )}
+                <div className="overlay-chips">
+                  {candidate.rarity && <span className={`chip rarity-${candidate.rarity}`}>{RARITY_LABEL[candidate.rarity] ?? candidate.rarity}</span>}
+                  {candidate.category && <span className="chip">{CATEGORY_LABEL[candidate.category] ?? candidate.category}</span>}
+                </div>
+                <p className="overlay-effect">{candidate.description}</p>
+                {candidate.reason && <small className="overlay-reason">{candidate.reason}</small>}
+                {!!candidate.risks?.length && <small className="overlay-risks">⚠ {candidate.risks.join('；')}</small>}
               </article>
             ))
           ) : state.lines.length ? (

@@ -1,7 +1,1756 @@
 {
-  "scope": "Minimal bootstrap registry only; not a complete champion roster or mechanics corpus.",
+  "scope": "Generated from src-tauri/data/champions.json (patch 16.19.1); full roster of 173 champions, attributes only, no mechanics.",
   "champions": [
-    {"id": "ahri", "name": "阿狸", "aliases": ["Ahri", "九尾妖狐"], "game_id": "103"},
-    {"id": "garen", "name": "盖伦", "aliases": ["Garen", "德玛西亚之力"], "game_id": "86"}
+    {
+      "id": "aatrox",
+      "name": "暗裔剑魔",
+      "aliases": [
+        "Aatrox",
+        "the Darkin Blade",
+        "亚托克斯"
+      ],
+      "game_id": "266"
+    },
+    {
+      "id": "ahri",
+      "name": "九尾妖狐",
+      "aliases": [
+        "Ahri",
+        "the Nine-Tailed Fox",
+        "阿狸"
+      ],
+      "game_id": "103"
+    },
+    {
+      "id": "akali",
+      "name": "离群之刺",
+      "aliases": [
+        "Akali",
+        "the Rogue Assassin",
+        "阿卡丽"
+      ],
+      "game_id": "84"
+    },
+    {
+      "id": "akshan",
+      "name": "影哨",
+      "aliases": [
+        "Akshan",
+        "the Rogue Sentinel",
+        "阿克尚"
+      ],
+      "game_id": "166"
+    },
+    {
+      "id": "alistar",
+      "name": "牛头酋长",
+      "aliases": [
+        "Alistar",
+        "the Minotaur",
+        "阿利斯塔"
+      ],
+      "game_id": "12"
+    },
+    {
+      "id": "ambessa",
+      "name": "铁血狼母",
+      "aliases": [
+        "Ambessa",
+        "Matriarch of War",
+        "安蓓萨"
+      ],
+      "game_id": "799"
+    },
+    {
+      "id": "amumu",
+      "name": "殇之木乃伊",
+      "aliases": [
+        "Amumu",
+        "the Sad Mummy",
+        "阿木木"
+      ],
+      "game_id": "32"
+    },
+    {
+      "id": "anivia",
+      "name": "冰晶凤凰",
+      "aliases": [
+        "Anivia",
+        "the Cryophoenix",
+        "艾尼维亚"
+      ],
+      "game_id": "34"
+    },
+    {
+      "id": "annie",
+      "name": "黑暗之女",
+      "aliases": [
+        "Annie",
+        "the Dark Child",
+        "安妮"
+      ],
+      "game_id": "1"
+    },
+    {
+      "id": "aphelios",
+      "name": "残月之肃",
+      "aliases": [
+        "Aphelios",
+        "the Weapon of the Faithful",
+        "厄斐琉斯"
+      ],
+      "game_id": "523"
+    },
+    {
+      "id": "ashe",
+      "name": "寒冰射手",
+      "aliases": [
+        "Ashe",
+        "the Frost Archer",
+        "艾希"
+      ],
+      "game_id": "22"
+    },
+    {
+      "id": "aurelionsol",
+      "name": "铸星龙王",
+      "aliases": [
+        "AurelionSol",
+        "Aurelion Sol",
+        "The Star Forger",
+        "奥瑞利安·索尔"
+      ],
+      "game_id": "136"
+    },
+    {
+      "id": "aurora",
+      "name": "双界灵兔",
+      "aliases": [
+        "Aurora",
+        "the Witch Between Worlds",
+        "阿萝拉"
+      ],
+      "game_id": "893"
+    },
+    {
+      "id": "azir",
+      "name": "沙漠皇帝",
+      "aliases": [
+        "Azir",
+        "the Emperor of the Sands",
+        "阿兹尔"
+      ],
+      "game_id": "268"
+    },
+    {
+      "id": "bard",
+      "name": "星界游神",
+      "aliases": [
+        "Bard",
+        "the Wandering Caretaker",
+        "巴德"
+      ],
+      "game_id": "432"
+    },
+    {
+      "id": "belveth",
+      "name": "虚空女皇",
+      "aliases": [
+        "Belveth",
+        "Bel'Veth",
+        "the Empress of the Void",
+        "卑尔维斯"
+      ],
+      "game_id": "200"
+    },
+    {
+      "id": "blitzcrank",
+      "name": "蒸汽机器人",
+      "aliases": [
+        "Blitzcrank",
+        "the Great Steam Golem",
+        "布里茨"
+      ],
+      "game_id": "53"
+    },
+    {
+      "id": "brand",
+      "name": "复仇焰魂",
+      "aliases": [
+        "Brand",
+        "the Burning Vengeance",
+        "布兰德"
+      ],
+      "game_id": "63"
+    },
+    {
+      "id": "braum",
+      "name": "弗雷尔卓德之心",
+      "aliases": [
+        "Braum",
+        "the Heart of the Freljord",
+        "布隆"
+      ],
+      "game_id": "201"
+    },
+    {
+      "id": "briar",
+      "name": "狂厄蔷薇",
+      "aliases": [
+        "Briar",
+        "the Restrained Hunger",
+        "贝蕾亚"
+      ],
+      "game_id": "233"
+    },
+    {
+      "id": "caitlyn",
+      "name": "皮城女警",
+      "aliases": [
+        "Caitlyn",
+        "the Sheriff of Piltover",
+        "凯特琳"
+      ],
+      "game_id": "51"
+    },
+    {
+      "id": "camille",
+      "name": "青钢影",
+      "aliases": [
+        "Camille",
+        "the Steel Shadow",
+        "卡蜜尔"
+      ],
+      "game_id": "164"
+    },
+    {
+      "id": "cassiopeia",
+      "name": "魔蛇之拥",
+      "aliases": [
+        "Cassiopeia",
+        "the Serpent's Embrace",
+        "卡西奥佩娅"
+      ],
+      "game_id": "69"
+    },
+    {
+      "id": "chogath",
+      "name": "虚空恐惧",
+      "aliases": [
+        "Chogath",
+        "Cho'Gath",
+        "the Terror of the Void",
+        "科加斯"
+      ],
+      "game_id": "31"
+    },
+    {
+      "id": "corki",
+      "name": "英勇投弹手",
+      "aliases": [
+        "Corki",
+        "the Daring Bombardier",
+        "库奇"
+      ],
+      "game_id": "42"
+    },
+    {
+      "id": "darius",
+      "name": "诺克萨斯之手",
+      "aliases": [
+        "Darius",
+        "the Hand of Noxus",
+        "德莱厄斯"
+      ],
+      "game_id": "122"
+    },
+    {
+      "id": "diana",
+      "name": "皎月女神",
+      "aliases": [
+        "Diana",
+        "Scorn of the Moon",
+        "黛安娜"
+      ],
+      "game_id": "131"
+    },
+    {
+      "id": "drmundo",
+      "name": "祖安狂人",
+      "aliases": [
+        "DrMundo",
+        "Dr. Mundo",
+        "the Madman of Zaun",
+        "蒙多医生"
+      ],
+      "game_id": "36"
+    },
+    {
+      "id": "draven",
+      "name": "荣耀行刑官",
+      "aliases": [
+        "Draven",
+        "the Glorious Executioner",
+        "德莱文"
+      ],
+      "game_id": "119"
+    },
+    {
+      "id": "ekko",
+      "name": "时间刺客",
+      "aliases": [
+        "Ekko",
+        "the Boy Who Shattered Time",
+        "艾克"
+      ],
+      "game_id": "245"
+    },
+    {
+      "id": "elise",
+      "name": "蜘蛛女皇",
+      "aliases": [
+        "Elise",
+        "the Spider Queen",
+        "伊莉丝"
+      ],
+      "game_id": "60"
+    },
+    {
+      "id": "evelynn",
+      "name": "痛苦之拥",
+      "aliases": [
+        "Evelynn",
+        "Agony's Embrace",
+        "伊芙琳"
+      ],
+      "game_id": "28"
+    },
+    {
+      "id": "ezreal",
+      "name": "探险家",
+      "aliases": [
+        "Ezreal",
+        "the Prodigal Explorer",
+        "伊泽瑞尔"
+      ],
+      "game_id": "81"
+    },
+    {
+      "id": "fiddlesticks",
+      "name": "远古恐惧",
+      "aliases": [
+        "Fiddlesticks",
+        "the Ancient Fear",
+        "费德提克"
+      ],
+      "game_id": "9"
+    },
+    {
+      "id": "fiora",
+      "name": "无双剑姬",
+      "aliases": [
+        "Fiora",
+        "the Grand Duelist",
+        "菲奥娜"
+      ],
+      "game_id": "114"
+    },
+    {
+      "id": "fizz",
+      "name": "潮汐海灵",
+      "aliases": [
+        "Fizz",
+        "the Tidal Trickster",
+        "菲兹"
+      ],
+      "game_id": "105"
+    },
+    {
+      "id": "galio",
+      "name": "正义巨像",
+      "aliases": [
+        "Galio",
+        "the Colossus",
+        "加里奥"
+      ],
+      "game_id": "3"
+    },
+    {
+      "id": "gangplank",
+      "name": "海洋之灾",
+      "aliases": [
+        "Gangplank",
+        "the Saltwater Scourge",
+        "普朗克"
+      ],
+      "game_id": "41"
+    },
+    {
+      "id": "garen",
+      "name": "德玛西亚之力",
+      "aliases": [
+        "Garen",
+        "The Might of Demacia",
+        "盖伦"
+      ],
+      "game_id": "86"
+    },
+    {
+      "id": "gnar",
+      "name": "迷失之牙",
+      "aliases": [
+        "Gnar",
+        "the Missing Link",
+        "纳尔"
+      ],
+      "game_id": "150"
+    },
+    {
+      "id": "gragas",
+      "name": "酒桶",
+      "aliases": [
+        "Gragas",
+        "the Rabble Rouser",
+        "古拉加斯"
+      ],
+      "game_id": "79"
+    },
+    {
+      "id": "graves",
+      "name": "法外狂徒",
+      "aliases": [
+        "Graves",
+        "the Outlaw",
+        "格雷福斯"
+      ],
+      "game_id": "104"
+    },
+    {
+      "id": "gwen",
+      "name": "灵罗娃娃",
+      "aliases": [
+        "Gwen",
+        "The Hallowed Seamstress",
+        "格温"
+      ],
+      "game_id": "887"
+    },
+    {
+      "id": "hecarim",
+      "name": "战争之影",
+      "aliases": [
+        "Hecarim",
+        "the Shadow of War",
+        "赫卡里姆"
+      ],
+      "game_id": "120"
+    },
+    {
+      "id": "heimerdinger",
+      "name": "大发明家",
+      "aliases": [
+        "Heimerdinger",
+        "the Revered Inventor",
+        "黑默丁格"
+      ],
+      "game_id": "74"
+    },
+    {
+      "id": "hwei",
+      "name": "异画师",
+      "aliases": [
+        "Hwei",
+        "the Visionary",
+        "彗"
+      ],
+      "game_id": "910"
+    },
+    {
+      "id": "illaoi",
+      "name": "海兽祭司",
+      "aliases": [
+        "Illaoi",
+        "the Kraken Priestess",
+        "俄洛伊"
+      ],
+      "game_id": "420"
+    },
+    {
+      "id": "irelia",
+      "name": "刀锋舞者",
+      "aliases": [
+        "Irelia",
+        "the Blade Dancer",
+        "艾瑞莉娅"
+      ],
+      "game_id": "39"
+    },
+    {
+      "id": "ivern",
+      "name": "翠神",
+      "aliases": [
+        "Ivern",
+        "the Green Father",
+        "艾翁"
+      ],
+      "game_id": "427"
+    },
+    {
+      "id": "janna",
+      "name": "风暴之怒",
+      "aliases": [
+        "Janna",
+        "the Storm's Fury",
+        "迦娜"
+      ],
+      "game_id": "40"
+    },
+    {
+      "id": "jarvaniv",
+      "name": "德玛西亚皇子",
+      "aliases": [
+        "JarvanIV",
+        "Jarvan IV",
+        "the Exemplar of Demacia",
+        "嘉文四世"
+      ],
+      "game_id": "59"
+    },
+    {
+      "id": "jax",
+      "name": "武器大师",
+      "aliases": [
+        "Jax",
+        "Grandmaster at Arms",
+        "贾克斯"
+      ],
+      "game_id": "24"
+    },
+    {
+      "id": "jayce",
+      "name": "未来守护者",
+      "aliases": [
+        "Jayce",
+        "the Defender of Tomorrow",
+        "杰斯"
+      ],
+      "game_id": "126"
+    },
+    {
+      "id": "jhin",
+      "name": "戏命师",
+      "aliases": [
+        "Jhin",
+        "the Virtuoso",
+        "烬"
+      ],
+      "game_id": "202"
+    },
+    {
+      "id": "jinx",
+      "name": "暴走萝莉",
+      "aliases": [
+        "Jinx",
+        "the Loose Cannon",
+        "金克丝"
+      ],
+      "game_id": "222"
+    },
+    {
+      "id": "ksante",
+      "name": "纳祖芒荣耀",
+      "aliases": [
+        "KSante",
+        "K'Sante",
+        "the Pride of Nazumah",
+        "奎桑提"
+      ],
+      "game_id": "897"
+    },
+    {
+      "id": "kaisa",
+      "name": "虚空之女",
+      "aliases": [
+        "Kaisa",
+        "Kai'Sa",
+        "Daughter of the Void",
+        "卡莎"
+      ],
+      "game_id": "145"
+    },
+    {
+      "id": "kalista",
+      "name": "复仇之矛",
+      "aliases": [
+        "Kalista",
+        "the Spear of Vengeance",
+        "卡莉丝塔"
+      ],
+      "game_id": "429"
+    },
+    {
+      "id": "karma",
+      "name": "天启者",
+      "aliases": [
+        "Karma",
+        "the Enlightened One",
+        "卡尔玛"
+      ],
+      "game_id": "43"
+    },
+    {
+      "id": "karthus",
+      "name": "死亡颂唱者",
+      "aliases": [
+        "Karthus",
+        "the Deathsinger",
+        "卡尔萨斯"
+      ],
+      "game_id": "30"
+    },
+    {
+      "id": "kassadin",
+      "name": "虚空行者",
+      "aliases": [
+        "Kassadin",
+        "the Void Walker",
+        "卡萨丁"
+      ],
+      "game_id": "38"
+    },
+    {
+      "id": "katarina",
+      "name": "不祥之刃",
+      "aliases": [
+        "Katarina",
+        "the Sinister Blade",
+        "卡特琳娜"
+      ],
+      "game_id": "55"
+    },
+    {
+      "id": "kayle",
+      "name": "正义天使",
+      "aliases": [
+        "Kayle",
+        "the Righteous",
+        "凯尔"
+      ],
+      "game_id": "10"
+    },
+    {
+      "id": "kayn",
+      "name": "影流之镰",
+      "aliases": [
+        "Kayn",
+        "the Shadow Reaper",
+        "凯隐"
+      ],
+      "game_id": "141"
+    },
+    {
+      "id": "kennen",
+      "name": "狂暴之心",
+      "aliases": [
+        "Kennen",
+        "the Heart of the Tempest",
+        "凯南"
+      ],
+      "game_id": "85"
+    },
+    {
+      "id": "khazix",
+      "name": "虚空掠夺者",
+      "aliases": [
+        "Khazix",
+        "Kha'Zix",
+        "the Voidreaver",
+        "卡兹克"
+      ],
+      "game_id": "121"
+    },
+    {
+      "id": "kindred",
+      "name": "永猎双子",
+      "aliases": [
+        "Kindred",
+        "The Eternal Hunters",
+        "千珏"
+      ],
+      "game_id": "203"
+    },
+    {
+      "id": "kled",
+      "name": "暴怒骑士",
+      "aliases": [
+        "Kled",
+        "the Cantankerous Cavalier",
+        "克烈"
+      ],
+      "game_id": "240"
+    },
+    {
+      "id": "kogmaw",
+      "name": "深渊巨口",
+      "aliases": [
+        "KogMaw",
+        "Kog'Maw",
+        "the Mouth of the Abyss",
+        "克格莫"
+      ],
+      "game_id": "96"
+    },
+    {
+      "id": "leblanc",
+      "name": "诡术妖姬",
+      "aliases": [
+        "Leblanc",
+        "LeBlanc",
+        "the Deceiver",
+        "乐芙兰"
+      ],
+      "game_id": "7"
+    },
+    {
+      "id": "leesin",
+      "name": "盲僧",
+      "aliases": [
+        "LeeSin",
+        "Lee Sin",
+        "the Blind Monk",
+        "李青"
+      ],
+      "game_id": "64"
+    },
+    {
+      "id": "leona",
+      "name": "曙光女神",
+      "aliases": [
+        "Leona",
+        "the Radiant Dawn",
+        "蕾欧娜"
+      ],
+      "game_id": "89"
+    },
+    {
+      "id": "lillia",
+      "name": "含羞蓓蕾",
+      "aliases": [
+        "Lillia",
+        "the Bashful Bloom",
+        "莉莉娅"
+      ],
+      "game_id": "876"
+    },
+    {
+      "id": "lissandra",
+      "name": "冰霜女巫",
+      "aliases": [
+        "Lissandra",
+        "the Ice Witch",
+        "丽桑卓"
+      ],
+      "game_id": "127"
+    },
+    {
+      "id": "locke",
+      "name": "灰烬驱魔人",
+      "aliases": [
+        "Locke",
+        "the Ashen Exorcist",
+        "洛克"
+      ],
+      "game_id": "805"
+    },
+    {
+      "id": "lucian",
+      "name": "圣枪游侠",
+      "aliases": [
+        "Lucian",
+        "the Purifier",
+        "卢锡安"
+      ],
+      "game_id": "236"
+    },
+    {
+      "id": "lulu",
+      "name": "仙灵女巫",
+      "aliases": [
+        "Lulu",
+        "the Fae Sorceress",
+        "璐璐"
+      ],
+      "game_id": "117"
+    },
+    {
+      "id": "lux",
+      "name": "光辉女郎",
+      "aliases": [
+        "Lux",
+        "the Lady of Luminosity",
+        "拉克丝"
+      ],
+      "game_id": "99"
+    },
+    {
+      "id": "malphite",
+      "name": "熔岩巨兽",
+      "aliases": [
+        "Malphite",
+        "Shard of the Monolith",
+        "墨菲特"
+      ],
+      "game_id": "54"
+    },
+    {
+      "id": "malzahar",
+      "name": "虚空先知",
+      "aliases": [
+        "Malzahar",
+        "the Prophet of the Void",
+        "玛尔扎哈"
+      ],
+      "game_id": "90"
+    },
+    {
+      "id": "maokai",
+      "name": "扭曲树精",
+      "aliases": [
+        "Maokai",
+        "the Twisted Treant",
+        "茂凯"
+      ],
+      "game_id": "57"
+    },
+    {
+      "id": "masteryi",
+      "name": "无极剑圣",
+      "aliases": [
+        "MasterYi",
+        "Master Yi",
+        "the Wuju Bladesman",
+        "易"
+      ],
+      "game_id": "11"
+    },
+    {
+      "id": "mel",
+      "name": "流光镜影",
+      "aliases": [
+        "Mel",
+        "the Soul's Reflection",
+        "梅尔"
+      ],
+      "game_id": "800"
+    },
+    {
+      "id": "milio",
+      "name": "明烛",
+      "aliases": [
+        "Milio",
+        "The Gentle Flame",
+        "米利欧"
+      ],
+      "game_id": "902"
+    },
+    {
+      "id": "missfortune",
+      "name": "赏金猎人",
+      "aliases": [
+        "MissFortune",
+        "Miss Fortune",
+        "the Bounty Hunter",
+        "厄运小姐"
+      ],
+      "game_id": "21"
+    },
+    {
+      "id": "mordekaiser",
+      "name": "铁铠冥魂",
+      "aliases": [
+        "Mordekaiser",
+        "the Iron Revenant",
+        "莫德凯撒"
+      ],
+      "game_id": "82"
+    },
+    {
+      "id": "morgana",
+      "name": "堕落天使",
+      "aliases": [
+        "Morgana",
+        "the Fallen",
+        "莫甘娜"
+      ],
+      "game_id": "25"
+    },
+    {
+      "id": "naafiri",
+      "name": "百裂冥犬",
+      "aliases": [
+        "Naafiri",
+        "the Hound of a Hundred Bites",
+        "纳亚菲利"
+      ],
+      "game_id": "950"
+    },
+    {
+      "id": "nami",
+      "name": "唤潮鲛姬",
+      "aliases": [
+        "Nami",
+        "the Tidecaller",
+        "娜美"
+      ],
+      "game_id": "267"
+    },
+    {
+      "id": "nasus",
+      "name": "沙漠死神",
+      "aliases": [
+        "Nasus",
+        "the Curator of the Sands",
+        "内瑟斯"
+      ],
+      "game_id": "75"
+    },
+    {
+      "id": "nautilus",
+      "name": "深海泰坦",
+      "aliases": [
+        "Nautilus",
+        "the Titan of the Depths",
+        "诺提勒斯"
+      ],
+      "game_id": "111"
+    },
+    {
+      "id": "neeko",
+      "name": "万花通灵",
+      "aliases": [
+        "Neeko",
+        "the Curious Chameleon",
+        "妮蔻"
+      ],
+      "game_id": "518"
+    },
+    {
+      "id": "nidalee",
+      "name": "狂野女猎手",
+      "aliases": [
+        "Nidalee",
+        "the Bestial Huntress",
+        "奈德丽"
+      ],
+      "game_id": "76"
+    },
+    {
+      "id": "nilah",
+      "name": "不羁之悦",
+      "aliases": [
+        "Nilah",
+        "the Joy Unbound",
+        "尼菈"
+      ],
+      "game_id": "895"
+    },
+    {
+      "id": "nocturne",
+      "name": "永恒梦魇",
+      "aliases": [
+        "Nocturne",
+        "the Eternal Nightmare",
+        "魔腾"
+      ],
+      "game_id": "56"
+    },
+    {
+      "id": "nunu",
+      "name": "雪原双子",
+      "aliases": [
+        "Nunu",
+        "Nunu & Willump",
+        "the Boy and His Yeti",
+        "努努和威朗普"
+      ],
+      "game_id": "20"
+    },
+    {
+      "id": "olaf",
+      "name": "狂战士",
+      "aliases": [
+        "Olaf",
+        "the Berserker",
+        "奥拉夫"
+      ],
+      "game_id": "2"
+    },
+    {
+      "id": "orianna",
+      "name": "发条魔灵",
+      "aliases": [
+        "Orianna",
+        "the Lady of Clockwork",
+        "奥莉安娜"
+      ],
+      "game_id": "61"
+    },
+    {
+      "id": "ornn",
+      "name": "山隐之焰",
+      "aliases": [
+        "Ornn",
+        "The Fire below the Mountain",
+        "奥恩"
+      ],
+      "game_id": "516"
+    },
+    {
+      "id": "pantheon",
+      "name": "不屈之枪",
+      "aliases": [
+        "Pantheon",
+        "the Unbreakable Spear",
+        "潘森"
+      ],
+      "game_id": "80"
+    },
+    {
+      "id": "poppy",
+      "name": "圣锤之毅",
+      "aliases": [
+        "Poppy",
+        "Keeper of the Hammer",
+        "波比"
+      ],
+      "game_id": "78"
+    },
+    {
+      "id": "pyke",
+      "name": "血港鬼影",
+      "aliases": [
+        "Pyke",
+        "the Bloodharbor Ripper",
+        "派克"
+      ],
+      "game_id": "555"
+    },
+    {
+      "id": "qiyana",
+      "name": "元素女皇",
+      "aliases": [
+        "Qiyana",
+        "Empress of the Elements",
+        "奇亚娜"
+      ],
+      "game_id": "246"
+    },
+    {
+      "id": "quinn",
+      "name": "德玛西亚之翼",
+      "aliases": [
+        "Quinn",
+        "Demacia's Wings",
+        "奎因"
+      ],
+      "game_id": "133"
+    },
+    {
+      "id": "rakan",
+      "name": "幻翎",
+      "aliases": [
+        "Rakan",
+        "The Charmer",
+        "洛"
+      ],
+      "game_id": "497"
+    },
+    {
+      "id": "rammus",
+      "name": "披甲龙龟",
+      "aliases": [
+        "Rammus",
+        "the Armordillo",
+        "拉莫斯"
+      ],
+      "game_id": "33"
+    },
+    {
+      "id": "reksai",
+      "name": "虚空遁地兽",
+      "aliases": [
+        "RekSai",
+        "Rek'Sai",
+        "the Void Burrower",
+        "雷克塞"
+      ],
+      "game_id": "421"
+    },
+    {
+      "id": "rell",
+      "name": "镕铁少女",
+      "aliases": [
+        "Rell",
+        "the Iron Maiden",
+        "芮尔"
+      ],
+      "game_id": "526"
+    },
+    {
+      "id": "renata",
+      "name": "炼金男爵",
+      "aliases": [
+        "Renata",
+        "Renata Glasc",
+        "the Chem-Baroness",
+        "烈娜塔 · 戈拉斯克"
+      ],
+      "game_id": "888"
+    },
+    {
+      "id": "renekton",
+      "name": "荒漠屠夫",
+      "aliases": [
+        "Renekton",
+        "the Butcher of the Sands",
+        "雷克顿"
+      ],
+      "game_id": "58"
+    },
+    {
+      "id": "rengar",
+      "name": "傲之追猎者",
+      "aliases": [
+        "Rengar",
+        "the Pridestalker",
+        "雷恩加尔"
+      ],
+      "game_id": "107"
+    },
+    {
+      "id": "riven",
+      "name": "放逐之刃",
+      "aliases": [
+        "Riven",
+        "the Exile",
+        "锐雯"
+      ],
+      "game_id": "92"
+    },
+    {
+      "id": "rumble",
+      "name": "机械公敌",
+      "aliases": [
+        "Rumble",
+        "the Mechanized Menace",
+        "兰博"
+      ],
+      "game_id": "68"
+    },
+    {
+      "id": "ryze",
+      "name": "符文法师",
+      "aliases": [
+        "Ryze",
+        "the Rune Mage",
+        "瑞兹"
+      ],
+      "game_id": "13"
+    },
+    {
+      "id": "samira",
+      "name": "沙漠玫瑰",
+      "aliases": [
+        "Samira",
+        "the Desert Rose",
+        "莎弥拉"
+      ],
+      "game_id": "360"
+    },
+    {
+      "id": "sejuani",
+      "name": "北地之怒",
+      "aliases": [
+        "Sejuani",
+        "Fury of the North",
+        "瑟庄妮"
+      ],
+      "game_id": "113"
+    },
+    {
+      "id": "senna",
+      "name": "涤魂圣枪",
+      "aliases": [
+        "Senna",
+        "the Redeemer",
+        "赛娜"
+      ],
+      "game_id": "235"
+    },
+    {
+      "id": "seraphine",
+      "name": "星籁歌姬",
+      "aliases": [
+        "Seraphine",
+        "the Starry-Eyed Songstress",
+        "萨勒芬妮"
+      ],
+      "game_id": "147"
+    },
+    {
+      "id": "sett",
+      "name": "腕豪",
+      "aliases": [
+        "Sett",
+        "the Boss",
+        "瑟提"
+      ],
+      "game_id": "875"
+    },
+    {
+      "id": "shaco",
+      "name": "恶魔小丑",
+      "aliases": [
+        "Shaco",
+        "the Demon Jester",
+        "萨科"
+      ],
+      "game_id": "35"
+    },
+    {
+      "id": "shen",
+      "name": "暮光之眼",
+      "aliases": [
+        "Shen",
+        "the Eye of Twilight",
+        "慎"
+      ],
+      "game_id": "98"
+    },
+    {
+      "id": "shyvana",
+      "name": "龙血武姬",
+      "aliases": [
+        "Shyvana",
+        "the Half-Dragon",
+        "希瓦娜"
+      ],
+      "game_id": "102"
+    },
+    {
+      "id": "singed",
+      "name": "炼金术士",
+      "aliases": [
+        "Singed",
+        "the Mad Chemist",
+        "辛吉德"
+      ],
+      "game_id": "27"
+    },
+    {
+      "id": "sion",
+      "name": "亡灵战神",
+      "aliases": [
+        "Sion",
+        "The Undead Juggernaut",
+        "赛恩"
+      ],
+      "game_id": "14"
+    },
+    {
+      "id": "sivir",
+      "name": "战争女神",
+      "aliases": [
+        "Sivir",
+        "the Battle Mistress",
+        "希维尔"
+      ],
+      "game_id": "15"
+    },
+    {
+      "id": "skarner",
+      "name": "上古领主",
+      "aliases": [
+        "Skarner",
+        "the Primordial Sovereign",
+        "斯卡纳"
+      ],
+      "game_id": "72"
+    },
+    {
+      "id": "smolder",
+      "name": "炽炎雏龙",
+      "aliases": [
+        "Smolder",
+        "the Fiery Fledgling",
+        "斯莫德"
+      ],
+      "game_id": "901"
+    },
+    {
+      "id": "sona",
+      "name": "琴瑟仙女",
+      "aliases": [
+        "Sona",
+        "Maven of the Strings",
+        "娑娜"
+      ],
+      "game_id": "37"
+    },
+    {
+      "id": "soraka",
+      "name": "众星之子",
+      "aliases": [
+        "Soraka",
+        "the Starchild",
+        "索拉卡"
+      ],
+      "game_id": "16"
+    },
+    {
+      "id": "swain",
+      "name": "诺克萨斯统领",
+      "aliases": [
+        "Swain",
+        "the Noxian Grand General",
+        "斯维因"
+      ],
+      "game_id": "50"
+    },
+    {
+      "id": "sylas",
+      "name": "解脱者",
+      "aliases": [
+        "Sylas",
+        "the Unshackled",
+        "塞拉斯"
+      ],
+      "game_id": "517"
+    },
+    {
+      "id": "syndra",
+      "name": "暗黑元首",
+      "aliases": [
+        "Syndra",
+        "the Dark Sovereign",
+        "辛德拉"
+      ],
+      "game_id": "134"
+    },
+    {
+      "id": "tahmkench",
+      "name": "河流之王",
+      "aliases": [
+        "TahmKench",
+        "Tahm Kench",
+        "The River King",
+        "塔姆"
+      ],
+      "game_id": "223"
+    },
+    {
+      "id": "taliyah",
+      "name": "岩雀",
+      "aliases": [
+        "Taliyah",
+        "the Stoneweaver",
+        "塔莉垭"
+      ],
+      "game_id": "163"
+    },
+    {
+      "id": "talon",
+      "name": "刀锋之影",
+      "aliases": [
+        "Talon",
+        "the Blade's Shadow",
+        "泰隆"
+      ],
+      "game_id": "91"
+    },
+    {
+      "id": "taric",
+      "name": "瓦洛兰之盾",
+      "aliases": [
+        "Taric",
+        "the Shield of Valoran",
+        "塔里克"
+      ],
+      "game_id": "44"
+    },
+    {
+      "id": "teemo",
+      "name": "迅捷斥候",
+      "aliases": [
+        "Teemo",
+        "the Swift Scout",
+        "提莫"
+      ],
+      "game_id": "17"
+    },
+    {
+      "id": "thresh",
+      "name": "魂锁典狱长",
+      "aliases": [
+        "Thresh",
+        "the Chain Warden",
+        "锤石"
+      ],
+      "game_id": "412"
+    },
+    {
+      "id": "tristana",
+      "name": "麦林炮手",
+      "aliases": [
+        "Tristana",
+        "the Yordle Gunner",
+        "崔丝塔娜"
+      ],
+      "game_id": "18"
+    },
+    {
+      "id": "trundle",
+      "name": "巨魔之王",
+      "aliases": [
+        "Trundle",
+        "the Troll King",
+        "特朗德尔"
+      ],
+      "game_id": "48"
+    },
+    {
+      "id": "tryndamere",
+      "name": "蛮族之王",
+      "aliases": [
+        "Tryndamere",
+        "the Barbarian King",
+        "泰达米尔"
+      ],
+      "game_id": "23"
+    },
+    {
+      "id": "twistedfate",
+      "name": "卡牌大师",
+      "aliases": [
+        "TwistedFate",
+        "Twisted Fate",
+        "the Card Master",
+        "崔斯特"
+      ],
+      "game_id": "4"
+    },
+    {
+      "id": "twitch",
+      "name": "瘟疫之源",
+      "aliases": [
+        "Twitch",
+        "the Plague Rat",
+        "图奇"
+      ],
+      "game_id": "29"
+    },
+    {
+      "id": "udyr",
+      "name": "兽灵行者",
+      "aliases": [
+        "Udyr",
+        "the Spirit Walker",
+        "乌迪尔"
+      ],
+      "game_id": "77"
+    },
+    {
+      "id": "urgot",
+      "name": "无畏战车",
+      "aliases": [
+        "Urgot",
+        "the Dreadnought",
+        "厄加特"
+      ],
+      "game_id": "6"
+    },
+    {
+      "id": "varus",
+      "name": "惩戒之箭",
+      "aliases": [
+        "Varus",
+        "the Arrow of Retribution",
+        "韦鲁斯"
+      ],
+      "game_id": "110"
+    },
+    {
+      "id": "vayne",
+      "name": "暗夜猎手",
+      "aliases": [
+        "Vayne",
+        "the Night Hunter",
+        "薇恩"
+      ],
+      "game_id": "67"
+    },
+    {
+      "id": "veigar",
+      "name": "邪恶小法师",
+      "aliases": [
+        "Veigar",
+        "the Tiny Master of Evil",
+        "维迦"
+      ],
+      "game_id": "45"
+    },
+    {
+      "id": "velkoz",
+      "name": "虚空之眼",
+      "aliases": [
+        "Velkoz",
+        "Vel'Koz",
+        "the Eye of the Void",
+        "维克兹"
+      ],
+      "game_id": "161"
+    },
+    {
+      "id": "vex",
+      "name": "愁云使者",
+      "aliases": [
+        "Vex",
+        "the Gloomist",
+        "薇古丝"
+      ],
+      "game_id": "711"
+    },
+    {
+      "id": "vi",
+      "name": "皮城执法官",
+      "aliases": [
+        "Vi",
+        "the Piltover Enforcer",
+        "蔚"
+      ],
+      "game_id": "254"
+    },
+    {
+      "id": "viego",
+      "name": "破败之王",
+      "aliases": [
+        "Viego",
+        "The Ruined King",
+        "佛耶戈"
+      ],
+      "game_id": "234"
+    },
+    {
+      "id": "viktor",
+      "name": "奥术先驱",
+      "aliases": [
+        "Viktor",
+        "the Herald of the Arcane",
+        "维克托"
+      ],
+      "game_id": "112"
+    },
+    {
+      "id": "vladimir",
+      "name": "猩红收割者",
+      "aliases": [
+        "Vladimir",
+        "the Crimson Reaper",
+        "弗拉基米尔"
+      ],
+      "game_id": "8"
+    },
+    {
+      "id": "volibear",
+      "name": "不灭狂雷",
+      "aliases": [
+        "Volibear",
+        "the Relentless Storm",
+        "沃利贝尔"
+      ],
+      "game_id": "106"
+    },
+    {
+      "id": "warwick",
+      "name": "祖安怒兽",
+      "aliases": [
+        "Warwick",
+        "the Uncaged Wrath of Zaun",
+        "沃里克"
+      ],
+      "game_id": "19"
+    },
+    {
+      "id": "monkeyking",
+      "name": "齐天大圣",
+      "aliases": [
+        "MonkeyKing",
+        "Wukong",
+        "the Monkey King",
+        "孙悟空"
+      ],
+      "game_id": "62"
+    },
+    {
+      "id": "xayah",
+      "name": "逆羽",
+      "aliases": [
+        "Xayah",
+        "the Rebel",
+        "霞"
+      ],
+      "game_id": "498"
+    },
+    {
+      "id": "xerath",
+      "name": "远古巫灵",
+      "aliases": [
+        "Xerath",
+        "the Magus Ascendant",
+        "泽拉斯"
+      ],
+      "game_id": "101"
+    },
+    {
+      "id": "xinzhao",
+      "name": "德邦总管",
+      "aliases": [
+        "XinZhao",
+        "Xin Zhao",
+        "the Seneschal of Demacia",
+        "赵信"
+      ],
+      "game_id": "5"
+    },
+    {
+      "id": "yasuo",
+      "name": "疾风剑豪",
+      "aliases": [
+        "Yasuo",
+        "the Unforgiven",
+        "亚索"
+      ],
+      "game_id": "157"
+    },
+    {
+      "id": "yone",
+      "name": "封魔剑魂",
+      "aliases": [
+        "Yone",
+        "the Unforgotten",
+        "永恩"
+      ],
+      "game_id": "777"
+    },
+    {
+      "id": "yorick",
+      "name": "牧魂人",
+      "aliases": [
+        "Yorick",
+        "Shepherd of Souls",
+        "约里克"
+      ],
+      "game_id": "83"
+    },
+    {
+      "id": "yunara",
+      "name": "不破之誓",
+      "aliases": [
+        "Yunara",
+        "the Unbroken Faith",
+        "芸阿娜"
+      ],
+      "game_id": "804"
+    },
+    {
+      "id": "yuumi",
+      "name": "魔法猫咪",
+      "aliases": [
+        "Yuumi",
+        "the Magical Cat",
+        "悠米"
+      ],
+      "game_id": "350"
+    },
+    {
+      "id": "zaahen",
+      "name": "不落魔锋",
+      "aliases": [
+        "Zaahen",
+        "The Unsundered",
+        "亚恒"
+      ],
+      "game_id": "904"
+    },
+    {
+      "id": "zac",
+      "name": "生化魔人",
+      "aliases": [
+        "Zac",
+        "the Secret Weapon",
+        "扎克"
+      ],
+      "game_id": "154"
+    },
+    {
+      "id": "zed",
+      "name": "影流之主",
+      "aliases": [
+        "Zed",
+        "the Master of Shadows",
+        "劫"
+      ],
+      "game_id": "238"
+    },
+    {
+      "id": "zeri",
+      "name": "祖安花火",
+      "aliases": [
+        "Zeri",
+        "The Spark of Zaun",
+        "泽丽"
+      ],
+      "game_id": "221"
+    },
+    {
+      "id": "ziggs",
+      "name": "爆破鬼才",
+      "aliases": [
+        "Ziggs",
+        "the Hexplosives Expert",
+        "吉格斯"
+      ],
+      "game_id": "115"
+    },
+    {
+      "id": "zilean",
+      "name": "时光守护者",
+      "aliases": [
+        "Zilean",
+        "the Chronokeeper",
+        "基兰"
+      ],
+      "game_id": "26"
+    },
+    {
+      "id": "zoe",
+      "name": "暮光星灵",
+      "aliases": [
+        "Zoe",
+        "the Aspect of Twilight",
+        "佐伊"
+      ],
+      "game_id": "142"
+    },
+    {
+      "id": "zyra",
+      "name": "荆棘之兴",
+      "aliases": [
+        "Zyra",
+        "Rise of the Thorns",
+        "婕拉"
+      ],
+      "game_id": "143"
+    }
   ]
 }

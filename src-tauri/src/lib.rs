@@ -5,7 +5,7 @@ pub mod knowledge;
 pub mod ocr;
 pub mod overlay;
 pub mod scoring;
-mod seed_augments;
+mod seed_generated;
 pub mod storage;
 pub mod backend {
     use reqwest::{redirect::Policy, Client};
@@ -111,8 +111,12 @@ pub mod backend {
                 return Err("阵容数据不完整或重复".into());
             }
             teams.insert(team);
-            if p["augmentsConfirmed"] != true || !strings(&p["augments"]) {
-                return Err("必须确认双方每个玩家的全部海克斯；未知不能当作没有".into());
+            if !strings(&p["augments"]) {
+                return Err("海克斯必须是字符串列表".into());
+            }
+            // 只有本人海克斯能被核实；他人在运行时拿不到，保持未知即可，不当作没有。
+            if p["id"] == c["ownPlayerId"] && p["augmentsConfirmed"] != true {
+                return Err("必须确认本人的全部海克斯；未知不能当作没有".into());
             }
         }
         if teams.len() != 2 {
@@ -320,7 +324,11 @@ pub mod backend {
         fn context_checks() {
             let mut c = context();
             assert!(validate_context(&c, "recommend").is_ok());
+            // 他人的海克斯运行时拿不到，未确认不应阻断分析。
             c["players"][1]["augmentsConfirmed"] = json!(false);
+            assert!(validate_context(&c, "recommend").is_ok());
+            // 本人海克斯必须显式确认。
+            c["players"][0]["augmentsConfirmed"] = json!(false);
             assert!(validate_context(&c, "recommend").is_err());
             assert!(validate_context(&json!({}), "recommend").is_err());
         }

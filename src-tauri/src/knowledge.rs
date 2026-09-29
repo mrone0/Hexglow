@@ -174,7 +174,7 @@ fn root_at(data: &Path) -> Result<PathBuf, String> {
     no_link(&marker_v2)?;
     if !marker_v2.exists() {
         let mut added = 0usize;
-        for (path, content) in crate::seed_augments::AUGMENT_SEEDS {
+        for (path, content) in crate::seed_generated::AUGMENT_SEEDS {
             let target = confined(&root, path)?;
             if target.exists() {
                 continue;
@@ -183,6 +183,24 @@ fn root_at(data: &Path) -> Result<PathBuf, String> {
             added += 1;
         }
         atomic(&marker_v2, "seed attempted v2\n")?;
+        if added > 0 {
+            indexes(&root)?;
+        }
+    }
+    // v3：增量补齐英雄 OKF 种子（除人工维护的 ahri/garen 外）。同样只补缺失，不覆盖不复活。
+    let marker_v3 = data.join(".knowledge-seeded-v3");
+    no_link(&marker_v3)?;
+    if !marker_v3.exists() {
+        let mut added = 0usize;
+        for (path, content) in crate::seed_generated::CHAMPION_SEEDS {
+            let target = confined(&root, path)?;
+            if target.exists() {
+                continue;
+            }
+            atomic(&target, content)?;
+            added += 1;
+        }
+        atomic(&marker_v3, "seed attempted v3\n")?;
         if added > 0 {
             indexes(&root)?;
         }
@@ -307,7 +325,7 @@ fn validate(kind: &str, path: &str, content: &str) -> Value {
             }
             if kind == "Champion" && !known_champion(id) {
                 errors.push(
-                    "Champion ID is not in the bundled minimal registry (Ahri/Garen only)".into(),
+                    "Champion ID is not in the bundled champion registry".into(),
                 );
             }
             let headings: &[&str] = if kind == "Champion" {
@@ -825,7 +843,7 @@ mod tests {
         }
     }
     #[test]
-    fn v2_seed_is_incremental_and_preserves_user_edits() {
+    fn v2_v3_seeds_are_incremental_and_preserve_user_edits() {
         let temp = Temp::new();
         let root = temp.root();
         let target = root.join("augments/1170.md");
@@ -833,22 +851,87 @@ mod tests {
         fs::write(&target, "手工编辑\n").unwrap();
         let removed = root.join("augments/1134.md");
         fs::remove_file(&removed).unwrap();
+        let champ_edited = root.join("champions/jinx.md");
+        assert!(champ_edited.exists(), "v3 seed must add generated champion docs");
+        fs::write(&champ_edited, "英雄编辑\n").unwrap();
+        let champ_removed = root.join("champions/yasuo.md");
+        fs::remove_file(&champ_removed).unwrap();
         let root = root_at(&temp.0).unwrap();
         assert_eq!(
             fs::read_to_string(root.join("augments/1170.md")).unwrap(),
             "手工编辑\n"
         );
+        assert_eq!(
+            fs::read_to_string(champ_edited).unwrap(),
+            "英雄编辑\n",
+            "champion seeds must never overwrite user edits"
+        );
         assert!(!removed.exists(), "deleted documents must not come back");
+        assert!(!champ_removed.exists(), "deleted champions must not come back");
         assert!(root.join("augments/custom-example.md").exists());
         assert!(root.join("champions/ahri.md").exists());
+        let champion_docs = fs::read_dir(root.join("champions"))
+            .unwrap()
+            .filter(|e| {
+                let name = e.as_ref().unwrap().file_name();
+                name != std::ffi::OsStr::new("index.md")
+            })
+            .count();
+        assert_eq!(
+            champion_docs, 172,
+            "173 seeded champions minus the deleted yasuo, index.md excluded"
+        );
     }
 
     #[test]
     fn augment_seed_module_covers_generated_docs() {
-        assert!(crate::seed_augments::AUGMENT_SEEDS.len() >= 211);
-        for (path, content) in crate::seed_augments::AUGMENT_SEEDS {
+        assert!(crate::seed_generated::AUGMENT_SEEDS.len() >= 211);
+        for (path, content) in crate::seed_generated::AUGMENT_SEEDS {
             assert!(path.starts_with("augments/"), "{path}");
             assert_eq!(validate("Augment", path, content)["valid"], true, "{path}");
+        }
+    }
+
+    #[test]
+    fn champion_seed_module_covers_generated_docs() {
+        // ahri/garen 是人工种子，其余英雄全部由脚本生成并内嵌。
+        assert!(crate::seed_generated::CHAMPION_SEEDS.len() >= 171);
+        for (path, content) in crate::seed_generated::CHAMPION_SEEDS {
+            assert!(path.starts_with("champions/"), "{path}");
+            assert!(!path.contains("ahri") && !path.contains("garen"), "{path}");
+            assert_eq!(validate("Champion", path, content)["valid"], true, "{path}");
+        }
+    }
+
+    #[test]
+    fn generated_champion_seeds_validate() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../knowledge-seed/champions");
+        let mut checked = 0usize;
+        let mut failures = Vec::<String>::new();
+        for entry in fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            let name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let content = fs::read_to_string(&path).unwrap();
+            checked += 1;
+            if validate("Champion", &format!("champions/{name}"), &content)["valid"] != true {
+                failures.push(name);
+            }
+        }
+        assert!(checked >= 173, "expected the full roster, found {checked}");
+        assert!(failures.is_empty(), "invalid champion docs: {failures:?}");
+    }
+
+    #[test]
+    fn roster_covers_packed_champions() {
+        let packed: Value =
+            serde_json::from_str(include_str!("../../src-tauri/data/champions.json")).unwrap();
+        for row in packed["champions"].as_array().unwrap() {
+            let id = row["id"].as_str().unwrap().to_lowercase();
+            assert!(known_champion(&id), "{id} must pass champion validation");
         }
     }
 

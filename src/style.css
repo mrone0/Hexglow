@@ -100,6 +100,7 @@ h2 b { display: inline-grid; place-items: center; background: #f0eafa; color: #8
 .player textarea { min-height: 75px; font-size: 10px; padding: 8px; }
 .check { display: flex; align-items: flex-start; gap: 5px; margin-top: 8px; font-size: 9px; line-height: 1.7; }
 .check input { margin: 1px 0 0; }
+.player-na { margin: 0; padding: 9px 10px; border-radius: 9px; background: #f4f5f9; border: 1px dashed #e0e3ee; color: #7b8497; font-size: 10px; line-height: 1.75; }
 .empty { text-align: center; padding: 33px 14px; color: #6d778e; border: 1px dashed #ded9ec; border-radius: 13px; background: radial-gradient(ellipse at top, #f1ecfc8c, transparent 70%), #fcfcff; margin-bottom: 20px; }
 .radar { display: grid; place-items: center; font-size: 41px; color: #78aca5; margin: 0 auto 13px; width: 70px; height: 70px; background: #edf8f5; border-radius: 24px; border: 1px solid #d7eeea; }
 .empty h3 { font-size: 14px; color: #505c74; font-weight: 600; }

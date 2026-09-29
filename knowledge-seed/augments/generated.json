@@ -1,8 +1,13 @@
 {
   "generator": "scripts/build-knowledge.mjs",
-  "input": "src-tauri/data/augments.json",
+  "input": [
+    "src-tauri/data/augments.json",
+    "src-tauri/data/champions.json"
+  ],
   "patch": "16.19.1",
-  "generatedAt": "2026-09-28T10:48:46.792Z",
-  "count": 211,
-  "note": "仅新增/覆盖由本脚本生成的 <id>.md，不触碰 custom-example.md 或 champions/。"
+  "generatedAt": "2026-09-29T02:36:21.616Z",
+  "augments": 211,
+  "champions": 171,
+  "registry": 173,
+  "note": "只生成 <id>.md；不触碰 custom-example.md、champions/ahri.md、champions/garen.md。"
 }
