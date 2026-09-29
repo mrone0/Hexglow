@@ -10,7 +10,7 @@ name = "lol_augment_assistant_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [[bin]]
-name = "lol-augment-assistant"
+name = "Hexglow"
 path = "src/main.rs"
 
 [build-dependencies]
