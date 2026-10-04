@@ -25,7 +25,7 @@ Mac 可执行 `pnpm tauri dev` 打开真实桌面 UI；也可编译后直接运�
 3. 对局中每3秒检查LCU/Live；无游戏时退避到8–15秒、页面隐藏时15秒；Windows进程发现缓存无客户端15秒/成功30秒。请求不重叠，错误自动重试，单个 HTTP 最长 2 秒，一轮总预算 11 秒。是轮询，不宣称 WebSocket 长连接。
 4. 大厅/选人/载入/对局/结算在界面显示。即使启动工具时已在游戏内，也会独立尝试 Live API，不依赖先看到大厅。
 5. 进入游戏后自动展示当前英雄与简要阵容，首页以海克斯推荐为核心；对局内截屏 OCR 自动读取候选（识别到 ≥2 条才写入推荐），读不到时才需补充本轮候选名称和完整效果。对局进行中他人海克斯不可得，按未知处理；对局结束后由本地结算接口自动补录双方海克斯。未识别项保持未知，推荐会声明信息不全。手动纠正、采集控制、证据和复盘放在折叠的高级区域。
-6. 配置 Jev 官方或 OpenAI 兼容第三方/本地模型，勾选发送数据确认后点击分析。当前英雄、双方阵容/海克斯、OKF文档与相关历史组成结构化状态，模型不自动操作游戏。
+6. 配置 Jev 官方或 OpenAI 兼容第三方/本地模型，勾选发送数据确认后点击分析。当前英雄、双方阵容/海克斯、OKF文档与相关历史组成结构化状态，模型按四项因素自报置信度，加权后与本地规则先验按 70/30 融合成 0-100 相对契合度，并列出因子明细、依据引用与缺文档提示；模型不自动操作游戏。局内悬浮侧栏只用本地规则排序，明确标注「本地规则 · 非 AI」。
 7. 对局持续保存快照；结束阶段自动保存。有可靠、可归属的 API 结果才标记胜负，断线不判负。手动结果独立标记为 manual。
 8. 记录实际选择、赛后观察，点击生成复盘；最近 5 份复盘作为以后提示参考，不自动训练模型权重。
 
@@ -44,11 +44,15 @@ pnpm tauri dev
 pnpm build
 pnpm test
 cargo test --manifest-path src-tauri/Cargo.toml --locked
-# 在 Windows 上生成 NSIS 安装器
+# 在 Windows 上生成 release 可执行文件与 NSIS 安装器（0.2.0）
+pnpm tauri build
+# 显式指定打包格式时等价
 pnpm tauri build --bundles nsis
 # Mac 仅开发编译，不生成正式发布包
 pnpm tauri build --debug --no-bundle
 ```
+
+当前版本 **0.2.0**，版本号需同步改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`。release 产物在 `src-tauri/target/release/Hexglow.exe` 与 `src-tauri/target/release/bundle/nsis/Hexglow_0.2.0_x64-setup.exe`。安装器为当前用户安装（不提权），含中/英文语言选择。
 
 GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有 Mac/Linux 构建矩阵。推送到 GitHub 后才会运行，是否已有线上结果以 Actions 页面为准。Windows 配置自动启用 NSIS；安装器未签名，可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
 
@@ -63,7 +67,7 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 | 双方阵容、英雄、装备 | Live API 解析字段 |
 | 玩家等级/KDA/经济等原始可得字段 | 保留在 Live API 原始快照中，是否存在依版本而定 |
 | 玩家海克斯、候选及完整效果 | 本人海克斯手动录入并确认；候选由截屏 OCR 自动识别后确认；对局进行中他人海克斯按未知处理，赛后由本地 EOG 接口自动补录双方海克斯并标 `augmentsConfirmed` |
-| 推荐排名、理由、风险、缺失信息 | 模型判断，连同当时完整决策上下文保存 |
+| 推荐排名、因子明细、理由、风险、缺失信息 | 模型四项因素按置信度加权并与本地规则先验 70/30 融合，连同当时完整决策上下文保存 |
 | 实际选择 | 用户确认的候选 ID |
 | 阶段时间线 | 阶段/连接变化，最近 200 个条目 |
 | 定期 Live 原始快照 | 每 ≥15 秒保存一份，最近 30 份，约 7.5 分钟窗口；不是录像或完整逐帧记录 |
@@ -78,7 +82,7 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 - `manual`：用户补充，不能覆盖已获得的自动结果证据。
 - `unknown`：没捕获到结算、接口版本不兼容、证据不足或归属不明。客户端断开或工具退出绝不等于失败。
 
-原始数据是否包含最终伤害、经济和击杀统计依接口实际返回；当前不虚构缺失字段。数据存储在应用数据目录的 `sessions.sqlite3`，UI“运行日志”页显示确切路径。沿用早期 app identifier 以保留旧数据库。档案界面每页 50 条轻量摘要（过滤掉 `players=0` 且没有可核对内容的空记录，只隐藏不删除），支持上一页/下一页、按需读取完整会话、删除整场对局或单条分析。删除分析会清除旧复盘，避免引用已删除判断。没有导出 UI。旧版本手填 outcome 不自动转成有证据的胜负。
+原始数据是否包含最终伤害、经济和击杀统计依接口实际返回；当前不虚构缺失字段。数据存储在应用数据目录的 `sessions.sqlite3`，UI“运行日志”页显示确切路径。0.2.0 起 identifier 为 `ai.hexglow.desktop`（替换占位 `com.local.lol-augment-assistant`，本机已有数据整目录复制到新路径，旧目录保留作备份；后续不得再改，除非同步做迁移）。档案界面每页 50 条轻量摘要（过滤掉 `players=0` 且没有可核对内容的空记录，只隐藏不删除），支持上一页/下一页、按需读取完整会话、删除整场对局或单条分析。删除分析会清除旧复盘，避免引用已删除判断。没有导出 UI。旧版本手填 outcome 不自动转成有证据的胜负。
 
 ## 视觉与日志
 
