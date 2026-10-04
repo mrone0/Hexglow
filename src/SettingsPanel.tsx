@@ -1,7 +1,11 @@
 import {isTauri} from '@tauri-apps/api/core';
 import {Select} from './Select';
 
-type ModelConfig={provider?:'jev'|'openai';baseUrl:string;name:string;jsonMode?:boolean;maxTokens?:number};
+type ModelConfig={provider?:'jev'|'openai';baseUrl:string;name:string;jsonMode?:boolean;maxTokens?:number;allowThirdParty?:boolean};
+export const DEFAULT_JEV_URL='https://api.typesafe.ai/v1';
+export const DEFAULT_JEV_MODEL='jev-1.13.0';
+const DEFAULT_LOCAL_URL='http://127.0.0.1:11434/v1';
+const isOfficialJev=(url:string)=>{try{const u=new URL(url.trim());return u.hostname==='api.typesafe.ai'&&u.protocol==='https:';}catch{return false;}};
 type StorageStats={databaseBytes:number;sessionCount:number;sampleCount:number;budgetMb:number;retentionDays:number;budgetReached?:boolean};
 type Confirmation={title:string;detail:string;action:()=>Promise<void>};
 
@@ -43,9 +47,11 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
    <div className="settings-model-grid">
     <div className="settings-group">
      <h3>服务与模型</h3>
-     <label>协议 / 服务商<Select value={model.provider||'openai'} onChange={e=>{setConsent(false);clearModels();setModel(e.target.value==='jev'?{provider:'jev',baseUrl:'https://api.typesafe.ai/v1',name:'jev-1.13.0'}:{provider:'openai',baseUrl:'http://127.0.0.1:11434/v1',name:''});}}><option value="jev">TypeSafe Jev · System One</option><option value="openai">OpenAI 兼容 · 第三方 / 本地</option></Select></label>
-     <div className="preset-field"><span>快速选择本地服务</span><div className="model-presets">{presets.map(([name,url])=><button key={name} aria-pressed={model.provider!=='jev'&&model.baseUrl===url} onClick={()=>setModel({...model,provider:'openai',baseUrl:url})}>{name}</button>)}</div></div>
+     <label>协议 / 服务商<Select value={model.provider||'openai'} onChange={e=>{setConsent(false);clearModels();setModel(e.target.value==='jev'?{...model,provider:'jev',baseUrl:DEFAULT_JEV_URL,name:DEFAULT_JEV_MODEL}:{...model,provider:'openai',baseUrl:DEFAULT_LOCAL_URL,name:'',allowThirdParty:undefined});}}><option value="jev">TypeSafe Jev · System One</option><option value="openai">OpenAI 兼容 · 第三方 / 本地</option></Select></label>
+     <div className="preset-field"><span>快速选择本地服务</span><div className="model-presets">{presets.map(([name,url])=><button key={name} aria-pressed={model.provider!=='jev'&&model.baseUrl===url} onClick={()=>setModel({...model,provider:'openai',baseUrl:url,allowThirdParty:undefined})}>{name}</button>)}</div></div>
      <label>服务地址<input value={model.baseUrl} onChange={e=>setModel({...model,baseUrl:e.target.value})}/></label>
+     {model.provider==='jev'&&<label className="settings-check"><input type="checkbox" checked={!!model.allowThirdParty} onChange={e=>setModel({...model,allowThirdParty:e.target.checked})}/><span><strong>允许使用第三方地址</strong><small>官方 api.typesafe.ai 默认可用，无需勾选；改填第三方时仍须 HTTPS 或本机 HTTP 回环，地址不能带账号、查询或片段。</small></span></label>}
+     {model.provider==='jev'&&model.baseUrl.trim()&&!isOfficialJev(model.baseUrl)&&!model.allowThirdParty&&<p className="hint">第三方地址需先勾选「允许使用第三方地址」，否则连接会被拒绝。</p>}
      <label>模型名称<input placeholder="填写准确模型名，或先获取模型列表" value={model.name} onChange={e=>setModel({...model,name:e.target.value})}/></label>
      {models.length>0&&<label>服务可用模型<Select value={model.name} onChange={e=>setModel({...model,name:e.target.value})}><option value="">请选择</option>{models.map(m=><option key={m}>{m}</option>)}</Select></label>}
     </div>
@@ -59,7 +65,7 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
     </div>
    </div>
    <label className="settings-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span><strong>发送前确认</strong><small>允许将英雄、海克斯、文档片段和历史摘要发送给所配置服务商。原始账号标识不发送，但手填文字可能包含个人信息。</small></span></label>
-   <details className="settings-details"><summary>协议、费用与隐私说明</summary><p>Jev 使用官方 System One 协议；普通模型使用统一判断问题的 JSON 适配。支持第三方 HTTPS 和本机 HTTP，不会自动切换服务商。模型费用由用户账号承担；API Key 在彻底退出应用后清空。</p></details>
+   <details className="settings-details"><summary>协议、费用与隐私说明</summary><p>Jev 使用官方 System One 协议，默认地址为官方 api.typesafe.ai，改填第三方地址需先勾选「允许使用第三方地址」；普通模型使用统一判断问题的 JSON 适配。支持第三方 HTTPS 和本机 HTTP，不会自动切换服务商。模型费用由用户账号承担；API Key 在彻底退出应用后清空。</p></details>
   </section>
 
   <section className="panel settings-card settings-runtime-card">

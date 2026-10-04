@@ -5,7 +5,8 @@ export type Review = { summary: string; lessons: string[]; caveats: string[] };
 export type MatchResult = { status: 'win'|'loss'|'unknown'; source: 'live-game-end'|'lcu-eog'|'manual'|'unknown'; observedAt: string; gameId?: string; evidence?: unknown };
 export type TimelineEntry = { at: string; phase: string; connection: string };
 export type Session = { sampleCount?:number; schemaVersion?: number; id: string; createdAt: string; updatedAt?: string; endedAt?: string; matchId: string; ownPlayerId: string; players: Player[]; candidates: Candidate[]; notes: string; liveData: unknown; decisions: { at: string; result: Recommendation; context: unknown; chosenId?: string }[]; outcome: string; review?: Review; result?: MatchResult; phase?: string; timeline?: TimelineEntry[]; samples?: { at: string; data: unknown }[]; lcuSession?: unknown; endOfGame?: unknown; postGameFilledAt?: string; archived?: boolean };
-export type PostGameAugments = { players: { key: string; augments: string[] }[]; fields: string[] };
+export type PostGameAugmentsEntry = { key: string; augments: string[]; champion?: string; team?: string };
+export type PostGameAugments = { players: PostGameAugmentsEntry[]; fields: string[] };
 export type CollectorSnapshot = { platformSupported: boolean; connection: string; phase: string; gameId: string|null; liveData: any|null; lcuSession: unknown|null; endOfGame: unknown|null; postGameAugments?: PostGameAugments|null; result: MatchResult|null; observedAt: string; warnings: string[] };
 export const newSession = (): Session => ({ schemaVersion:2,id: crypto.randomUUID(), createdAt: new Date().toISOString(), matchId: '', ownPlayerId: '', players: [], candidates: [1,2,3].map(n => ({id: String(n), name:'', description:''})), notes:'', liveData:null, decisions:[], outcome:'', timeline:[], samples:[], result:{status:'unknown',source:'unknown',observedAt:new Date().toISOString()} });
 export const endPhases = new Set(['PreEndOfGame','EndOfGame','WaitingForStats']);
@@ -24,12 +25,33 @@ export function mergeLive(session: Session, raw: any): Session {
 }
 const keyOf=(value?:string)=>String(value||'').trim().toLowerCase();
 // 赛后证据按身份挂回玩家：只做并集与已核实标记，不覆盖已录入的内容。
-export function fillPostGameAugments(session:Session, entries:{key:string;augments:string[]}[]):Session {
+// 身份对不上时（被遮蔽的玩家在实时接口里只有 "#"），退回「英雄 + 阵营」兜底匹配：
+// 在场玩家与赛后条目两边都必须唯一才认，拿不准就不认，绝不张冠李戴。
+export function fillPostGameAugments(session:Session, entries:PostGameAugmentsEntry[]):Session {
   if(!entries?.length||!session.players.length) return session;
-  const players=session.players.map(player=>{
+  const used=new Set<number>();
+  const pick=(player:Player)=>{
     const names=new Set([player.id,player.name,player.id.split('#')[0],player.name.split('#')[0]].map(keyOf).filter(Boolean));
-    const entry=entries.find(item=>names.has(keyOf(item.key)));
-    if(!entry?.augments?.length) return player;
+    // 身份对上但英雄对不上时也不认：同名不同人的局面宁可不填。
+    const byIdentity=entries.findIndex((item,index)=>!used.has(index)&&names.has(keyOf(item.key))&&item.augments?.length&&(!item.champion||!player.champion||keyOf(item.champion)===keyOf(player.champion)));
+    if(byIdentity>=0) return byIdentity;
+    const champion=keyOf(player.champion),team=keyOf(player.team);
+    if(!champion) return -1;
+    const twins=session.players.filter(p=>keyOf(p.champion)===champion&&keyOf(p.team)===team).length;
+    if(twins!==1) return -1;
+    const fallback=entries.reduce<number[]>((found,item,index)=>{
+      if(used.has(index)||!item.augments?.length||keyOf(item.champion)!==champion) return found;
+      if(item.team) return keyOf(item.team)===team?[...found,index]:found;
+      // 条目没带阵营时，只有全场该英雄唯一才敢认。
+      return session.players.filter(p=>keyOf(p.champion)===champion).length===1?[...found,index]:found;
+    },[]);
+    return fallback.length===1?fallback[0]:-1;
+  };
+  const players=session.players.map(player=>{
+    const index=pick(player);
+    if(index<0) return player;
+    used.add(index);
+    const entry=entries[index];
     const augments=[...player.augments];
     for(const augment of entry.augments) if(augment.trim()&&!augments.includes(augment)) augments.push(augment);
     return augments.length===player.augments.length&&player.augmentsConfirmed?player:{...player,augments,augmentsConfirmed:true};
@@ -37,6 +59,9 @@ export function fillPostGameAugments(session:Session, entries:{key:string;augmen
   if(players.every((player,index)=>player===session.players[index])) return session;
   return {...session,players,postGameFilledAt:new Date().toISOString()};
 }
+// 只有内容值得进档案：既无玩家、分析、复盘，也没有任何手动补充的空壳不能归档，
+// 也不能落库——对局结束重新排队时出现的空 ChampSelect 会直接复用它。
+export const hasContent=(s:Session)=>s.players.length>0||s.decisions.length>0||!!s.review||!!s.notes.trim()||!!s.outcome.trim()||(!!s.result&&s.result.status!=='unknown')||s.candidates.some(c=>c.name.trim());
 export function applySnapshot(current: Session, snap: CollectorSnapshot): {session:Session; completed?:Session} {
   const hasLive = Array.isArray(snap.liveData?.allPlayers) && snap.liveData.allPlayers.length>0;
   const oldTime = (current.liveData as any)?.gameData?.gameTime;
@@ -48,7 +73,7 @@ export function applySnapshot(current: Session, snap: CollectorSnapshot): {sessi
   const newUnknownGame = !!current.endedAt && hasLive && !snap.gameId && !currentEndEvent && (!snap.result || snap.result.status==='unknown');
   let completed:Session|undefined;
   let session=current;
-  if ((idChanged || timeReset || nextStart || newUnknownGame) && (current.players.length>0 || current.decisions.length>0 || current.matchId)) {
+  if ((idChanged || timeReset || nextStart || newUnknownGame) && hasContent(current)) {
     completed={...current,archived:true,updatedAt:snap.observedAt};
     session=newSession();
   }

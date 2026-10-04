@@ -13,8 +13,9 @@ export function ownLevel(liveData: unknown): number | null {
 export type TriggerState = {matchId: string; fired: number[]};
 
 /**
- * 同一局内每个等级段只触发一次；换局自动复位。
- * 首帧直接跳到高等级（重连）时只触发当前所处的等级段。
+ * 同一局内每个等级段只记录一次；换局自动复位。
+ * `fired` 不再驱动识别（识别每轮 InProgress 都跑），只用于保持档位状态。
+ * 首帧直接跳到高等级（重连）时只记录当前所处的等级段。
  */
 export function nextTriggers(
   state: TriggerState,

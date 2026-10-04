@@ -343,18 +343,30 @@ fn light(mut v: Value) -> Value {
     }
     v
 }
-#[tauri::command]
-pub fn list_sessions_light(app: AppHandle, offset: Option<u64>) -> Result<Vec<Value>, String> {
-    let c = db(&app)?;
+// 档案页只列有内容的记录：对局结束重新排队时出现的空壳（无玩家、无分析、也没有任何
+// 手动补充）以及存量的同类空行都不进列表；它们仍留在库里，等待被复用。
+const ARCHIVE_CONTENT: &str = "CASE WHEN json_valid(data) THEN \
+ CASE json_type(data,'$.players') WHEN 'array' THEN json_array_length(data,'$.players') ELSE 0 END>0 \
+ OR CASE json_type(data,'$.decisions') WHEN 'array' THEN json_array_length(data,'$.decisions') ELSE 0 END>0 \
+ OR COALESCE(json_extract(data,'$.notes'),'')<>'' \
+ OR COALESCE(json_extract(data,'$.outcome'),'')<>'' \
+ OR json_extract(data,'$.review') IS NOT NULL \
+ OR (json_extract(data,'$.result.status') IS NOT NULL AND json_extract(data,'$.result.status')<>'unknown') \
+ ELSE 1 END";
+fn light_page(c: &Connection, offset: i64) -> Result<Vec<Value>, String> {
     let mut q = c
-        .prepare("SELECT data FROM sessions ORDER BY updated_at DESC,id DESC LIMIT 50 OFFSET ?1")
+        .prepare(&format!(
+            "SELECT data FROM sessions WHERE {ARCHIVE_CONTENT} ORDER BY updated_at DESC,id DESC LIMIT 50 OFFSET ?1"
+        ))
         .map_err(|e| e.to_string())?;
     let rows = q
-        .query_map(params![offset.unwrap_or(0).min(i64::MAX as u64)], |r| {
-            r.get::<_, String>(0)
-        })
+        .query_map(params![offset], |r| r.get::<_, String>(0))
         .map_err(|e| e.to_string())?;
     rows.map(|r| parse(&r.map_err(|e| e.to_string())?).map(light)).collect()
+}
+#[tauri::command]
+pub fn list_sessions_light(app: AppHandle, offset: Option<u64>) -> Result<Vec<Value>, String> {
+    light_page(&db(&app)?, offset.unwrap_or(0).min(i64::MAX as u64) as i64)
 }
 #[tauri::command]
 pub fn get_session(app: AppHandle, id: String) -> Result<Value, String> {
@@ -508,5 +520,36 @@ mod tests {
         remove_analysis(&mut v, "a");
         assert_eq!(v["decisions"].as_array().unwrap().len(), 1);
         assert!(v["review"].is_null());
+    }
+    #[test]
+    fn archive_listing_hides_empty_shells_but_keeps_them_stored() {
+        let c = memory();
+        let rows = [
+            ("real", json!({"id":"real","matchId":"100","players":[{"id":"me","champion":"Ahri"}],"decisions":[],"notes":"","outcome":"","result":{"status":"win"}})),
+            ("shell", json!({"id":"shell","matchId":"100","players":[],"decisions":[],"notes":"","outcome":"","result":{"status":"unknown"}})),
+            ("notes", json!({"id":"notes","matchId":"","players":[],"decisions":[],"notes":"思路","outcome":"","result":{"status":"unknown"}})),
+            ("decision", json!({"id":"decision","matchId":"","players":[],"decisions":[{"at":"x"}],"notes":"","outcome":"","result":{"status":"unknown"}})),
+            ("review", json!({"id":"review","matchId":"","players":[],"decisions":[],"notes":"","outcome":"","review":{"summary":"复盘"},"result":{"status":"unknown"}})),
+            ("odd", json!({"id":"odd","matchId":"1","players":"not-an-array","decisions":[],"notes":"","outcome":"","result":{"status":"unknown"}})),
+        ];
+        for (index, (id, value)) in rows.iter().enumerate() {
+            c.execute(
+                "INSERT INTO sessions VALUES(?1,?2,?3)",
+                params![id, value.to_string(), format!("2026-01-01T00:{index:02}:00Z")],
+            )
+            .unwrap();
+        }
+        let page = light_page(&c, 0).unwrap();
+        let listed: Vec<&str> = page
+            .iter()
+            .map(|row| row["id"].as_str().unwrap())
+            .collect();
+        // players 不是数组的畸形行不会让整页查询报错，只会被当成没有内容。
+        assert_eq!(listed, vec!["review", "decision", "notes", "real"]);
+        // 空壳只是不进列表，仍留在库里等待被下一条快照复用。
+        let stored: i64 = c
+            .query_row("SELECT count(*) FROM sessions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(stored, rows.len() as i64);
     }
 }

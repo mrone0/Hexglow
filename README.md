@@ -24,7 +24,7 @@ Mac 可执行 `pnpm tauri dev` 打开真实桌面 UI；也可编译后直接运�
 2. 本地 PowerShell/CIM 查找 LeagueClientUx 的本地端口和凭据；凭据仅在 Rust 内存使用。非默认安装目录不影响进程发现；权限或发现失败时可在设置中填写 lockfile 绝对路径。
 3. 对局中每3秒检查LCU/Live；无游戏时退避到8–15秒、页面隐藏时15秒；Windows进程发现缓存无客户端15秒/成功30秒。请求不重叠，错误自动重试，单个 HTTP 最长 2 秒，一轮总预算 11 秒。是轮询，不宣称 WebSocket 长连接。
 4. 大厅/选人/载入/对局/结算在界面显示。即使启动工具时已在游戏内，也会独立尝试 Live API，不依赖先看到大厅。
-5. 进入游戏后自动展示当前英雄与简要阵容，首页以海克斯推荐为核心。暂不能自动读取候选时，只需补充本轮候选名称和完整效果。不再要求逐人确认双方海克斯；未识别项保持未知，推荐会声明信息不全。手动纠正、采集控制、证据和复盘放在折叠的高级区域。
+5. 进入游戏后自动展示当前英雄与简要阵容，首页以海克斯推荐为核心；对局内截屏 OCR 自动读取候选（识别到 ≥2 条才写入推荐），读不到时才需补充本轮候选名称和完整效果。对局进行中他人海克斯不可得，按未知处理；对局结束后由本地结算接口自动补录双方海克斯。未识别项保持未知，推荐会声明信息不全。手动纠正、采集控制、证据和复盘放在折叠的高级区域。
 6. 配置 Jev 官方或 OpenAI 兼容第三方/本地模型，勾选发送数据确认后点击分析。当前英雄、双方阵容/海克斯、OKF文档与相关历史组成结构化状态，模型不自动操作游戏。
 7. 对局持续保存快照；结束阶段自动保存。有可靠、可归属的 API 结果才标记胜负，断线不判负。手动结果独立标记为 manual。
 8. 记录实际选择、赛后观察，点击生成复盘；最近 5 份复盘作为以后提示参考，不自动训练模型权重。
@@ -50,7 +50,7 @@ pnpm tauri build --bundles nsis
 pnpm tauri build --debug --no-bundle
 ```
 
-GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有 Mac/Linux 构建矩阵。推送到 GitHub 后才会运行；当前目录尚未初始化 Git，尚无线上 CI 结果。Windows 配置自动启用 NSIS；安装器未签名，可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
+GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有 Mac/Linux 构建矩阵。推送到 GitHub 后才会运行，是否已有线上结果以 Actions 页面为准。Windows 配置自动启用 NSIS；安装器未签名，可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
 
 详细验收见 [docs/WINDOWS-TESTING.md](docs/WINDOWS-TESTING.md)。
 
@@ -62,7 +62,7 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 | 对局 ID、LCU 阶段与会话 | 本地 API；没有 ID 时不猜测 |
 | 双方阵容、英雄、装备 | Live API 解析字段 |
 | 玩家等级/KDA/经济等原始可得字段 | 保留在 Live API 原始快照中，是否存在依版本而定 |
-| 玩家海克斯、候选及完整效果 | 用户补充与明确确认，不冒充 API 自动获取 |
+| 玩家海克斯、候选及完整效果 | 本人海克斯手动录入并确认；候选由截屏 OCR 自动识别后确认；对局进行中他人海克斯按未知处理，赛后由本地 EOG 接口自动补录双方海克斯并标 `augmentsConfirmed` |
 | 推荐排名、理由、风险、缺失信息 | 模型判断，连同当时完整决策上下文保存 |
 | 实际选择 | 用户确认的候选 ID |
 | 阶段时间线 | 阶段/连接变化，最近 200 个条目 |
@@ -78,7 +78,7 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 - `manual`：用户补充，不能覆盖已获得的自动结果证据。
 - `unknown`：没捕获到结算、接口版本不兼容、证据不足或归属不明。客户端断开或工具退出绝不等于失败。
 
-原始数据是否包含最终伤害、经济和击杀统计依接口实际返回；当前不虚构缺失字段。数据存储在应用数据目录的 `sessions.sqlite3`，UI“运行日志”页显示确切路径。沿用早期 app identifier 以保留旧数据库。档案界面每页 50 条轻量摘要，支持上一页/下一页、按需读取完整会话、删除整场对局或单条分析。删除分析会清除旧复盘，避免引用已删除判断。没有导出 UI。旧版本手填 outcome 不自动转成有证据的胜负。
+原始数据是否包含最终伤害、经济和击杀统计依接口实际返回；当前不虚构缺失字段。数据存储在应用数据目录的 `sessions.sqlite3`，UI“运行日志”页显示确切路径。沿用早期 app identifier 以保留旧数据库。档案界面每页 50 条轻量摘要（过滤掉 `players=0` 且没有可核对内容的空记录，只隐藏不删除），支持上一页/下一页、按需读取完整会话、删除整场对局或单条分析。删除分析会清除旧复盘，避免引用已删除判断。没有导出 UI。旧版本手填 outcome 不自动转成有证据的胜负。
 
 ## 视觉与日志
 
@@ -101,7 +101,7 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 
 ## 本地模型与隐私
 
-- Jev采用官方 `/v1/systemone`，默认版本 jev-1.13.0；普通模型使用 `/chat/completions`。关闭代理和重定向，不自动切换厂商。30秒请求超时。
+- Jev采用官方 `/v1/systemone`，默认版本 jev-1.13.0；默认地址为官方 `https://api.typesafe.ai/v1`，改填第三方地址需在设置中勾选「允许使用第三方地址」。普通模型使用 `/chat/completions`。关闭代理和重定向，不自动切换厂商。30秒请求超时。
 - 普通模型可关闭 response_format 参数，但仍必须返回可校验JSON。Jev用于结构化评分，理由由模板展示，不冒充模型生成长文。
 - 外发前去除原始Live/LCU/结算、玩家名称与对局ID，玩家替换为p1等；保留英雄、海克斯、相关知识及历史观察。自由文本仍可能含个人信息，用户需要检查并同意发送。
 - 应用没有遥测、远程字体或云端回退。安装依赖/模型/WebView2 的准备阶段可能需要网络。
@@ -112,8 +112,8 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 
 用户指定参考：[Riot 官方 League of Legends 开发者支持页](https://support-developer.riotgames.com/hc/en-us/articles/22698698001939-League-of-Legends)。后续已通过官方公开文章 JSON 接口取得正文：`https://support-developer.riotgames.com/api/v2/help_center/en-us/articles/22698698001939.json`。文档要求产品不替玩家消除决策，禁止展示海克斯/Arena 物品胜率，并要求注册与说明 LCU 使用；LCU 不受官方第三方支持。当前仅提供候选分析，不实现自动替选、不展示海克斯聚合胜率。上线前仍需核验具体产品用途，本地运行不等于自动合规，项目没有 Riot 背书。
 
-仅只读本地 API，不读游戏内存、不自动点击、不绕过保护。LCU 路径属于版本敏感接口，需要 Windows 真实样本验证。没有证明 API 可自动返回全体海克斯和候选，继续使用已获用户允许的手动补充。
+仅只读本地 API，不读游戏内存、不自动点击、不绕过保护。LCU 路径属于版本敏感接口，已在 Windows 真实对局中验证：赛后结算接口可读回本局全部 10 人的英雄、阵营与海克斯并自动补进档案；对局进行中的他人海克斯仍不可得，按未知处理，需要时继续手动补充。
 
-没有内置经版本验证的英雄/海克斯数据库、OCR、游戏覆盖层、自动选择、后台守护服务、模型权重训练和响应延迟保证。游戏身份缺失且生命周期观察中断时无法绝对证明局次，采用保守切分；真实长期运行需继续验证。
+内置英雄/海克斯数据来自打包数据与知识种子（逐条标 `verified: false`，不冒充版本权威）；截屏 OCR、对局内可折叠侧栏与赛后补录均为本地实现，不自动选择、无后台守护服务、不训练模型权重、不提供响应延迟保证。游戏身份缺失且生命周期观察中断时无法绝对证明局次，采用保守切分；真实长期运行需继续验证。
 
-下一步需要 Windows 机器上的脱敏 API 样本、运行日志、实际模型服务信息及游戏结束样本。具体测试结果见 [VALIDATION.md](VALIDATION.md)。
+长期运行稳定性、真实模型服务信息与 Windows 安装器验收仍待完成。具体测试结果见 [VALIDATION.md](VALIDATION.md)。

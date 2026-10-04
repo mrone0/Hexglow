@@ -34,7 +34,7 @@ export function LiveOverview({session,busy,ready,setupIssue,blockers,onRun,onSet
    <div className="hero-avatar">{own?.champion.slice(0,2)||'◇'}</div>
    <div><span className="quiet-label">{historical?'历史对局':'当前对局'}</span><h1>{own?.champion||'等待进入对局'}</h1><p>{hasGame?phaseLabel(session.phase):'打开游戏即可，海萤会自动识别当前对局。'}</p></div>
    {historical&&<button onClick={onResume}>返回实时对局</button>}
-   {hasGame&&<details className="lineup"><summary>双方阵容</summary>{['ORDER','CHAOS'].map(t=><p key={t}><b>{t===own?.team?'我方':'敌方'}</b> {session.players.filter(p=>p.team===t).map(p=>p.champion).join(' · ')}</p>)}</details>}
+   {hasGame&&<details className="lineup" open={historical}><summary>双方阵容</summary>{['ORDER','CHAOS'].map(t=>{const roster=session.players.filter(p=>p.team===t),known=roster.filter(p=>p.augments.length);return <p key={t}><b>{t===own?.team?'我方':'敌方'}</b> {roster.map(p=>p.champion).join(' · ')}{known.length>0&&<small className="lineup-aug">{known.map(p=>`${p.champion}：${p.augments.join('、')}`).join('；')}</small>}</p>;})}</details>}
   </section>
 
   <section className="recommend-panel">

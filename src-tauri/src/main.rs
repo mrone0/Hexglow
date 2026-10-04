@@ -23,6 +23,7 @@ fn main() {
             lol_augment_assistant_lib::storage::get_session_by_match,
             lol_augment_assistant_lib::collector::collector_snapshot,
             lol_augment_assistant_lib::collector::diagnostics,
+            lol_augment_assistant_lib::collector::postgame_entries,
             lol_augment_assistant_lib::overlay::overlay_open,
             lol_augment_assistant_lib::overlay::overlay_ready,
             lol_augment_assistant_lib::overlay::overlay_close,

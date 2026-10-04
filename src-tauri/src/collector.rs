@@ -465,21 +465,44 @@ fn outcome(live: &Value, session: &Value, eog: &Value, summoner: &Value, at: &st
     }
 }
 
+// 身份之外还要带上英雄与阵营：被遮蔽的玩家在实时接口里拿不到可用的身份键，
+// 赛后只能靠「英雄 + 阵营」这组唯一组合把海克斯认回去。
+#[derive(Clone, Default)]
+struct Whereabouts {
+    identity: Option<String>,
+    champion: Option<String>,
+    team: Option<String>,
+}
+
+// 一个身份名下的赛后证据：海克斯集合 + 可用于兜底匹配的归属信息。
+#[derive(Default)]
+struct PlayerEvidence {
+    augments: BTreeSet<String>,
+    champion: Option<String>,
+    team: Option<String>,
+}
+
 // 赛后补录：EOG / 比赛历史的字段结构由客户端版本决定，先递归扫描含 augment 的字段
 // 并记录路径，再按记录自身（或父记录）的身份键把海克斯归到玩家名下。
 fn postgame_augments(eog: &Value, history: &Value, game: Option<&str>) -> Value {
     let mut fields = BTreeSet::new();
-    let mut players: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    scan_augments(eog, "", None, &mut fields, &mut players);
+    let mut players: BTreeMap<String, PlayerEvidence> = BTreeMap::new();
+    scan_augments(eog, "", Whereabouts::default(), &mut fields, &mut players);
     // 比赛历史可能混着旧局：没有可核对的对局 ID 就不采信，避免张冠李戴。
     if let Some(game) = game {
         let mut matches = Vec::new();
         collect_history_games(history, game, &mut matches);
         for entry in matches {
-            scan_augments(entry, "", None, &mut fields, &mut players);
+            scan_augments(
+                entry,
+                "",
+                Whereabouts::default(),
+                &mut fields,
+                &mut players,
+            );
         }
     }
-    let identified: Vec<(&String, &BTreeSet<String>)> = players
+    let identified: Vec<(&String, &PlayerEvidence)> = players
         .iter()
         .filter(|(key, _)| key.as_str() != "unknown")
         .collect();
@@ -488,10 +511,29 @@ fn postgame_augments(eog: &Value, history: &Value, game: Option<&str>) -> Value 
     }
     json!({
         "players":identified.iter()
-            .map(|(key, augments)| json!({"key":key,"augments":augments}))
+            .map(|(key, entry)| {
+                let mut item = json!({"key":key,"augments":&entry.augments});
+                if let Some(champion) = &entry.champion {
+                    item["champion"] = Value::String(champion.clone());
+                }
+                if let Some(team) = &entry.team {
+                    item["team"] = Value::String(team.clone());
+                }
+                item
+            })
             .collect::<Vec<_>>(),
         "fields":fields,
     })
+}
+
+// 旧档案的本地补录：把保存下来的赛后证据按当前扫描规则重新归属，不联网、不改库，
+// 由前端决定是否写回。没有存下证据时返回 null。
+#[tauri::command]
+pub fn postgame_entries(session: Value) -> Value {
+    match session.get("endOfGame") {
+        Some(eog) if !eog.is_null() => postgame_augments(eog, &Value::Null, None),
+        _ => Value::Null,
+    }
 }
 
 // 旧 v4 结构是 {games:{games:[{gameId,participants:[…]}]}}；按 gameId 只认这一局。
@@ -528,13 +570,24 @@ fn has_identified_augments(eog: &Value) -> bool {
 fn scan_augments(
     node: &Value,
     path: &str,
-    inherited: Option<String>,
+    parent: Whereabouts,
     fields: &mut BTreeSet<String>,
-    players: &mut BTreeMap<String, BTreeSet<String>>,
+    players: &mut BTreeMap<String, PlayerEvidence>,
 ) {
     match node {
         Value::Object(map) => {
-            let identity = identity_of(map).or(inherited);
+            let champion = champion_of(map).or(parent.champion.clone());
+            let team = team_of(map).or(parent.team.clone());
+            let identity = identity_of(map)
+                .or(parent.identity.clone())
+                // 身份被遮蔽时用记录自身的路径当临时键：同一条记录的嵌套字段仍归到
+                // 一起，不同玩家不会互相串号，前端再按「英雄 + 阵营」唯一匹配认回去。
+                .or_else(|| champion.as_ref().map(|_| format!("path:{path}")));
+            let here = Whereabouts {
+                identity: identity.clone(),
+                champion: champion.clone(),
+                team: team.clone(),
+            };
             for (key, value) in map {
                 if !key.to_ascii_lowercase().contains("augment") {
                     continue;
@@ -546,13 +599,20 @@ fn scan_augments(
                 }
                 fields.insert(format!("{path}/{key}"));
                 let who = identity.clone().unwrap_or_else(|| "unknown".to_string());
-                players.entry(who).or_default().extend(found);
+                let slot = players.entry(who).or_default();
+                slot.augments.extend(found);
+                if slot.champion.is_none() {
+                    slot.champion = champion.clone();
+                }
+                if slot.team.is_none() {
+                    slot.team = team.clone();
+                }
             }
             for (key, value) in map {
                 scan_augments(
                     value,
                     &format!("{path}/{key}"),
-                    identity.clone(),
+                    here.clone(),
                     fields,
                     players,
                 );
@@ -563,7 +623,7 @@ fn scan_augments(
                 scan_augments(
                     item,
                     &format!("{path}[{index}]"),
-                    inherited.clone(),
+                    parent.clone(),
                     fields,
                     players,
                 );
@@ -579,7 +639,8 @@ fn identity_of(map: &JsonObject<String, Value>) -> Option<String> {
         map.get(key)
             .and_then(Value::as_str)
             .map(str::trim)
-            .filter(|value| !value.is_empty())
+            // 遮蔽标记（"#"、"***"）不是身份：认作没有身份，免得多个玩家串到同一个键。
+            .filter(|value| value.chars().any(|c| c.is_alphanumeric()))
             .map(str::to_string)
     };
     if let Some(name) = text("summonerName") {
@@ -594,6 +655,38 @@ fn identity_of(map: &JsonObject<String, Value>) -> Option<String> {
         (Some(game), Some(tag)) => Some(format!("{game}#{tag}").to_ascii_lowercase()),
         (Some(game), None) => Some(game.to_ascii_lowercase()),
         (None, _) => text("playerName").map(|name| name.to_ascii_lowercase()),
+    }
+}
+
+// 英雄名：EOG / 历史给的是 championName，实时接口同名；认不出的数字 id 不猜。
+fn champion_of(map: &JsonObject<String, Value>) -> Option<String> {
+    ["championName", "champion"]
+        .into_iter()
+        .find_map(|key| map.get(key))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+// 阵营：EOG 用 100/200，实时接口用 ORDER/CHAOS；两种写法都归一到 ORDER/CHAOS。
+fn team_of(map: &JsonObject<String, Value>) -> Option<String> {
+    match map.get("teamId") {
+        Some(Value::Number(id)) => match id.as_i64() {
+            Some(100) => Some("ORDER".into()),
+            Some(200) => Some("CHAOS".into()),
+            _ => None,
+        },
+        _ => ["teamId", "team", "teamName"]
+            .into_iter()
+            .find_map(|key| map.get(key))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .and_then(|value| match value.to_ascii_uppercase().as_str() {
+                "ORDER" | "100" => Some("ORDER".into()),
+                "CHAOS" | "200" => Some("CHAOS".into()),
+                _ => None,
+            }),
     }
 }
 
@@ -1149,6 +1242,98 @@ mod tests {
             .any(|field| field.as_str().unwrap().ends_with("/augments")));
         // 认不出的数字 id 不猜名字，只留能核对的字段路径。
         assert!(!post["players"].to_string().contains("9999"));
+    }
+
+    #[test]
+    fn postgame_scan_carries_champion_and_team_back_to_the_session() {
+        let eog = json!({"teams":[
+            {"teamId":100,"players":[
+                {"summonerName":"HexglowTest","championName":"Ahri","stats":{"PLAYER_AUGMENT_1":1001}},
+                {"summonerName":"TopLane","championName":"Garen","team":"order","augments":[1002]}
+            ]},
+            {"teamId":200,"players":[
+                {"riotIdGameName":"EnemyMid","riotIdTagLine":"KR1","championName":"Jinx","teamId":200,"augments":[1067]}
+            ]}
+        ]});
+        let post = postgame_augments(&eog, &Value::Null, None);
+        let players = post["players"].as_array().unwrap();
+        let meta: std::collections::BTreeMap<&str, (Option<&str>, Option<&str>)> = players
+            .iter()
+            .map(|entry| {
+                (
+                    entry["key"].as_str().unwrap(),
+                    (entry["champion"].as_str(), entry["team"].as_str()),
+                )
+            })
+            .collect();
+        assert_eq!(meta.len(), 3);
+        // 阵营从 team 级 teamId 继承，英雄来自记录自身。
+        assert_eq!(meta["hexglowtest"], (Some("Ahri"), Some("ORDER")));
+        assert_eq!(meta["toplane"], (Some("Garen"), Some("ORDER")));
+        assert_eq!(meta["enemymid#kr1"], (Some("Jinx"), Some("CHAOS")));
+        assert!(post["players"].to_string().contains("泰坦的坚决"));
+        // 没有英雄与阵营的记录不编造归属信息。
+        let plain = postgame_augments(
+            &json!({"playerStatSummaries":[{"summonerName":"Solo","augments":[1001]}]}),
+            &Value::Null,
+            None,
+        );
+        assert!(plain["players"][0].get("champion").is_none());
+        assert!(plain["players"][0].get("team").is_none());
+    }
+
+    #[test]
+    fn postgame_scan_keeps_masked_players_separate_and_attributable() {
+        let eog = json!({"teams":[
+            {"teamId":100,"players":[{"summonerName":"#","championName":"Ahri","augments":[1001]}]},
+            {"teamId":200,"players":[{"summonerName":"#","championName":"Jinx","augments":[1067]}]}
+        ]});
+        let post = postgame_augments(&eog, &Value::Null, None);
+        let players = post["players"].as_array().unwrap();
+        // 遮蔽标记不是身份：两条记录各归各的键，不会串成一条。
+        assert_eq!(players.len(), 2);
+        let meta: std::collections::BTreeMap<&str, (&str, &str, Vec<String>)> = players
+            .iter()
+            .map(|entry| {
+                (
+                    entry["key"].as_str().unwrap(),
+                    (
+                        entry["champion"].as_str().unwrap(),
+                        entry["team"].as_str().unwrap(),
+                        entry["augments"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect(),
+                    ),
+                )
+            })
+            .collect();
+        assert_eq!(
+            meta["path:/teams[0]/players[0]"],
+            ("Ahri", "ORDER", vec!["泰坦的坚决".to_string()])
+        );
+        assert_eq!(
+            meta["path:/teams[1]/players[0]"],
+            ("Jinx", "CHAOS", vec!["活力焕发".to_string()])
+        );
+    }
+
+    #[test]
+    fn archived_sessions_rescan_their_own_stored_evidence() {
+        let session = json!({"matchId":"1","endOfGame":{"teams":[{"teamId":100,"players":[
+            {"summonerName":"#","championName":"Ahri","augments":[1001]}
+        ]}]}});
+        let entries = postgame_entries(session);
+        let players = entries["players"].as_array().unwrap();
+        assert_eq!(players.len(), 1);
+        assert_eq!(players[0]["champion"], "Ahri");
+        assert_eq!(players[0]["team"], "ORDER");
+        // 没有存下赛后证据的旧档案不编造条目。
+        assert_eq!(postgame_entries(json!({"matchId":"1"})), Value::Null);
+        assert_eq!(postgame_entries(json!({"matchId":"1","endOfGame":null})), Value::Null);
     }
 
     #[test]

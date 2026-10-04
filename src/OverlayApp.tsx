@@ -20,7 +20,7 @@ const CATEGORY_LABEL: Record<string, string> = {damage: '输出', utility: '功�
 const initial: OverlayState = {
   level: null,
   status: 'idle',
-  message: '等待等级触发',
+  message: '等待识别结果',
   lines: [],
   candidates: [],
 };
@@ -39,7 +39,7 @@ export function OverlayApp() {
       if (!active) return;
       const level = event.payload?.level ?? null;
       setCollapsed(false); // Rust 侧主动弹出，前端跟随展开
-      setState((current) => ({...current, level, lines: [], status: 'capturing', message: '已检测到海克斯等级，截屏识别中…'}));
+      setState((current) => ({...current, level, lines: [], status: 'capturing', message: '海克斯面板已出现，识别中…'}));
     })
       .then((unlisten) => (active ? (stop = unlisten) : unlisten()))
       .catch(() => {
@@ -60,10 +60,13 @@ export function OverlayApp() {
         return;
       }
       const lines = scan?.lines ?? [];
+      const matched = scan?.candidates?.length ?? 0;
       setState((current) => ({
         ...current,
         status: 'ocr',
-        message: `识别完成 · ${lines.length} 条文本 · ${scan?.elapsedMs ?? 0}ms`,
+        message: matched
+          ? `识别到 ${matched} 个海克斯 · ${scan?.elapsedMs ?? 0}ms`
+          : `等待海克斯面板出现…（已扫描 ${lines.length} 行文本）`,
         lines: lines.map((line) => line.text),
       }));
     })
@@ -134,7 +137,7 @@ export function OverlayApp() {
             <span className="overlay-brand">HEXGLOW</span>
             <strong>海克斯推荐</strong>
           </div>
-          <span className="overlay-level">{band ? `Lv.${band}` : '待触发'}</span>
+          <span className="overlay-level">{band ? `Lv.${band}` : '待识别'}</span>
           <div className="overlay-actions">
             <button className="overlay-close" onClick={toggleCollapse} aria-label="折叠侧栏" title="折叠为竖条">
               –
@@ -190,7 +193,7 @@ export function OverlayApp() {
             </div>
           )}
         </div>
-        <footer className="overlay-foot">等级 1 / 7 / 11 / 15 自动触发</footer>
+        <footer className="overlay-foot">对局中自动识别 · 识别到 2 个候选以上才打开</footer>
       </section>
     </div>
   );

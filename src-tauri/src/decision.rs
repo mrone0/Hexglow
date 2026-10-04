@@ -393,7 +393,13 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
             .map_err(|e| format!("Jev 调用失败：{e}"))?
             .error_for_status()
             .map_err(|e| e.to_string())?;
-        (bounded(r).await?, name.to_string())
+        let out = bounded(r).await?;
+        if out["answers"].is_null() && !out["choices"].is_null() {
+            return Err(
+                "第三方地址返回的是 OpenAI 聊天格式；Jev 渠道需要 System One 协议地址（/systemone）".into(),
+            );
+        }
+        (out, name.to_string())
     } else {
         let endpoint = base_url(m, "openai", "chat/completions")?;
         let name = m["name"].as_str().ok_or("缺少模型名称")?;
@@ -512,7 +518,13 @@ pub async fn test_provider(model: Value) -> Result<Value, String> {
     )
     .await?;
     let arr = if provider == "jev" {
-        body["models"].as_array().ok_or("Jev models 格式无效")?
+        body["models"].as_array().or_else(|| body["data"].as_array()).ok_or_else(|| {
+            let keys = body
+                .as_object()
+                .map(|m| m.keys().cloned().collect::<Vec<_>>().join("、"))
+                .unwrap_or_default();
+            format!("Jev models 格式无效：返回缺少 models/data 数组（顶层字段：{keys}）")
+        })?
     } else {
         body["data"].as_array().ok_or("OpenAI models 格式无效")?
     };

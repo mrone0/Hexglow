@@ -24,6 +24,8 @@ const DWELL: Duration = Duration::from_millis(400);
 const AUTO_COLLAPSE: Duration = Duration::from_secs(20);
 static WATCHER: Mutex<Option<(u64, JoinHandle<()>)>> = Mutex::new(None);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+/// 同一时刻只允许一次开窗：并发触发会争抢同一个窗口标签。
+static OPENING: Mutex<()> = Mutex::new(());
 /// 当前是否处于收起态。resize 生效有延迟，坐标与自动收起判定都以它为准，不读窗口尺寸。
 static COLLAPSED: AtomicBool = AtomicBool::new(false);
 
@@ -191,13 +193,18 @@ fn start_watcher(app: &AppHandle) {
 
 #[tauri::command]
 pub fn overlay_set_collapsed(app: AppHandle, collapsed: bool) -> Result<f64, String> {
-    let window = app
-        .get_webview_window(LABEL)
-        .ok_or_else(|| "侧栏未打开".to_string())?;
-    let width = if collapsed { COLLAPSED_WIDTH } else { WIDTH };
-    resize(&window, width)?;
-    anchor(&window, width)?;
-    COLLAPSED.store(collapsed, Ordering::SeqCst);
+    let width = match set_collapsed(&app, collapsed) {
+        Ok(width) => width,
+        Err(error) => {
+            trace(
+                &app,
+                "error",
+                "overlay-collapse",
+                format!("failed collapsed={collapsed}: {error}"),
+            );
+            return Err(error);
+        }
+    };
     trace(
         &app,
         "info",
@@ -207,8 +214,38 @@ pub fn overlay_set_collapsed(app: AppHandle, collapsed: bool) -> Result<f64, Str
     Ok(width)
 }
 
-#[tauri::command]
+fn set_collapsed(app: &AppHandle, collapsed: bool) -> Result<f64, String> {
+    let window = app
+        .get_webview_window(LABEL)
+        .ok_or_else(|| "侧栏未打开".to_string())?;
+    let width = if collapsed { COLLAPSED_WIDTH } else { WIDTH };
+    resize(&window, width)?;
+    anchor(&window, width)?;
+    COLLAPSED.store(collapsed, Ordering::SeqCst);
+    Ok(width)
+}
+
+// 必须是 async 命令：同步命令在主线程的 WebView2 IPC 回调里执行，
+// 在该上下文里 WebviewWindowBuilder::build() 会与 WebView2 的完成回调互相等待而死锁
+// （wry#583），整个应用连同侧栏一起卡死，后续 OCR 永远不会触发。
+#[tauri::command(async)]
 pub fn overlay_open(app: AppHandle, level: u32) -> Result<(), String> {
+    let _opening = OPENING.lock().map_err(|_| "侧栏状态异常".to_string())?;
+    match open_overlay(&app, level) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            trace(
+                &app,
+                "error",
+                "overlay-open",
+                format!("failed level={level}: {error}"),
+            );
+            Err(error)
+        }
+    }
+}
+
+fn open_overlay(app: &AppHandle, level: u32) -> Result<(), String> {
     if !BANDS.contains(&level) {
         return Err("未知的海克斯等级".into());
     }
@@ -225,13 +262,13 @@ pub fn overlay_open(app: AppHandle, level: u32) -> Result<(), String> {
         anchor(&window, WIDTH)?;
         COLLAPSED.store(false, Ordering::SeqCst);
         window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
-        start_watcher(&app);
+        start_watcher(app);
         notify(&window, level)?;
-        trace(&app, "info", "overlay-open", format!("reused window at level {level}"));
+        trace(app, "info", "overlay-open", format!("reused window at level {level}"));
         return Ok(());
     }
     let window = WebviewWindowBuilder::new(
-        &app,
+        app,
         LABEL,
         WebviewUrl::App("index.html?overlay=1".into()),
     )
@@ -248,9 +285,9 @@ pub fn overlay_open(app: AppHandle, level: u32) -> Result<(), String> {
     anchor(&window, WIDTH)?;
     COLLAPSED.store(false, Ordering::SeqCst);
     window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
-    start_watcher(&app);
+    start_watcher(app);
     notify(&window, level)?;
-    trace(&app, "info", "overlay-open", format!("created window at level {level}"));
+    trace(app, "info", "overlay-open", format!("created window at level {level}"));
     Ok(())
 }
 
@@ -272,7 +309,15 @@ pub fn overlay_ready(app: AppHandle, level: Option<u32>) -> Result<(), String> {
 pub fn overlay_close(app: AppHandle) -> Result<(), String> {
     stop_watcher();
     if let Some(window) = app.get_webview_window(LABEL) {
-        window.hide().map_err(|e| e.to_string())?;
+        if let Err(error) = window.hide().map_err(|e| e.to_string()) {
+            trace(
+                &app,
+                "error",
+                "overlay-close",
+                format!("failed: {error}"),
+            );
+            return Err(error);
+        }
         trace(&app, "info", "overlay-close", "hidden by user".into());
     }
     Ok(())

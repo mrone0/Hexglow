@@ -7,6 +7,7 @@
 .lineup{margin-left:auto;max-width:45%;border:0;background:transparent}
 .lineup summary{font-size:13px;color:#77688e}
 .lineup p{font-size:12px;margin:8px 0}
+.lineup-aug{display:block;margin-top:3px;font-size:11px;color:#6b7488;line-height:1.7;overflow-wrap:anywhere}
 .recommend-panel{padding:30px;background:#fff;border:1px solid #e2e4ed;border-radius:20px;box-shadow:0 5px 30px #5b4b7a08}
 .recommend-heading{display:flex;gap:14px;align-items:center;margin-bottom:24px}
 .recommend-heading h2{margin:0;font-size:21px}
