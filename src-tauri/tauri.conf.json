@@ -2,8 +2,8 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Hexglow",
   "mainBinaryName": "Hexglow",
-  "version": "0.1.0",
-  "identifier": "com.local.lol-augment-assistant",
+  "version": "0.2.0",
+  "identifier": "ai.hexglow.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:1420",
@@ -17,9 +17,23 @@
       "width": 1280,
       "height": 820,
       "minWidth": 960,
-      "minHeight": 680
+      "minHeight": 680,
+      "center": true
     }],
     "security": { "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; frame-src 'none'" }
   },
-  "bundle": { "active": false, "icon": ["icons/icon.png"] }
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Hexglow",
+    "copyright": "© 2026 Hexglow contributors",
+    "shortDescription": "本地优先的海克斯大乱斗对局助手",
+    "longDescription": "Hexglow 在本机识别对局、整理双方海克斯档案，并用本地知识库与你配置的模型给出带依据的契合度分析。对局数据只存在本机，不提供胜率预测。",
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
 }
