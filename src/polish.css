@@ -1,0 +1,108 @@
+/* æœ¬è½® UI æ‰“ç£¨ï¼šæ¡£æ¡ˆè¯¦æƒ…æ ·å¼ + å­—å·ç»Ÿä¸€ä¸Šè°ƒåŽçš„è¡¥å……ä¿®æ­£ */
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.detail-meta > span:not(.pill) {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #f2f1f9;
+  border: 1px solid #e5e3f0;
+  color: #6a6f84;
+  font-size: 13.5px;
+}
+.detail-actions {
+  margin-top: 4px;
+  padding-top: 0;
+}
+.detail-actions button {
+  padding: 10px 14px;
+  font-size: 14px;
+}
+.detail-actions .accent {
+  margin-top: 0;
+  padding: 12px 20px;
+  font-size: 15.5px;
+}
+.archive-detail > .hint {
+  margin: 14px 0 0;
+}
+.archive-detail .teams {
+  margin-top: 2px;
+}
+.archive-detail .panel.sub {
+  margin: 18px 0 0;
+  padding: 18px 20px;
+  background: #fbfbff;
+}
+/* é˜µå®¹ä¸¤åˆ—ç­‰é«˜å¯¹é½ï¼šåˆ—å†…å¡ç‰‡æŒ‰è¡Œç­‰åˆ†ï¼Œè·¨åˆ—åŒè¡ŒåŒé«˜ */
+.teams > div {
+  display: flex;
+  flex-direction: column;
+}
+.team-cards {
+  flex: 1;
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 11px;
+}
+.teams .player {
+  margin-bottom: 0;
+}
+
+.log-row {
+  grid-template-columns: 92px 62px minmax(120px, 0.7fr) minmax(0, 1.4fr);
+}
+
+/* ÍÆ¼ö½á¹û£ºÒòËØÃ÷Ï¸¡¢ÒÀ¾ÝÒýÓÃÓë·ÖÊý¹¹³É */
+.ranking .factor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 3px;
+}
+.ranking .factor {
+  padding: 3px 9px;
+  border-radius: 14px;
+  background: #f1eef8;
+  color: #6a5a95;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ranking .score-line {
+  display: block;
+  margin: 3px 0 5px;
+  color: #7a8199;
+  font-size: 13px;
+}
+.ranking .evidence {
+  margin: 4px 0 6px;
+  padding-left: 20px;
+  color: #5e6980;
+  font-size: 13px;
+}
+.ranking .evidence li {
+  margin: 3px 0;
+}
+.pill.engine {
+  background: #eef1fb;
+  color: #4b5a8f;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.overlay-mode {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 12px;
+  background: #f3eefb;
+  color: #6f5aa8;
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: middle;
+}

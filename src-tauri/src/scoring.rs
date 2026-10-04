@@ -69,12 +69,10 @@ fn champions() -> &'static [Champion] {
     static CACHE: OnceLock<Vec<Champion>> = OnceLock::new();
     CACHE.get_or_init(|| {
         let value: Value = serde_json::from_str(CHAMPIONS_JSON).unwrap_or(Value::Null);
-        let items = value.as_array().cloned().unwrap_or_else(|| {
-            value["champions"]
-                .as_array()
-                .cloned()
-                .unwrap_or_default()
-        });
+        let items = value
+            .as_array()
+            .cloned()
+            .unwrap_or_else(|| value["champions"].as_array().cloned().unwrap_or_default());
         items
             .iter()
             .filter_map(|item| {
@@ -134,26 +132,36 @@ fn matches_needle(haystack: &str, needle: &str) -> bool {
 /// OCR 文本行 -> 屏幕上出现的海克斯，按出现顺序（上到下、左到右）返回。
 pub fn match_augments(lines: &[TextLine]) -> Vec<MatchedCandidate> {
     let mut hits: Vec<(u32, u32, &Augment)> = Vec::new();
-    for augment in augments() {
-        let mut best: Option<(u32, u32)> = None;
-        let names = std::iter::once(augment.name.as_str())
-            .chain(augment.aliases.iter().map(String::as_str));
-        for line in lines {
-            if names.clone().any(|name| matches_needle(&line.text, name)) {
-                let position = (line.y, line.x);
-                best = match best {
-                    Some(current) if current <= position => Some(current),
-                    _ => Some(position),
-                };
+    for line in lines {
+        // 一行只认最长的名字命中：否则屏幕上的「无限循环往复」会把名字是
+        // 其子串的「循环往复」也一起认出来，凭空多出一个不存在的候选。
+        let mut best: Option<(usize, &Augment)> = None;
+        for augment in augments() {
+            let names = std::iter::once(augment.name.as_str())
+                .chain(augment.aliases.iter().map(String::as_str));
+            for name in names {
+                if !matches_needle(&line.text, name) {
+                    continue;
+                }
+                let len = name.chars().count();
+                if best.map_or(true, |(longest, _)| len > longest) {
+                    best = Some((len, augment));
+                }
             }
         }
-        if let Some(position) = best {
-            hits.push((position.0, position.1, augment));
+        if let Some((_, augment)) = best {
+            let position = (line.y, line.x);
+            match hits.iter_mut().find(|(_, _, seen)| seen.id == augment.id) {
+                Some(existing) if position < (existing.0, existing.1) => {
+                    *existing = (position.0, position.1, augment);
+                }
+                Some(_) => {}
+                None => hits.push((position.0, position.1, augment)),
+            }
         }
     }
     hits.sort_by_key(|(y, x, _)| (*y, *x));
-    hits
-        .into_iter()
+    hits.into_iter()
         .take(6)
         .map(|(_, _, augment)| MatchedCandidate {
             id: augment.id.clone(),
@@ -275,11 +283,40 @@ pub fn augment_label(raw: &str) -> Option<String> {
 }
 
 /// 当前上下文下的本地契合度打分：0-100 相对契合度，与胜率无关。
-pub fn rank(
-    ids: &[String],
-    champion: Option<&str>,
-    owned: &[String],
-) -> Result<Value, String> {
+/// 给结构化决策分析用的本地先验：候选的静态元数据 + 本地规则打分与理由。
+/// 只作为发给模型的补充事实，不替代模型判断。
+pub fn prior(ids: &[String], champion: Option<&str>, owned: &[String]) -> Value {
+    let ranked = rank(ids, champion, owned).unwrap_or_else(|_| json!({"ranking": []}));
+    let by_id: std::collections::HashMap<&str, &Value> = ranked["ranking"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| Some((item["id"].as_str()?, item)))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut out = serde_json::Map::new();
+    for id in ids {
+        let Some(augment) = augment_by_id(id) else {
+            continue;
+        };
+        let mut entry = json!({
+            "rarity": augment.rarity,
+            "category": augment.category,
+            "tags": augment.tags,
+        });
+        if let Some(item) = by_id.get(id.as_str()) {
+            entry["localScore"] = item["score"].clone();
+            entry["localReason"] = item["reason"].clone();
+            entry["localRisks"] = item["risks"].clone();
+        }
+        out.insert(id.clone(), entry);
+    }
+    Value::Object(out)
+}
+
+pub fn rank(ids: &[String], champion: Option<&str>, owned: &[String]) -> Result<Value, String> {
     if ids.is_empty() {
         return Ok(json!({"ranking": [], "summary": "未识别到候选海克斯"}));
     }
@@ -334,7 +371,8 @@ pub fn rank(
         }
         score += rarity_score(&augment.rarity);
         if owned.iter().any(|name| {
-            *name == normalize(&augment.name) || augment.aliases.iter().any(|a| normalize(a) == *name)
+            *name == normalize(&augment.name)
+                || augment.aliases.iter().any(|a| normalize(a) == *name)
         }) {
             score = 0;
             risks.push("该海克斯已经选取过".into());
@@ -360,7 +398,7 @@ pub fn rank(
     Ok(json!({
         "ranking": ranking,
         "summary": format!(
-            "本地规则排序 {} 个候选（{}）",
+            "本地规则排序 {} 个候选（{}）· 非 AI，仅本地静态数据",
             ranking.len(),
             match champion {
                 Some(key) => key,
@@ -445,7 +483,10 @@ mod tests {
             line("银色海克斯", 273, 96),
         ];
         let matched = match_augments(&lines);
-        let names: Vec<&str> = matched.iter().map(|candidate| candidate.name.as_str()).collect();
+        let names: Vec<&str> = matched
+            .iter()
+            .map(|candidate| candidate.name.as_str())
+            .collect();
         assert_eq!(names, vec!["万用瞄准镜", "亮出你的剑", "巨像的勇气"]);
         let expected = augments().iter().find(|a| a.name == "万用瞄准镜").unwrap();
         assert_eq!(matched[0].id, expected.id);
@@ -463,9 +504,27 @@ mod tests {
     }
 
     #[test]
+    fn longer_name_shadows_its_substring_on_the_same_line() {
+        let matched = match_augments(&[
+            line("珠光护手", 200, 93),
+            line("科学狂人", 200, 594),
+            line("无限循环往复", 200, 1094),
+        ]);
+        let names: Vec<&str> = matched.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["珠光护手", "科学狂人", "无限循环往复"]);
+        assert!(
+            !names.contains(&"循环往复"),
+            "子串名字不该凭空成为候选：{names:?}"
+        );
+    }
+
+    #[test]
     fn normalization_survives_ocr_punctuation_loss() {
         assert_eq!(normalize("万用 瞄准镜，"), normalize("万用瞄准镜"));
-        assert!(matches_needle("获得75攻击距离如果你是远程", "获得75攻击距离"));
+        assert!(matches_needle(
+            "获得75攻击距离如果你是远程",
+            "获得75攻击距离"
+        ));
         assert!(!matches_needle("银色海克斯", "海克斯"));
     }
 
@@ -484,8 +543,12 @@ mod tests {
         let mut descending = scores.clone();
         descending.sort_by(|a, b| b.cmp(a));
         assert_eq!(scores, descending);
-        assert!(ranking.iter().all(|item| item["score"].as_u64().unwrap() <= 100));
-        assert!(ranking.iter().all(|item| item["reason"].as_str().is_some_and(|r| !r.is_empty())));
+        assert!(ranking
+            .iter()
+            .all(|item| item["score"].as_u64().unwrap() <= 100));
+        assert!(ranking
+            .iter()
+            .all(|item| item["reason"].as_str().is_some_and(|r| !r.is_empty())));
     }
 
     #[test]
@@ -502,7 +565,9 @@ mod tests {
         let ranked = rank(&["1170".into()], Some("Jinx"), &["万用瞄准镜".into()]).unwrap();
         assert_eq!(ranked["ranking"][0]["score"], 0);
         let risks = ranked["ranking"][0]["risks"].as_array().unwrap();
-        assert!(risks.iter().any(|risk| risk.as_str().unwrap().contains("已经选取过")));
+        assert!(risks
+            .iter()
+            .any(|risk| risk.as_str().unwrap().contains("已经选取过")));
     }
 
     #[test]
@@ -522,6 +587,8 @@ mod tests {
     }
 
     fn ranking_is_empty(value: &Value) -> bool {
-        value["ranking"].as_array().is_some_and(|items| items.is_empty())
+        value["ranking"]
+            .as_array()
+            .is_some_and(|items| items.is_empty())
     }
 }

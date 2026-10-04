@@ -157,6 +157,12 @@ fn safe_facts(v: &Value) -> Value {
                             | "itemID"
                             | "displayName"
                             | "count"
+                            | "rarity"
+                            | "category"
+                            | "tags"
+                            | "localScore"
+                            | "localReason"
+                            | "localRisks"
                     )
                 })
                 .map(|(k, v)| (k.clone(), safe_facts(v)))
@@ -271,7 +277,7 @@ pub fn sanitize_context(c: &Value) -> Value {
     out.insert("result".into(), json!({"status": c["result"]["status"].as_str().filter(|s| matches!(*s,"win"|"loss"|"unknown")),"source":c["result"]["source"].as_str()}));
     out.insert(
         "gameData".into(),
-        json!({"gameTime":c["gameData"]["gameTime"].as_f64()}),
+        json!({"gameTime":c["gameData"]["gameTime"].as_f64(),"level":c["gameData"]["level"].as_f64()}),
     );
     out.insert(
         "privacyNotice".into(),
@@ -280,33 +286,144 @@ pub fn sanitize_context(c: &Value) -> Value {
     Value::Object(out)
 }
 
-fn reason(id: &str, a: &Value) -> (f64, String, Vec<String>) {
-    let mut vals = Vec::new();
-    let mut risks = Vec::new();
-    for f in ["championSynergy", "buildSynergy", "teamFit", "enemyFit"] {
-        if let Some(x) = a
-            .get(f)
-            .and_then(|v| v.get("score"))
-            .and_then(Value::as_f64)
-        {
-            vals.push(x);
+const FACTORS: [(&str, &str); 4] = [
+    ("championSynergy", "英雄协同"),
+    ("buildSynergy", "出装协同"),
+    ("teamFit", "队伍适配"),
+    ("enemyFit", "敌方适配"),
+];
+fn round1(value: f64) -> f64 {
+    (value * 10.0).round() / 10.0
+}
+
+/// 四项因素按置信度加权（低置信因素权重更低），再与本地规则先验按 70/30 融合。
+/// 同时给出因素明细、证据引用与风险提示，界面直接展示“凭什么这么排”。
+fn evaluate(id: &str, answers: &Value, candidate: &Value, knowledge: &Value) -> Value {
+    let mut weighted = 0.0_f64;
+    let mut weight_total = 0.0_f64;
+    let mut conf_sum = 0.0_f64;
+    let mut conf_n = 0.0_f64;
+    let mut factors = Vec::new();
+    let mut risks: Vec<String> = Vec::new();
+    let mut best: Option<(f64, &str)> = None;
+    let mut worst: Option<(f64, &str)> = None;
+    for (key, label) in FACTORS {
+        let node = &answers[key];
+        let score = node["score"].as_f64().unwrap_or(0.0).clamp(0.0, 4.0);
+        let confidence = node["confidence"].as_f64().map(|c| c.clamp(0.0, 1.0));
+        let weight = confidence.map(|c| c.clamp(0.25, 1.0)).unwrap_or(1.0);
+        weighted += score * weight;
+        weight_total += weight;
+        if let Some(c) = confidence {
+            conf_sum += c;
+            conf_n += 1.0;
+            if c < 0.5 {
+                risks.push(format!("{label} 证据不足（置信 {c:.2}）；未知不等于没有"));
+            }
         }
-        if a.get(f)
-            .and_then(|v| v.get("confidence"))
-            .and_then(Value::as_f64)
-            .is_some_and(|x| x < 0.5)
-        {
-            risks.push(format!("{} 信息不确定；请勿将未知当作没有", f));
+        if best.map_or(true, |(s, _)| score > s) {
+            best = Some((score, label));
+        }
+        if worst.map_or(true, |(s, _)| score < s) {
+            worst = Some((score, label));
+        }
+        factors.push(
+            json!({"key": key, "label": label, "score": round1(score), "confidence": confidence}),
+        );
+    }
+    let model = if weight_total > 0.0 {
+        weighted / weight_total * 25.0
+    } else {
+        0.0
+    };
+    let confidence = if conf_n > 0.0 {
+        Some(conf_sum / conf_n)
+    } else {
+        None
+    };
+    let local = candidate["localScore"]
+        .as_f64()
+        .map(|v| v.clamp(0.0, 100.0));
+    let mut score = model;
+    if let Some(l) = local {
+        score = model * 0.7 + l * 0.3;
+        if (model - l).abs() >= 20.0 {
+            risks.push(format!(
+                "模型 {model:.0} 与本地规则 {l:.0} 分歧较大，建议自行复核"
+            ));
         }
     }
-    let score =
-        ((vals.iter().sum::<f64>() / vals.len().max(1) as f64) * 100.0 / 4.0).clamp(0.0, 100.0);
-    let labels: String = if vals.is_empty() {
-        "缺少可验证因素".into()
+    let name = candidate["name"].as_str().unwrap_or(id);
+    let mut parts = Vec::new();
+    if let (Some((best_score, best_label)), Some((worst_score, worst_label))) = (best, worst) {
+        parts.push(format!(
+            "模型强项 {best_label} {best_score:.1}/4，弱项 {worst_label} {worst_score:.1}/4"
+        ));
+    }
+    if let Some(reason) = candidate["localReason"].as_str() {
+        parts.push(format!("本地规则：{reason}"));
+    }
+    let reason = if parts.is_empty() {
+        "缺少可验证因素".to_string()
     } else {
-        "基于英雄协同、出装协同、队伍适配与敌方适配的结构化评分".into()
+        parts.join("；")
     };
-    (score, format!("候选 {}：{}。", id, labels), risks)
+    let mut evidence = Vec::new();
+    if let Some(local_score) = local {
+        evidence.push(format!(
+            "本地规则先验 {local_score:.0}/100：静态标签匹配，非模型判断"
+        ));
+    }
+    if knowledge["missing"].as_array().is_some_and(|items| {
+        items
+            .iter()
+            .any(|m| m.as_str().is_some_and(|m| m.contains(name)))
+    }) {
+        evidence.push(format!(
+            "知识库缺少 {name} 的文档；缺失不代表该海克斯不存在"
+        ));
+    }
+    let mut cited = false;
+    if let Some(documents) = knowledge["documents"].as_array() {
+        for document in documents {
+            let path = document["path"].as_str().unwrap_or("");
+            let title = document["title"].as_str().unwrap_or("");
+            let stem = path
+                .rsplit(['/', '\\'])
+                .next()
+                .unwrap_or("")
+                .trim_end_matches(".md");
+            if stem == id || (!title.is_empty() && title == name) {
+                evidence.push(format!("知识库依据：{title}（{path}）"));
+                cited = true;
+            }
+        }
+    }
+    if !cited {
+        evidence.push(format!("知识库暂无 {name} 的条目，本次仅依据对局事实"));
+    }
+    let factor_line = factors
+        .iter()
+        .map(|f| {
+            format!(
+                "{} {:.1}",
+                f["label"].as_str().unwrap_or(""),
+                f["score"].as_f64().unwrap_or(0.0)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" · ");
+    evidence.push(format!("模型四项（置信度加权）：{factor_line}"));
+    json!({
+        "score": round1(score.clamp(0.0, 100.0)),
+        "modelScore": round1(model.clamp(0.0, 100.0)),
+        "localScore": local.map(round1),
+        "confidence": confidence.map(round1),
+        "factors": factors,
+        "evidence": evidence,
+        "reason": reason,
+        "risks": risks,
+    })
 }
 fn validate_answers(ans: &Value, ids: &[String]) -> Result<(), String> {
     for id in ids {
@@ -347,6 +464,62 @@ fn client(secs: u64) -> Result<Client, String> {
         .map_err(|e| e.to_string())
 }
 
+/// 发给模型之前补充本地事实：候选的静态元数据与本地规则先验、当前等级与对局时间。
+/// 只补事实，不改候选本身；模型看不到这些字段时按缺失处理。
+fn enrich_context(c: &mut Value) {
+    let ids: Vec<String> = c["candidates"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|x| x["id"].as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let own = c["ownPlayerId"].as_str().map(str::to_string);
+    let own_player = own.and_then(|id| {
+        c["players"].as_array().and_then(|players| {
+            players
+                .iter()
+                .find(|p| p["id"].as_str() == Some(id.as_str()))
+                .cloned()
+        })
+    });
+    let champion = own_player
+        .as_ref()
+        .and_then(|p| p["champion"].as_str())
+        .map(str::to_string);
+    let owned: Vec<String> = own_player
+        .as_ref()
+        .and_then(|p| p["augments"].as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let prior = crate::scoring::prior(&ids, champion.as_deref(), &owned);
+    if let Some(items) = c["candidates"].as_array_mut() {
+        for candidate in items.iter_mut() {
+            let id = candidate["id"].as_str().unwrap_or("");
+            if let Some(entry) = prior[id].as_object() {
+                for (key, value) in entry {
+                    candidate[key.clone()] = value.clone();
+                }
+            }
+        }
+    }
+    let mut game = json!({});
+    if let Some(t) = c["liveData"]["gameData"]["gameTime"].as_f64() {
+        game["gameTime"] = json!(t);
+    }
+    if let Some(level) = c["liveData"]["activePlayer"]["level"].as_f64() {
+        game["level"] = json!(level);
+    }
+    c["gameData"] = game;
+}
+
 #[tauri::command]
 pub async fn analyze_structured(request: Value) -> Result<Value, String> {
     let mode = request["mode"].as_str().ok_or("缺少 mode")?;
@@ -358,7 +531,9 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
         return Err("分析上下文超过 256 KiB".into());
     }
     validate_context(c, mode)?;
-    let state = sanitize_context(c);
+    let mut enriched = c.clone();
+    enrich_context(&mut enriched);
+    let state = sanitize_context(&enriched);
     let m = &request["model"];
     let provider = m["provider"].as_str().unwrap_or("openai");
     if !matches!(provider, "jev" | "openai") {
@@ -372,7 +547,7 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
             for x in c["candidates"].as_array().unwrap() {
                 let id = x["id"].as_str().unwrap();
                 for f in ["championSynergy", "buildSynergy", "teamFit", "enemyFit"] {
-                    qs.insert(format!("{}__{}",id,f),json!({"type":"score","instructions":format!("Evaluate {} for candidate {} in this game.",f,id),"criteria":["0: no meaningful synergy or evidence","1: weak or mostly negative interaction","2: mixed or uncertain interaction","3: good synergy supported by supplied facts","4: excellent synergy with clear, relevant evidence"]}));
+                    qs.insert(format!("{}__{}",id,f),json!({"type":"score","instructions":format!("Judge {f} for candidate \"{}\" (id {id}) using only the supplied state: own champion, items and confirmed augments, both teams, knowledge documents, notes and past reviews. Do not use outside knowledge. When the state has no evidence for this factor, keep the score low and lower the confidence instead of guessing.", x["name"].as_str().unwrap_or(id)),"criteria":["0: no meaningful interaction, or the state contains no evidence for it","1: weak or mostly negative interaction","2: mixed, uncertain, or thinly evidenced interaction","3: good synergy backed by a concrete fact in the state","4: strong synergy backed by multiple concrete facts in the state"]}));
                 }
             }
         } else {
@@ -414,7 +589,7 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
         } else {
             qs.insert("safe_decision".into(), json!(0.5));
         }
-        let prompt = json!({"state":state,"questions":"Return exact JSON answers, each candidate has four factors score 0..4 and confidence 0..1; no prose.","expected":qs});
+        let prompt = json!({"state":state,"questions":"Return exact JSON answers, each candidate has four factors score 0..4 and confidence 0..1 based only on the supplied state; no prose. When the state lacks evidence, keep the score low and lower the confidence instead of guessing.","expected":qs});
         let mut payload = json!({"model":name,"temperature":0,"max_tokens":m["maxTokens"].as_u64().unwrap_or(1800).clamp(256,4096),"messages":[{"role":"system","content":"Output only validated JSON."},{"role":"user","content":prompt.to_string()}]});
         if m["jsonMode"].as_bool().unwrap_or(true) {
             payload["response_format"] = json!({"type":"json_object"});
@@ -486,17 +661,48 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
     validate_answers(&answers, &ids)?;
     let mut ranking = Vec::new();
     for id in &ids {
-        let (score, risk, risks) = reason(id, &answers[id]);
-        ranking.push(json!({"candidateId":id,"score":score,"reason":risk,"risks":risks}));
+        let candidate = state["candidates"]
+            .as_array()
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item["id"].as_str() == Some(id.as_str()))
+                    .cloned()
+            })
+            .unwrap_or_else(|| json!({"id": id}));
+        let evaluated = evaluate(id, &answers[id], &candidate, &state["knowledge"]);
+        ranking.push(json!({
+            "candidateId": id,
+            "score": evaluated["score"],
+            "modelScore": evaluated["modelScore"],
+            "localScore": evaluated["localScore"],
+            "confidence": evaluated["confidence"],
+            "factors": evaluated["factors"],
+            "evidence": evaluated["evidence"],
+            "reason": evaluated["reason"],
+            "risks": evaluated["risks"],
+        }));
     }
     ranking.sort_by(|a, b| {
         b["score"]
             .as_f64()
             .partial_cmp(&a["score"].as_f64())
-            .unwrap()
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
+    let confidences: Vec<f64> = ranking
+        .iter()
+        .filter_map(|item| item["confidence"].as_f64())
+        .collect();
+    let overall = (!confidences.is_empty())
+        .then(|| confidences.iter().sum::<f64>() / confidences.len() as f64);
+    let summary = format!(
+        "四项因素按置信度加权，并与本地规则先验按 70/30 融合{}；分数是相对契合度，不是胜率。",
+        overall
+            .map(|c| format!("，综合置信度 {c:.2}"))
+            .unwrap_or_default()
+    );
     Ok(
-        json!({"ranking":ranking,"summary":"按四项结构化因素比较；分数是相对契合度而非胜率。","missingInformation":({ let mut missing=c["knowledge"]["missing"].as_array().cloned().unwrap_or_default(); if c["players"].as_array().unwrap().iter().any(|p| p["augmentsConfirmed"]!=true) { missing.push(json!("部分玩家的已选海克斯未识别，建议仅基于已知信息；缺失不代表没有。")); } missing }),"engine":{"provider":provider,"model":model_name,"latencyMs":started.elapsed().as_millis(),"confidenceKind":if provider=="jev"{"provider"}else{"unavailable"}}}),
+        json!({"ranking":ranking,"summary":summary,"missingInformation":({ let mut missing=c["knowledge"]["missing"].as_array().cloned().unwrap_or_default(); if c["players"].as_array().unwrap().iter().any(|p| p["augmentsConfirmed"]!=true) { missing.push(json!("部分玩家的已选海克斯未识别，建议仅基于已知信息；缺失不代表没有。")); } missing }),"engine":{"provider":provider,"model":model_name,"latencyMs":started.elapsed().as_millis(),"confidenceKind":if provider=="jev"{"provider"}else{"unavailable"}}}),
     )
 }
 
@@ -518,13 +724,16 @@ pub async fn test_provider(model: Value) -> Result<Value, String> {
     )
     .await?;
     let arr = if provider == "jev" {
-        body["models"].as_array().or_else(|| body["data"].as_array()).ok_or_else(|| {
-            let keys = body
-                .as_object()
-                .map(|m| m.keys().cloned().collect::<Vec<_>>().join("、"))
-                .unwrap_or_default();
-            format!("Jev models 格式无效：返回缺少 models/data 数组（顶层字段：{keys}）")
-        })?
+        body["models"]
+            .as_array()
+            .or_else(|| body["data"].as_array())
+            .ok_or_else(|| {
+                let keys = body
+                    .as_object()
+                    .map(|m| m.keys().cloned().collect::<Vec<_>>().join("、"))
+                    .unwrap_or_default();
+                format!("Jev models 格式无效：返回缺少 models/data 数组（顶层字段：{keys}）")
+            })?
     } else {
         body["data"].as_array().ok_or("OpenAI models 格式无效")?
     };
@@ -547,18 +756,26 @@ mod tests {
     }
     #[test]
     fn frontend_context_survives_without_player_identity() {
-        let mut c=ctx(); c["players"][0]["name"]=json!("PRIVATE_PLAYER");c["notes"]=json!("打法说明");c["outcome"]=json!("结算观察");
-        c["knowledge"]=json!({"documents":[{"path":"champions/a.md","title":"A","content":"关键机制","hash":"h"}],"warnings":["版本未知"],"missing":[]});
-        c["history"]=json!([{ "ownChampion":"A","ownAugments":["泰坦的坚决"],"chosen":"One","review":{"summary":"历史观察","lessons":["条件"],"caveats":["反例"]},"result":{"status":"win","gameId":"SECRET_GAME"}}]);
-        c["decisions"]=json!([{ "chosenId":"c1","context":{"players":c["players"],"ownPlayerId":"abc","candidates":c["candidates"]},"result":{"summary":"先前比较","ranking":[]}}]);
-        let v=sanitize_context(&c);
-        assert_eq!(v["knowledge"]["documents"][0]["content"],"关键机制");
-        assert_eq!(v["history"][0]["review"]["summary"],"历史观察");
-        assert_eq!(v["history"][0]["ownAugments"][0],"泰坦的坚决");
-        assert_eq!(v["history"][0]["chosen"],"One");
-        assert_eq!(v["decisions"][0]["context"]["players"]["p1"]["champion"],"A");
-        assert_eq!(v["notes"],"打法说明");assert_eq!(v["outcome"],"结算观察");
-        assert!(!v.to_string().contains("PRIVATE_PLAYER"));assert!(!v.to_string().contains("SECRET_GAME"));
+        let mut c = ctx();
+        c["players"][0]["name"] = json!("PRIVATE_PLAYER");
+        c["notes"] = json!("打法说明");
+        c["outcome"] = json!("结算观察");
+        c["knowledge"] = json!({"documents":[{"path":"champions/a.md","title":"A","content":"关键机制","hash":"h"}],"warnings":["版本未知"],"missing":[]});
+        c["history"] = json!([{ "ownChampion":"A","ownAugments":["泰坦的坚决"],"chosen":"One","review":{"summary":"历史观察","lessons":["条件"],"caveats":["反例"]},"result":{"status":"win","gameId":"SECRET_GAME"}}]);
+        c["decisions"] = json!([{ "chosenId":"c1","context":{"players":c["players"],"ownPlayerId":"abc","candidates":c["candidates"]},"result":{"summary":"先前比较","ranking":[]}}]);
+        let v = sanitize_context(&c);
+        assert_eq!(v["knowledge"]["documents"][0]["content"], "关键机制");
+        assert_eq!(v["history"][0]["review"]["summary"], "历史观察");
+        assert_eq!(v["history"][0]["ownAugments"][0], "泰坦的坚决");
+        assert_eq!(v["history"][0]["chosen"], "One");
+        assert_eq!(
+            v["decisions"][0]["context"]["players"]["p1"]["champion"],
+            "A"
+        );
+        assert_eq!(v["notes"], "打法说明");
+        assert_eq!(v["outcome"], "结算观察");
+        assert!(!v.to_string().contains("PRIVATE_PLAYER"));
+        assert!(!v.to_string().contains("SECRET_GAME"));
     }
     #[test]
     fn url_rules() {
@@ -593,8 +810,14 @@ mod tests {
         let mut x = c.clone();
         x["players"][0]["augmentsConfirmed"] = json!(false);
         assert!(validate_context(&x, "recommend").is_ok());
-        assert_eq!(sanitize_context(&x)["players"]["p1"]["augmentsConfirmed"], false);
-        assert!(sanitize_context(&x)["players"]["p1"]["augmentDataStatus"].as_str().unwrap().contains("unknown"));
+        assert_eq!(
+            sanitize_context(&x)["players"]["p1"]["augmentsConfirmed"],
+            false
+        );
+        assert!(sanitize_context(&x)["players"]["p1"]["augmentDataStatus"]
+            .as_str()
+            .unwrap()
+            .contains("unknown"));
         let mut x = c.clone();
         x["candidates"] = json!([{"id":"c1","name":"One","description":"effect"}]);
         assert!(validate_context(&x, "recommend").is_err());
@@ -610,5 +833,88 @@ mod tests {
         let mut bad = good.clone();
         bad["c1"]["enemyFit"]["score"] = json!(5);
         assert!(validate_answers(&bad, &ids).is_err());
+    }
+    #[test]
+    fn prior_ships_local_rules_and_metadata() {
+        let ids = vec!["1068".to_string(), "1388".to_string()];
+        let prior = crate::scoring::prior(&ids, Some("Ahri"), &[]);
+        assert_eq!(prior["1068"]["rarity"], "gold");
+        assert_eq!(prior["1388"]["rarity"], "prismatic");
+        assert!(prior["1068"]["localScore"].as_f64().is_some());
+        assert!(prior["1068"]["localReason"].as_str().is_some());
+    }
+    #[test]
+    fn evaluate_weights_confidence_and_blends_local_prior() {
+        let answers = json!({
+            "championSynergy": {"score": 4.0, "confidence": 1.0},
+            "buildSynergy": {"score": 4.0, "confidence": 1.0},
+            "teamFit": {"score": 4.0, "confidence": 1.0},
+            "enemyFit": {"score": 0.0, "confidence": 0.0},
+        });
+        let candidate =
+            json!({"id":"1068","name":"循环往复","localScore":60.0,"localReason":"标签契合"});
+        let out = evaluate("1068", &answers, &candidate, &json!({}));
+        let model = out["modelScore"].as_f64().unwrap();
+        // 低置信的 enemyFit 权重被压到 0.25，而不是被当成等权的 0 分。
+        assert!((model - 92.3).abs() < 0.6, "model={model}");
+        let score = out["score"].as_f64().unwrap();
+        assert!((score - (model * 0.7 + 60.0 * 0.3)).abs() < 0.05);
+        let risks = out["risks"].as_array().unwrap();
+        assert!(risks.iter().any(|r| r.as_str().unwrap().contains("分歧")));
+        assert!(risks
+            .iter()
+            .any(|r| r.as_str().unwrap().contains("证据不足")));
+        assert_eq!(out["factors"].as_array().unwrap().len(), 4);
+        assert!(out["evidence"].as_array().unwrap().len() >= 2);
+        assert!(out["confidence"].as_f64().unwrap() < 1.0);
+    }
+    #[test]
+    fn evaluate_cites_knowledge_documents_and_flags_missing_docs() {
+        let answers = json!({"championSynergy":{"score":2.0},"buildSynergy":{"score":2.0},"teamFit":{"score":2.0},"enemyFit":{"score":2.0}});
+        let candidate =
+            json!({"id":"1068","name":"循环往复","localScore":50.0,"localReason":"中性"});
+        let knowledge = json!({"documents":[{"path":"augments/1068.md","title":"循环往复","content":"x"}],"missing":["Augment: 某某海克斯"]});
+        let out = evaluate("1068", &answers, &candidate, &knowledge);
+        let evidence: Vec<String> = out["evidence"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e.as_str().unwrap_or("").to_string())
+            .collect();
+        assert!(
+            evidence.iter().any(|e| e.contains("augments/1068.md")),
+            "{evidence:?}"
+        );
+        assert!(
+            evidence.iter().any(|e| e.contains("模型四项")),
+            "{evidence:?}"
+        );
+        let absent = json!({"documents":[],"missing":["Augment: 循环往复"]});
+        let flagged = evaluate("1068", &answers, &candidate, &absent);
+        assert!(
+            flagged["evidence"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|e| e.as_str().unwrap_or("").contains("知识库缺少")),
+            "{flagged}"
+        );
+    }
+    #[test]
+    fn enrich_context_adds_prior_and_level() {
+        let mut c = ctx();
+        c["candidates"] = json!([
+            {"id":"1068","name":"循环往复","description":"获得60技能急速。"},
+            {"id":"1388","name":"无限循环往复","description":"获得60技能急速，外加每次参与击杀3技能急速。"}
+        ]);
+        c["liveData"] = json!({"gameData":{"gameTime":123.0},"activePlayer":{"level":7}});
+        enrich_context(&mut c);
+        assert_eq!(c["candidates"][0]["rarity"], "gold");
+        assert!(c["candidates"][0]["localScore"].as_f64().is_some());
+        assert_eq!(c["gameData"]["level"], 7.0);
+        let state = sanitize_context(&c);
+        assert_eq!(state["gameData"]["level"], 7.0);
+        assert_eq!(state["candidates"][0]["rarity"], "gold");
+        assert_eq!(state["gameData"]["gameTime"], 123.0);
     }
 }

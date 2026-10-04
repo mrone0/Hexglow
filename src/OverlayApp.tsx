@@ -136,6 +136,9 @@ export function OverlayApp() {
           <div>
             <span className="overlay-brand">HEXGLOW</span>
             <strong>海克斯推荐</strong>
+            <span className="overlay-mode" title="局内侧栏只用打包的本地静态数据排序，不调用模型">
+              本地规则 · 非 AI
+            </span>
           </div>
           <span className="overlay-level">{band ? `Lv.${band}` : '待识别'}</span>
           <div className="overlay-actions">
@@ -193,7 +196,7 @@ export function OverlayApp() {
             </div>
           )}
         </div>
-        <footer className="overlay-foot">对局中自动识别 · 识别到 2 个候选以上才打开</footer>
+        <footer className="overlay-foot">对局中自动识别 · 本地规则排序（非 AI）· 识别到 2 个候选以上才打开</footer>
       </section>
     </div>
   );

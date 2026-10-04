@@ -205,6 +205,29 @@ fn root_at(data: &Path) -> Result<PathBuf, String> {
             indexes(&root)?;
         }
     }
+    // v4：旧版本在种子尚未打进二进制时就写下了 v2/v3 标记，导致生成件一个都没落地。
+    // 一次性补齐（只补缺失），补完写标记，之后用户删除的文档依旧不会复活。
+    let marker_v4 = data.join(".knowledge-seeded-v4");
+    no_link(&marker_v4)?;
+    if !marker_v4.exists() {
+        let mut added = 0usize;
+        for (path, content) in crate::seed_generated::AUGMENT_SEEDS
+            .iter()
+            .copied()
+            .chain(crate::seed_generated::CHAMPION_SEEDS.iter().copied())
+        {
+            let target = confined(&root, path)?;
+            if target.exists() {
+                continue;
+            }
+            atomic(&target, content)?;
+            added += 1;
+        }
+        atomic(&marker_v4, "seed attempted v4\n")?;
+        if added > 0 {
+            indexes(&root)?;
+        }
+    }
     if seed || !root.join("index.md").exists() {
         indexes(&root)?;
     }
@@ -324,9 +347,7 @@ fn validate(kind: &str, path: &str, content: &str) -> Value {
                 errors.push("Identity must exactly match the filename stem".into());
             }
             if kind == "Champion" && !known_champion(id) {
-                errors.push(
-                    "Champion ID is not in the bundled champion registry".into(),
-                );
+                errors.push("Champion ID is not in the bundled champion registry".into());
             }
             let headings: &[&str] = if kind == "Champion" {
                 &["基础机制", "常见打法", "海克斯搭配", "注意事项"]
@@ -852,7 +873,10 @@ mod tests {
         let removed = root.join("augments/1134.md");
         fs::remove_file(&removed).unwrap();
         let champ_edited = root.join("champions/jinx.md");
-        assert!(champ_edited.exists(), "v3 seed must add generated champion docs");
+        assert!(
+            champ_edited.exists(),
+            "v3 seed must add generated champion docs"
+        );
         fs::write(&champ_edited, "英雄编辑\n").unwrap();
         let champ_removed = root.join("champions/yasuo.md");
         fs::remove_file(&champ_removed).unwrap();
@@ -867,7 +891,10 @@ mod tests {
             "champion seeds must never overwrite user edits"
         );
         assert!(!removed.exists(), "deleted documents must not come back");
-        assert!(!champ_removed.exists(), "deleted champions must not come back");
+        assert!(
+            !champ_removed.exists(),
+            "deleted champions must not come back"
+        );
         assert!(root.join("augments/custom-example.md").exists());
         assert!(root.join("champions/ahri.md").exists());
         let champion_docs = fs::read_dir(root.join("champions"))
@@ -880,6 +907,42 @@ mod tests {
         assert_eq!(
             champion_docs, 172,
             "173 seeded champions minus the deleted yasuo, index.md excluded"
+        );
+    }
+
+    #[test]
+    fn v4_backfills_generated_docs_when_older_markers_preexisted() {
+        let temp = Temp::new();
+        fs::create_dir_all(temp.0.join("knowledge/champions")).unwrap();
+        fs::create_dir_all(temp.0.join("knowledge/augments")).unwrap();
+        for marker in [
+            ".knowledge-seeded-v1",
+            ".knowledge-seeded-v2",
+            ".knowledge-seeded-v3",
+        ] {
+            fs::write(temp.0.join(marker), "seed attempted\n").unwrap();
+        }
+        let root = root_at(&temp.0).unwrap();
+        assert!(
+            root.join("augments/1170.md").exists(),
+            "v4 must backfill generated augments left behind by stale markers"
+        );
+        assert!(
+            root.join("champions/jinx.md").exists(),
+            "v4 must backfill generated champions left behind by stale markers"
+        );
+        assert!(temp.0.join(".knowledge-seeded-v4").exists());
+        // 补种之后，用户删除的文档不会因为再次运行而复活。
+        let removed = root.join("champions/yasuo.md");
+        assert!(removed.exists());
+        fs::remove_file(&removed).unwrap();
+        let edited = root.join("augments/1170.md");
+        fs::write(&edited, "手工编辑\n").unwrap();
+        let root = root_at(&temp.0).unwrap();
+        assert!(!root.join("champions/yasuo.md").exists());
+        assert_eq!(
+            fs::read_to_string(root.join("augments/1170.md")).unwrap(),
+            "手工编辑\n"
         );
     }
 
@@ -905,8 +968,8 @@ mod tests {
 
     #[test]
     fn generated_champion_seeds_validate() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../knowledge-seed/champions");
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../knowledge-seed/champions");
         let mut checked = 0usize;
         let mut failures = Vec::<String>::new();
         for entry in fs::read_dir(&dir).unwrap() {
@@ -937,8 +1000,8 @@ mod tests {
 
     #[test]
     fn generated_augment_seeds_validate() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../knowledge-seed/augments");
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../knowledge-seed/augments");
         let mut checked = 0usize;
         let mut failures = Vec::<String>::new();
         for entry in fs::read_dir(&dir).unwrap() {
@@ -955,7 +1018,10 @@ mod tests {
                 failures.push(format!("{rel}: {result}"));
             }
         }
-        assert!(checked >= 211, "expected at least 211 seed docs, got {checked}");
+        assert!(
+            checked >= 211,
+            "expected at least 211 seed docs, got {checked}"
+        );
         assert!(
             failures.is_empty(),
             "{} invalid docs:\n{}",

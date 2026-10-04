@@ -1,6 +1,18 @@
 export type Player = { id: string; name: string; champion: string; team: string; items: unknown[]; augments: string[]; augmentsConfirmed: boolean };
 export type Candidate = { id: string; name: string; description: string };
-export type Recommendation = { ranking: { candidateId: string; score: number; reason: string; risks: string[] }[]; summary: string; missingInformation: string[] };
+export type FactorScore = { key: string; label: string; score: number; confidence?: number | null };
+export type RankingItem = {
+  candidateId: string;
+  score: number;
+  reason: string;
+  risks: string[];
+  factors?: FactorScore[];
+  evidence?: string[];
+  confidence?: number | null;
+  modelScore?: number | null;
+  localScore?: number | null;
+};
+export type Recommendation = { ranking: RankingItem[]; summary: string; missingInformation: string[]; engine?: { provider: string; model: string; latencyMs: number; confidenceKind: string } };
 export type Review = { summary: string; lessons: string[]; caveats: string[] };
 export type MatchResult = { status: 'win'|'loss'|'unknown'; source: 'live-game-end'|'lcu-eog'|'manual'|'unknown'; observedAt: string; gameId?: string; evidence?: unknown };
 export type TimelineEntry = { at: string; phase: string; connection: string };
@@ -59,6 +71,12 @@ export function fillPostGameAugments(session:Session, entries:PostGameAugmentsEn
   if(players.every((player,index)=>player===session.players[index])) return session;
   return {...session,players,postGameFilledAt:new Date().toISOString()};
 }
+// postgame_entries 返回 {players, fields}；顺带容忍按数组返回的形状，避免读 .length 静默拿到 undefined。
+export const postgameEntriesOf = (payload: unknown): PostGameAugmentsEntry[] => {
+  if (Array.isArray(payload)) return payload as PostGameAugmentsEntry[];
+  const players = (payload as { players?: unknown } | null)?.players;
+  return Array.isArray(players) ? (players as PostGameAugmentsEntry[]) : [];
+};
 // 只有内容值得进档案：既无玩家、分析、复盘，也没有任何手动补充的空壳不能归档，
 // 也不能落库——对局结束重新排队时出现的空 ChampSelect 会直接复用它。
 export const hasContent=(s:Session)=>s.players.length>0||s.decisions.length>0||!!s.review||!!s.notes.trim()||!!s.outcome.trim()||(!!s.result&&s.result.status!=='unknown')||s.candidates.some(c=>c.name.trim());
