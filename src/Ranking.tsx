@@ -53,7 +53,7 @@ export function RankingItemView({
 export function EngineBadge({engine}: {engine?: Recommendation['engine']}) {
   if (!engine) return null;
   return (
-    <span className="pill engine" title={`延迟 ${engine.latencyMs} ms`}>
+    <span className="pill engine" title={`延迟 ${engine.latencyMs} ms${engine.inputBytes ? ` · 上下文 ${Math.round(engine.inputBytes / 1024)} KiB` : ''}`}>
       {engine.provider} · {engine.model}
     </span>
   );

@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Minimal core permissions",
   "windows": ["main", "overlay"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "updater:default"]
 }

@@ -12,7 +12,7 @@ export type RankingItem = {
   modelScore?: number | null;
   localScore?: number | null;
 };
-export type Recommendation = { ranking: RankingItem[]; summary: string; missingInformation: string[]; engine?: { provider: string; model: string; latencyMs: number; confidenceKind: string } };
+export type Recommendation = { ranking: RankingItem[]; summary: string; missingInformation: string[]; engine?: { provider: string; model: string; latencyMs: number; inputBytes?: number; confidenceKind: string } };
 export type Review = { summary: string; lessons: string[]; caveats: string[] };
 export type MatchResult = { status: 'win'|'loss'|'unknown'; source: 'live-game-end'|'lcu-eog'|'manual'|'unknown'; observedAt: string; gameId?: string; evidence?: unknown };
 export type TimelineEntry = { at: string; phase: string; connection: string };

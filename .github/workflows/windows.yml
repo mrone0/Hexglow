@@ -59,14 +59,22 @@ jobs:
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
-      - name: Build unsigned NSIS installer
-        # Signing is intentionally not configured for this local-first target.
+      - name: Build signed NSIS installer
+        # bundle.createUpdaterArtifacts=true makes the build fail without a
+        # signing key, so repository secrets must exist before the first run:
+        #   TAURI_SIGNING_PRIVATE_KEY          (path or contents of the key)
+        #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty when the key has none)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --bundles nsis
 
-      - name: Upload unsigned NSIS installer
+      - name: Upload signed NSIS installer and updater signature
         uses: actions/upload-artifact@v4
         with:
-          name: hexglow-windows-installer-unsigned
+          name: hexglow-windows-installer
           if-no-files-found: error
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.sig
           retention-days: 14

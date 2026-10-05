@@ -25,6 +25,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "publisher": "Hexglow",
     "copyright": "© 2026 Hexglow contributors",
     "shortDescription": "本地优先的海克斯大乱斗对局助手",
@@ -34,6 +35,15 @@
       "nsis": {
         "installMode": "currentUser"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMzNDZFQzRFQTUyRkE1M0MKUldROHBTK2xUdXhHTXdjK1BXODBud3JhaWJVQUFwckZZaWhYdE5DNTh0NCswanZnR0FITElxaHgK",
+      "endpoints": [
+        "https://github.com/mrone0/Hexglow/releases/latest/download/latest.json"
+      ],
+      "windows": { "installMode": "passive" }
     }
   }
 }

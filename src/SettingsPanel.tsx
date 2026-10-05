@@ -29,6 +29,9 @@ type Props={
  setBudget:(value:number)=>void;
  days:number;
  setDays:(value:number)=>void;
+ dailyLimit:number;
+ setDailyLimit:(value:number)=>void;
+ dailyUsed:number;
  onConfirm:(confirmation:Confirmation)=>void;
  onMaintenance:()=>Promise<void>;
 };
@@ -39,7 +42,7 @@ const presets=[
  ['自定义本地','http://127.0.0.1:8080/v1']
 ] as const;
 
-export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsent,models,clearModels,modelStatus,onTestModel,lockfile,setLockfile,busy,onResumeLive,storage,budget,setBudget,days,setDays,onConfirm,onMaintenance}:Props){
+export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsent,models,clearModels,modelStatus,onTestModel,lockfile,setLockfile,busy,onResumeLive,storage,budget,setBudget,days,setDays,dailyLimit,setDailyLimit,dailyUsed,onConfirm,onMaintenance}:Props){
  const desktop=isTauri();
  return <div className="settings-page">
   <section className="panel settings-card settings-model-card">
@@ -58,7 +61,9 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
     <div className="settings-group">
      <h3>请求选项</h3>
      <label>API Key <span className="field-note">本地服务通常留空 · 云服务按要求填写 · 仅保存在本次内存</span><input type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)}/></label>
-     <label>输出 Token 上限<input type="number" min={256} max={4096} value={model.maxTokens||2200} onChange={e=>setModel({...model,maxTokens:Number(e.target.value)})}/></label>
+      <label>输出 Token 上限<input type="number" min={256} max={4096} value={model.maxTokens||2200} onChange={e=>setModel({...model,maxTokens:Number(e.target.value)})}/></label>
+      <label>每日分析上限 <span className="field-note">防重复扣费</span><input type="number" min={1} max={500} value={dailyLimit} onChange={e=>setDailyLimit(Math.max(1,Math.min(500,Number(e.target.value)||1)))}/></label>
+      <p className="hint">今日已分析 {dailyUsed} 次；连点与 8 秒内的重复分析会被拦截，达到上限后次日自动重置。应用只统计次数、耗时与上下文大小，不估算金额。</p>
      <label className="settings-check"><input type="checkbox" checked={model.jsonMode!==false} onChange={e=>setModel({...model,jsonMode:e.target.checked})}/><span><strong>发送 JSON 模式参数</strong><small>服务不兼容时可关闭，响应仍会进行 JSON 校验。</small></span></label>
      <button className="accent settings-primary-action" disabled={!desktop} onClick={onTestModel}>测试连接并获取模型</button>
      <div className={modelStatus?'connection-status':'connection-status idle'}><i/>{modelStatus||'尚未测试连接'}</div>

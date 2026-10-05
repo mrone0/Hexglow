@@ -129,6 +129,37 @@ fn matches_needle(haystack: &str, needle: &str) -> bool {
     haystack == needle || (needle.chars().count() >= 4 && haystack.contains(&needle))
 }
 
+/// 把任意文本归一到打包数据里的海克斯 ID：候选名/候选 ID、手填海克斯行、OCR 行都走这里。
+/// 认不出来返回 None —— 宁可丢掉，也不要制造假重叠（候选槽位 ID "1"/"2"/"3" 就是这样被挡掉的）。
+pub fn canonical_augment(raw: &str) -> Option<String> {
+    let needle = normalize(raw);
+    if needle.is_empty() {
+        return None;
+    }
+    let mut best: Option<(usize, String)> = None;
+    for augment in augments() {
+        if normalize(&augment.id) == needle {
+            return Some(augment.id.clone());
+        }
+        let mut names = vec![augment.name.as_str()];
+        names.extend(augment.aliases.iter().map(String::as_str));
+        for name in names {
+            let token = normalize(name);
+            if token.is_empty() {
+                continue;
+            }
+            if token == needle {
+                return Some(augment.id.clone());
+            }
+            let len = token.chars().count();
+            if len >= 4 && needle.contains(&token) && best.as_ref().map_or(true, |(l, _)| len > *l) {
+                best = Some((len, augment.id.clone()));
+            }
+        }
+    }
+    best.map(|(_, id)| id)
+}
+
 /// OCR 文本行 -> 屏幕上出现的海克斯，按出现顺序（上到下、左到右）返回。
 pub fn match_augments(lines: &[TextLine]) -> Vec<MatchedCandidate> {
     let mut hits: Vec<(u32, u32, &Augment)> = Vec::new();
@@ -472,6 +503,20 @@ mod tests {
             width: 100,
             height: 30,
         }
+    }
+
+    #[test]
+    fn canonical_augment_maps_ids_names_and_lines() {
+        assert_eq!(canonical_augment("1001").as_deref(), Some("1001"));
+        assert_eq!(canonical_augment("泰坦的坚决").as_deref(), Some("1001"));
+        assert_eq!(
+            canonical_augment("泰坦的坚决：受击后叠加护甲").as_deref(),
+            Some("1001")
+        );
+        // 候选槽位 ID、空串与无关文本一律认不出，避免制造假重叠
+        assert_eq!(canonical_augment("1"), None);
+        assert_eq!(canonical_augment("  "), None);
+        assert_eq!(canonical_augment("随便写的一行无关文本"), None);
     }
 
     #[test]

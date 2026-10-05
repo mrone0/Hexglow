@@ -141,6 +141,7 @@ fn safe_facts(v: &Value) -> Value {
                             | "notes"
                             | "title"
                             | "content"
+                            | "sections"
                             | "excerpt"
                             | "path"
                             | "source"
@@ -215,6 +216,9 @@ pub fn sanitize_context(c: &Value) -> Value {
             "outcome",
             "review",
             "notes",
+            "similarity",
+            "matched",
+            "sameChampion",
         ];
         let n = match h {
             Value::Array(a) => Value::Array(
@@ -394,7 +398,21 @@ fn evaluate(id: &str, answers: &Value, candidate: &Value, knowledge: &Value) -> 
                 .unwrap_or("")
                 .trim_end_matches(".md");
             if stem == id || (!title.is_empty() && title == name) {
-                evidence.push(format!("知识库依据：{title}（{path}）"));
+                let anchor = document["sections"]
+                    .as_array()
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|s| s.as_str())
+                            .collect::<Vec<_>>()
+                            .join("、")
+                    })
+                    .unwrap_or_default();
+                if anchor.is_empty() {
+                    evidence.push(format!("知识库依据：{title}（{path}）"));
+                } else {
+                    evidence.push(format!("知识库依据：{title}（{path}#{anchor}）"));
+                }
                 cited = true;
             }
         }
@@ -534,6 +552,7 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
     let mut enriched = c.clone();
     enrich_context(&mut enriched);
     let state = sanitize_context(&enriched);
+    let input_bytes = serde_json::to_vec(&state).map_err(|_| "上下文无效")?.len();
     let m = &request["model"];
     let provider = m["provider"].as_str().unwrap_or("openai");
     if !matches!(provider, "jev" | "openai") {
@@ -631,7 +650,7 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
             "记录不足以支持复用该决策；先验证关键条件"
         };
         return Ok(
-            json!({"summary":if p>=0.5{"结构化证据对该决策重复使用的支持有限，不能据此断言因果"}else{"结构化证据不支持直接重复该决策，不能据此断言因果"},"lessons":[lesson],"caveats":["样本量、混杂因素与未记录信息"],"engine":{"provider":provider,"model":model_name,"latencyMs":started.elapsed().as_millis(),"confidenceKind":if provider=="jev"{"provider"}else{"unavailable"}}}),
+            json!({"summary":if p>=0.5{"结构化证据对该决策重复使用的支持有限，不能据此断言因果"}else{"结构化证据不支持直接重复该决策，不能据此断言因果"},"lessons":[lesson],"caveats":["样本量、混杂因素与未记录信息"],"engine":{"provider":provider,"model":model_name,"latencyMs":started.elapsed().as_millis(),"inputBytes":input_bytes,"confidenceKind":if provider=="jev"{"provider"}else{"unavailable"}}}),
         );
     }
     let ids: Vec<String> = c["candidates"]
@@ -702,7 +721,7 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
             .unwrap_or_default()
     );
     Ok(
-        json!({"ranking":ranking,"summary":summary,"missingInformation":({ let mut missing=c["knowledge"]["missing"].as_array().cloned().unwrap_or_default(); if c["players"].as_array().unwrap().iter().any(|p| p["augmentsConfirmed"]!=true) { missing.push(json!("部分玩家的已选海克斯未识别，建议仅基于已知信息；缺失不代表没有。")); } missing }),"engine":{"provider":provider,"model":model_name,"latencyMs":started.elapsed().as_millis(),"confidenceKind":if provider=="jev"{"provider"}else{"unavailable"}}}),
+        json!({"ranking":ranking,"summary":summary,"missingInformation":({ let mut missing=c["knowledge"]["missing"].as_array().cloned().unwrap_or_default(); if c["players"].as_array().unwrap().iter().any(|p| p["augmentsConfirmed"]!=true) { missing.push(json!("部分玩家的已选海克斯未识别，建议仅基于已知信息；缺失不代表没有。")); } missing }),"engine":{"provider":provider,"model":model_name,"latencyMs":started.elapsed().as_millis(),"inputBytes":input_bytes,"confidenceKind":if provider=="jev"{"provider"}else{"unavailable"}}}),
     )
 }
 

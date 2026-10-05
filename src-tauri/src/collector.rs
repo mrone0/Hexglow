@@ -1009,6 +1009,110 @@ pub(crate) fn append_log(
         .write_all(&bytes)
 }
 
+const OCR_STATS_FILE: &str = "ocr-stats.json";
+
+fn ocr_stats_empty() -> Value {
+    json!({"schema":1,"scans":0,"hits":0,"names":0,"sources":{},"byDay":{},"lastAt":Value::Null})
+}
+fn ocr_bump(bucket: &mut Value, matched: usize) {
+    bucket["scans"] = json!(bucket["scans"].as_u64().unwrap_or(0) + 1);
+    if matched > 0 {
+        bucket["hits"] = json!(bucket["hits"].as_u64().unwrap_or(0) + 1);
+        bucket["names"] = json!(bucket["names"].as_u64().unwrap_or(0) + matched as u64);
+    }
+}
+fn local_day(at: &str) -> String {
+    chrono::DateTime::parse_from_rfc3339(at)
+        .map(|stamp| {
+            stamp
+                .with_timezone(&chrono::Local)
+                .format("%Y-%m-%d")
+                .to_string()
+        })
+        .unwrap_or_else(|_| at.get(..10).unwrap_or("unknown").to_string())
+}
+fn ocr_record(v: &mut Value, source: &str, matched: usize, at: &str) {
+    ocr_bump(v, matched);
+    if let Some(sources) = v["sources"].as_object_mut() {
+        let bucket = sources
+            .entry(source.to_string())
+            .or_insert_with(|| json!({"scans":0,"hits":0,"names":0}));
+        ocr_bump(bucket, matched);
+    }
+    let day = local_day(at);
+    if let Some(days) = v["byDay"].as_object_mut() {
+        let bucket = days
+            .entry(day)
+            .or_insert_with(|| json!({"scans":0,"hits":0,"names":0}));
+        ocr_bump(bucket, matched);
+    }
+    if !at.is_empty() {
+        v["lastAt"] = json!(at);
+    }
+}
+fn ocr_field<'a>(message: &'a str, key: &str) -> Option<&'a str> {
+    let rest = message.get(message.find(key)? + key.len()..)?;
+    let end = rest.find(' ').unwrap_or(rest.len());
+    Some(&rest[..end])
+}
+// Logs rotate, so counts live in their own file; the first read seeds it from the
+// retained logs, later reads only append to what is already counted.
+fn ocr_backfill(logs: &Path) -> Value {
+    let mut v = ocr_stats_empty();
+    for name in ["collector.previous.jsonl", "collector.jsonl"] {
+        let Ok(text) = fs::read_to_string(logs.join(name)) else {
+            continue;
+        };
+        for line in text.lines() {
+            if !line.contains("ocr-scan") {
+                continue;
+            }
+            let Ok(entry) = serde_json::from_str::<Value>(line) else {
+                continue;
+            };
+            if entry["event"] != "ocr-scan" {
+                continue;
+            }
+            let message = entry["message"].as_str().unwrap_or_default();
+            let source = ocr_field(message, "source=").unwrap_or("unknown");
+            let matched = ocr_field(message, "matched=")
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(0);
+            let at = entry["at"].as_str().unwrap_or_default();
+            ocr_record(&mut v, source, matched, at);
+        }
+    }
+    v
+}
+fn read_ocr_stats(logs: &Path) -> Value {
+    let path = logs.join(OCR_STATS_FILE);
+    if let Some(v) = fs::read_to_string(&path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+    {
+        if v.is_object() {
+            return v;
+        }
+    }
+    let v = ocr_backfill(logs);
+    let _ = fs::write(
+        &path,
+        serde_json::to_string_pretty(&v).unwrap_or_else(|_| ocr_stats_empty().to_string()),
+    );
+    v
+}
+pub(crate) fn record_ocr_scan(logs: &Path, source: &str, matched: usize) {
+    let mut v = read_ocr_stats(logs);
+    ocr_record(&mut v, source, matched, &now());
+    let text = serde_json::to_string_pretty(&v).unwrap_or_else(|_| ocr_stats_empty().to_string());
+    let _ = fs::write(logs.join(OCR_STATS_FILE), text);
+}
+#[tauri::command]
+pub fn ocr_stats(app: AppHandle) -> Result<Value, String> {
+    let (_, logs) = directories(&app)?;
+    Ok(read_ocr_stats(&logs))
+}
+
 fn log_slot(state: &mut State, at: Instant) -> bool {
     while state
         .log_times
@@ -1993,5 +2097,66 @@ mod tests {
             assert!(id(&value).is_none());
         }
         assert_eq!(id(&json!("123")), Some("123".into()));
+    }
+    #[test]
+    fn ocr_stats_backfill_counts_then_only_increment() {
+        let logs = TempLogs::new();
+        let line = |at: &str, event: &str, message: &str| {
+            format!(
+                "{}\n",
+                json!({"at":at,"level":"info","event":event,"message":message})
+            )
+        };
+        fs::write(
+            logs.0.join("collector.previous.jsonl"),
+            line(
+                "2026-10-03T02:00:00Z",
+                "ocr-scan",
+                "source=capture lines=14 matched=0 bytes=100 elapsed=800ms",
+            ),
+        )
+        .unwrap();
+        fs::write(
+            logs.0.join("collector.jsonl"),
+            format!(
+                "{}{}{}",
+                line(
+                    "2026-10-04T03:00:00Z",
+                    "ocr-scan",
+                    "source=capture lines=14 matched=3 bytes=100 elapsed=800ms"
+                ),
+                line(
+                    "2026-10-04T04:00:00Z",
+                    "ocr-scan",
+                    "source=file lines=9 matched=2 bytes=50 elapsed=10ms"
+                ),
+                line(
+                    "2026-10-04T05:00:00Z",
+                    "score-candidates",
+                    "ids=2 champion=影流之主"
+                )
+            ),
+        )
+        .unwrap();
+        let seeded = read_ocr_stats(&logs.0);
+        assert_eq!(seeded["scans"], json!(3));
+        assert_eq!(seeded["hits"], json!(2));
+        assert_eq!(seeded["names"], json!(5));
+        assert_eq!(seeded["sources"]["capture"]["scans"], json!(2));
+        assert_eq!(seeded["sources"]["capture"]["hits"], json!(1));
+        assert_eq!(seeded["sources"]["file"]["hits"], json!(1));
+        assert_eq!(seeded["byDay"]["2026-10-03"]["scans"], json!(1));
+        assert_eq!(seeded["byDay"]["2026-10-04"]["scans"], json!(2));
+        assert_eq!(seeded["lastAt"], json!("2026-10-04T04:00:00Z"));
+        // 第二次读取直接用已写好的文件，不重复回填日志。
+        assert_eq!(read_ocr_stats(&logs.0)["scans"], json!(3));
+        record_ocr_scan(&logs.0, "capture", 1);
+        let after = read_ocr_stats(&logs.0);
+        assert_eq!(after["scans"], json!(4));
+        assert_eq!(after["hits"], json!(3));
+        assert_eq!(after["names"], json!(6));
+        // 统计文件损坏时按日志重建，不会把已经统计过的扫描再加一遍。
+        fs::write(logs.0.join(OCR_STATS_FILE), "{broken").unwrap();
+        assert_eq!(read_ocr_stats(&logs.0)["scans"], json!(3));
     }
 }

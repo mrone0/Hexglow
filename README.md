@@ -14,7 +14,7 @@ Mac 可执行 `pnpm tauri dev` 打开真实桌面 UI；也可编译后直接运�
 
 只有一份生效文档，保存直接覆盖，最多保留3份备份。首次知识命令初始化，而非每次启动加载全库；升级不覆盖已有目录。Index自动更新，Concept ID由路径确定。详细必填字段、章节和接口见 [OKF Profile](knowledge-seed/README.md)。**种子仅含阿狸、盖伦和一个虚构海克斯模板；均未核验，不是完整资料库。**
 
-分析时精确匹配英雄/候选/已选海克斯，沿一层文档链接补充，最多16份/64KiB，缺失和版本警告展示在依据区域。首版是整文档检索，细粒度章节预算、完整英雄目录、自动知识修订尚未完成。
+分析时精确匹配英雄/候选/已选海克斯，沿一层文档链接补充，最多16份/64KiB，缺失和版本警告展示在依据区域。整篇优先；整篇超出 64 KiB 预算时按章节裁剪（英雄保留海克斯搭配/基础机制等，海克斯保留完整效果/相关交互等，自定义章节排最后），依据区域与证据会标注 `path#章节` 并提示裁剪。完整英雄目录、自动知识修订尚未完成。
 
 换会话继续开发请先读 [开发续接指南](docs/DEVELOPMENT.md)。
 
@@ -45,6 +45,9 @@ pnpm build
 pnpm test
 cargo test --manifest-path src-tauri/Cargo.toml --locked
 # 在 Windows 上生成 release 可执行文件与 NSIS 安装器（0.0.3）
+# 已启用 createUpdaterArtifacts，构建必须先设置更新签名私钥，否则直接失败：
+#   PowerShell: $env:TAURI_SIGNING_PRIVATE_KEY="$env:USERPROFILE\.tauri\hexglow.key"
+#   bash:      export TAURI_SIGNING_PRIVATE_KEY="$HOME/.tauri/hexglow.key"
 pnpm tauri build
 # 显式指定打包格式时等价
 pnpm tauri build --bundles nsis
@@ -54,7 +57,9 @@ pnpm tauri build --debug --no-bundle
 
 当前版本 **0.0.3**，版本号需同步改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`。release 产物在 `src-tauri/target/release/Hexglow.exe` 与 `src-tauri/target/release/bundle/nsis/Hexglow_0.0.3_x64-setup.exe`。安装器为当前用户安装（不提权），含中/英文语言选择。版本号从 0.0.1 起算：`v0.0.1` = 首个版本，`v0.0.2` = 首次生产化，`0.0.3` = 当前（含档案现场补录修复，未打 tag）。
 
-GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有 Mac/Linux 构建矩阵。推送到 GitHub 后才会运行，是否已有线上结果以 Actions 页面为准。Windows 配置自动启用 NSIS；安装器未签名，可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
+自动更新（0.0.3 接入）：`tauri-plugin-updater` + `bundle.createUpdaterArtifacts`，构建额外产出同名 `.sig`（更新签名校验用，**不是** Authenticode 代码签名）；私钥在 `%USERPROFILE%\.tauri\hexglow.key`（无密码，绝不提交），发布前用 `scripts\make-latest-json.ps1` 生成 `latest.json`，与安装器一起挂到 tag 为 `v<版本>` 的 Release。设置页「04 应用更新」可检查并下载安装（Windows passive 模式，安装阶段应用自动退出）。端点 `https://github.com/mrone0/Hexglow/releases/latest/download/latest.json`；**仓库为 private 时该地址会 404**，需公开仓库或改用公开静态托管。CI 构建同样需要 secret `TAURI_SIGNING_PRIVATE_KEY`（及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），未配置时构建按设计失败。
+
+GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有 Mac/Linux 构建矩阵。推送到 GitHub 后才会运行，是否已有线上结果以 Actions 页面为准。Windows 配置自动启用 NSIS；安装器未做 Authenticode 代码签名（更新签名的 `.sig` 是另一回事），可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
 
 详细验收见 [docs/WINDOWS-TESTING.md](docs/WINDOWS-TESTING.md)。
 
@@ -82,13 +87,13 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 - `manual`：用户补充，不能覆盖已获得的自动结果证据。
 - `unknown`：没捕获到结算、接口版本不兼容、证据不足或归属不明。客户端断开或工具退出绝不等于失败。
 
-原始数据是否包含最终伤害、经济和击杀统计依接口实际返回；当前不虚构缺失字段。数据存储在应用数据目录的 `sessions.sqlite3`，UI“运行日志”页显示确切路径。0.0.2 起 identifier 为 `ai.hexglow.desktop`（替换占位 `com.local.lol-augment-assistant`，本机已有数据整目录复制到新路径，旧目录保留作备份；后续不得再改，除非同步做迁移）。档案界面每页 50 条轻量摘要（过滤掉 `players=0` 且没有可核对内容的空记录，只隐藏不删除），支持上一页/下一页、按需读取完整会话、删除整场对局或单条分析。删除分析会清除旧复盘，避免引用已删除判断。没有导出 UI。旧版本手填 outcome 不自动转成有证据的胜负。
+原始数据是否包含最终伤害、经济和击杀统计依接口实际返回；当前不虚构缺失字段。数据存储在应用数据目录的 `sessions.sqlite3`，UI“运行日志”页显示确切路径。0.0.2 起 identifier 为 `ai.hexglow.desktop`（替换占位 `com.local.lol-augment-assistant`，本机已有数据整目录复制到新路径，旧目录保留作备份；后续不得再改，除非同步做迁移）。档案界面每页 50 条轻量摘要（过滤掉 `players=0` 且没有可核对内容的空记录，只隐藏不删除），支持上一页/下一页、按需读取完整会话、删除整场对局或单条分析。删除分析会清除旧复盘，避免引用已删除判断。档案详情可「导出本局 JSON」、档案列表可「导出全部历史」，写入应用数据目录的 `exports/`（文件名含对局 ID 与时间戳，全部历史带 `exportedAt`/场次统计），无原生保存对话框，导出后界面显示完整路径。旧版本手填 outcome 不自动转成有证据的胜负。
 
 ## 视觉与日志
 
 独立品牌：浅色珠光、青绿与薰衣草渐变、珊瑚色提示、分栏阵容与来源标签；原创海萤/水滴形 Logo 中心带海克斯六边形。包含对局洞察、对局档案、运行日志、本地设置四个视图，附 PNG/ICO 图标。
 
-日志是脱敏 JSONL，记录连接/阶段变化及诊断错误，不记录令牌、命令行、玩家姓名、模型上下文。当前与上一份各最多512 KiB，合计最多1 MiB；单条含JSON转义及换行最多2 KiB，每进程每60秒最多尝试6次写入，重复及正常待机错误不刷盘。旧版超大日志在下一次实际写入时处理。诊断页只读取两文件合计最多64 KiB尾部、最多100条，只在打开或手动刷新时读取。日志不是对局数据仓库，含玩家信息的原始对局只进入 SQLite。
+日志是脱敏 JSONL，记录连接/阶段变化及诊断错误，不记录令牌、命令行、玩家姓名、模型上下文。当前与上一份各最多512 KiB，合计最多1 MiB；单条含JSON转义及换行最多2 KiB，每进程每60秒最多尝试6次写入，重复及正常待机错误不刷盘。旧版超大日志在下一次实际写入时处理。诊断页只读取两文件合计最多64 KiB尾部、最多100条，只在打开或手动刷新时读取。日志不是对局数据仓库，含玩家信息的原始对局只进入 SQLite。运行日志页还有「识别命中率」面板：累计截屏识别次数、命中次数与命中率、命中时平均名字数，并区分真实截屏与开发样本 fixture，附最近一次时间与近 7 天逐日对比；计数存 `logs/ocr-stats.json`（首次读取从现有日志回填一次），日志轮转不会冲掉历史。
 
 ## 存储与内存预算
 
@@ -96,12 +101,12 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 - 不再启动即进行重型维护；空闲时每 30 分钟检查维护，或用户在设置页手动执行：清过期采样、限制每局 30 份采样、超预算时优先剔除旧采样，再清理过期已结束会话的顶层原始快照。决策时的证据、选择和复盘不自动删除。只有可回收页至少4 MiB且占总页数至少25%才执行VACUUM，避免定期整库重写。
 - 保存前按 UTF-8 逻辑字节与页开销估算预算；预算是写入保护而非严格物理文件上限，SQLite 日志/VACUUM 可能临时额外占用空间。核心记录超预算时拒绝保存，需手动删历史或调高预算。
 - 单场序列化记录最多 8 MiB。界面每页 50 条轻量历史，完整记录按需读取；编辑1500ms防抖写入；同局未开始的保存合并为最新版，避免慢磁盘堆积快照。常规自动落盘由15秒改为60秒，阶段变化/结束仍及时保存；异常退出可能丢失最近约一分钟的未落盘采样。保存后不自动重新加载历史列表。
-- 模型请求限 256 KiB 上下文、1 MiB 响应；最多检索最近 50 条中的 5 份复盘，优先同英雄，截取有界历史摘要，当前必需事实超限则报错而非偷偷删除。
+- 模型请求限 256 KiB 上下文、1 MiB 响应；历史参考由本地 `history_similarity` 命令在最近 200 条档案里挑 5 条（同英雄优先 → 候选/已选海克斯 Jaccard 相似度 → 时间倒序，认不出的文本不计入相似度），附相似度与重叠海克斯并截取有界摘要，当前必需事实超限则报错而非偷偷删除。
 - 这不是固定进程 RSS 上限，也不是自动训练/多级经验库。推理进程的内存由模型服务管理，仍需 Windows 任务管理器实测。
 
 ## 自定义模型设置
 
-提供 TypeSafe Jev / OpenAI兼容协议选择，后者支持用户第三方 HTTPS、Ollama / LM Studio 本机 HTTP。API Key 仅本次内存；地址/模型等非敏感设置持久化。连接测试读取模型列表，不代表已验证推理。Jev发送 state/questions，普通模型以相同四维问题返回JSON；两者置信度不同源，不可混为一谈。用户自行承担模型用量，不承诺免费。
+提供 TypeSafe Jev / OpenAI兼容协议选择，后者支持用户第三方 HTTPS、Ollama / LM Studio 本机 HTTP。API Key 仅本次内存；地址/模型等非敏感设置持久化。连接测试读取模型列表，不代表已验证推理。Jev发送 state/questions，普通模型以相同四维问题返回JSON；两者置信度不同源，不可混为一谈。用户自行承担模型用量，不承诺免费。应用内有防重复与预算护栏：同一次分析在途时禁止重复点击，两次分析至少间隔 8 秒，每日分析上限默认 20 次（设置页可调 1–500，按本地日期重置，计数存 localStorage）；成功后显示今日次数、耗时与上下文 KiB（Rust 返回 `engine.inputBytes`），只统计次数与字节数，不估算金额。
 
 ## 本地模型与隐私
 

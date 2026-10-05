@@ -13,6 +13,9 @@ use tauri::{AppHandle, Manager};
 const MAX_FILE: usize = 256 * 1024;
 const MAX_DOCS: usize = 2000;
 const MAX_RETRIEVAL: usize = 64 * 1024;
+// 章节级裁剪的优先级：整篇放不下时按该顺序保留对当前请求最重要的章节。
+const CHAMPION_SECTIONS: [&str; 4] = ["海克斯搭配", "基础机制", "常见打法", "注意事项"];
+const AUGMENT_SECTIONS: [&str; 4] = ["完整效果", "相关交互", "限制与例外", "触发条件"];
 static LOCK: Mutex<()> = Mutex::new(());
 const SEEDS: &[(&str, &str)] = &[
     (
@@ -672,6 +675,91 @@ fn query_names(v: &Value, champion: bool) -> BTreeSet<String> {
     out.remove("");
     out
 }
+/// 按 #/## 标题把文档切段。第 0 段是首个标题之前的部分（含 YAML frontmatter），heading 为空。
+/// 代码块里的 # 行不算标题；### 及更深层级保持在所属章节内。
+fn split_sections(content: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut fence = false;
+    for line in content.split_inclusive('\n') {
+        let plain = line.trim_end_matches(['\r', '\n']);
+        if plain.trim_start().starts_with("```") {
+            fence = !fence;
+        }
+        let heading = (!fence)
+            .then(|| {
+                plain
+                    .trim_start()
+                    .strip_prefix("# ")
+                    .or_else(|| plain.trim_start().strip_prefix("## "))
+                    .map(|h| h.trim().to_string())
+            })
+            .flatten();
+        match heading {
+            Some(h) => out.push((h, line.to_string())),
+            None => match out.last_mut() {
+                Some((_, buf)) => buf.push_str(line),
+                None => out.push((String::new(), line.to_string())),
+            },
+        }
+    }
+    out
+}
+/// 整篇超过剩余预算时按章节裁剪：前言（frontmatter + 标题）必留，正文按 kind 的优先级
+/// 顺序填充，装不下的整段跳过，自定义章节排在最后。放不下任何正文章节时返回 None。
+fn trim_doc(content: &str, kind: &str, budget: usize) -> Option<(String, Vec<String>)> {
+    if budget == 0 {
+        return None;
+    }
+    let sections = split_sections(content);
+    let priority: &[&str] = if kind == "Champion" {
+        &CHAMPION_SECTIONS
+    } else {
+        &AUGMENT_SECTIONS
+    };
+    let mut order: Vec<usize> = (0..sections.len()).collect();
+    order.sort_by_key(|i| {
+        if *i == 0 {
+            (0u32, *i)
+        } else {
+            let title = sections[*i].0.as_str();
+            let rank = priority
+                .iter()
+                .position(|h| *h == title)
+                .map(|p| (p + 1) as u32)
+                .unwrap_or(u32::MAX);
+            (rank, *i)
+        }
+    });
+    let mut keep = vec![false; sections.len()];
+    let mut used = 0usize;
+    for i in order {
+        let len = sections[i].1.len();
+        if used + len > budget {
+            continue;
+        }
+        keep[i] = true;
+        used += len;
+    }
+    if !keep[0] {
+        return None;
+    }
+    // 输出按文档顺序，和 content 的章节顺序一致。
+    let mut text = String::new();
+    let mut kept_titles = Vec::new();
+    for (i, (title, body)) in sections.iter().enumerate() {
+        if !keep[i] {
+            continue;
+        }
+        text.push_str(body);
+        if i > 0 && !title.is_empty() {
+            kept_titles.push(title.clone());
+        }
+    }
+    if kept_titles.is_empty() {
+        return None;
+    }
+    Some((text, kept_titles))
+}
 fn retrieve_at(root: &Path, context: &Value) -> ResultV {
     let docs = scan(root)?;
     let mut requests: Vec<(&str, Value, bool)> = Vec::new();
@@ -788,7 +876,7 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
             }
             continue;
         }
-        if documents.len() >= 16 || bytes + d.content.len() > MAX_RETRIEVAL {
+        if documents.len() >= 16 {
             warnings.insert(
                 "Retrieval limited to 16 documents / 64 KiB; omitted documents are not evidence"
                     .into(),
@@ -798,6 +886,21 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
             }
             continue;
         }
+        // 整篇放不下时退化为章节裁剪；连一个正文章节都放不下才算省略。
+        let (content, sections) = if bytes + d.content.len() <= MAX_RETRIEVAL {
+            (d.content.clone(), Vec::<String>::new())
+        } else if let Some(t) = trim_doc(&d.content, d.kind(), MAX_RETRIEVAL - bytes) {
+            t
+        } else {
+            warnings.insert(
+                "Retrieval limited to 16 documents / 64 KiB; omitted documents are not evidence"
+                    .into(),
+            );
+            if mandatory.contains(&p) {
+                missing.insert(p);
+            }
+            continue;
+        };
         for w in report["warnings"].as_array().unwrap() {
             warnings.insert(format!("{p}: {}", w.as_str().unwrap_or("")));
         }
@@ -806,10 +909,20 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
                 warnings.insert(format!("{p}: patch does not match requested {patch}"));
             }
         }
-        bytes += d.content.len();
-        let h = hash(&d.content);
+        if !sections.is_empty() {
+            warnings.insert(format!(
+                "{p}: 文档超出 64 KiB 预算，按章节裁剪保留 {}",
+                sections.join("、")
+            ));
+        }
+        bytes += content.len();
+        let h = hash(&content);
         fingerprint_data.insert(p.clone(), h.clone());
-        documents.push(json!({"path":p,"title":d.title(),"content":d.content,"hash":h}));
+        let mut doc = json!({"path":p,"title":d.title(),"content":content,"hash":h});
+        if !sections.is_empty() {
+            doc["sections"] = json!(sections);
+        }
+        documents.push(doc);
     }
     let fingerprint = hash(
         &serde_json::to_string(
@@ -1214,11 +1327,22 @@ mod tests {
             &json!({"champion":"Ahri","candidates":["custom-example"]}),
         )
         .unwrap();
-        assert_eq!(r["documents"].as_array().unwrap().len(), 1);
-        assert!(r["missing"]
+        // 整篇放不下时按章节裁剪而不是整篇省略：两份文档都进结果，超大那份带 sections。
+        assert_eq!(r["documents"].as_array().unwrap().len(), 2);
+        assert!(r["missing"].as_array().unwrap().is_empty());
+        let trimmed = r["documents"]
             .as_array()
             .unwrap()
-            .contains(&json!(SEEDS[2].0)));
+            .iter()
+            .find(|d| d["path"] == json!(SEEDS[2].0))
+            .unwrap();
+        assert!(trimmed["sections"].as_array().is_some_and(|s| !s.is_empty()));
+        assert!(trimmed["content"].as_str().unwrap().len() < huge.len());
+        assert!(r["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|w| w.as_str().unwrap().contains("按章节裁剪")));
         let ahri = format!("{}\n[x](../augments/example-0.md)", SEEDS[0].1);
         save_at(&root, "Champion", SEEDS[0].0, &ahri).unwrap();
         let first = root.join("augments/example-0.md");
@@ -1226,6 +1350,36 @@ mod tests {
         atomic(&first, &text).unwrap();
         let r = retrieve_at(&root, &json!({"champion":"Ahri"})).unwrap();
         assert_eq!(r["documents"].as_array().unwrap().len(), 2);
+    }
+    #[test]
+    fn section_split_and_priority_trim() {
+        let doc = "---\ntitle: t\n---\n# 标题\n前言\n## 注意事项\nNOTE\n## 海克斯搭配\nSYN\n";
+        let all = split_sections(doc);
+        assert_eq!(all.len(), 4);
+        let preamble = all[0].1.len();
+        let (text, kept) = trim_doc(doc, "Champion", doc.len()).unwrap();
+        assert_eq!(text, doc);
+        assert_eq!(kept, vec!["标题", "注意事项", "海克斯搭配"]);
+        let syn = all
+            .iter()
+            .find(|(h, _)| h == "海克斯搭配")
+            .unwrap()
+            .1
+            .len();
+        let (text, kept) = trim_doc(doc, "Champion", preamble + syn).unwrap();
+        assert_eq!(kept, vec!["海克斯搭配"]);
+        assert!(text.starts_with("---"));
+        assert!(!text.contains("NOTE"));
+        assert!(trim_doc(doc, "Champion", preamble - 1).is_none());
+        assert!(trim_doc(doc, "Champion", 0).is_none());
+        let custom = format!("{doc}## 自定义\nCUSTOM\n");
+        let (_, kept) = trim_doc(&custom, "Champion", custom.len()).unwrap();
+        assert_eq!(kept, vec!["标题", "注意事项", "海克斯搭配", "自定义"]);
+        // 海克斯文档用另一套优先级
+        let aug = "---\ntitle: t\n---\n## 触发条件\nTRG\n## 完整效果\nEFF\n";
+        let (text, kept) = trim_doc(aug, "Augment", 60).unwrap();
+        assert!(kept.contains(&"完整效果".to_string()));
+        assert!(text.starts_with("---"));
     }
     #[test]
     fn players_context_and_uppercase_id() {

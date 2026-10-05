@@ -1,5 +1,6 @@
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             lol_augment_assistant_lib::backend::fetch_live,
             lol_augment_assistant_lib::backend::save_session,
@@ -19,12 +20,16 @@ fn main() {
             lol_augment_assistant_lib::storage::delete_analysis,
             lol_augment_assistant_lib::storage::maintain_storage,
             lol_augment_assistant_lib::storage::list_sessions_light,
+            lol_augment_assistant_lib::storage::history_similarity,
             lol_augment_assistant_lib::storage::get_session,
             lol_augment_assistant_lib::storage::get_session_by_match,
+            lol_augment_assistant_lib::storage::export_session,
+            lol_augment_assistant_lib::storage::export_history,
             lol_augment_assistant_lib::collector::collector_snapshot,
             lol_augment_assistant_lib::collector::diagnostics,
             lol_augment_assistant_lib::collector::postgame_entries,
             lol_augment_assistant_lib::collector::postgame_rescan,
+            lol_augment_assistant_lib::collector::ocr_stats,
             lol_augment_assistant_lib::overlay::overlay_open,
             lol_augment_assistant_lib::overlay::overlay_ready,
             lol_augment_assistant_lib::overlay::overlay_close,

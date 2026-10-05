@@ -1,9 +1,14 @@
 //! Sessions remain schema-compatible. Budget enforcement uses projected UTF-8 logical
 //! bytes plus SQLite overhead, not file length (freelist pages are reusable).
+use crate::scoring::canonical_augment;
 use chrono::{DateTime, Duration, Utc};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+};
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 const MAX_SESSION: usize = 8 * 1024 * 1024;
@@ -368,6 +373,260 @@ fn light_page(c: &Connection, offset: i64) -> Result<Vec<Value>, String> {
 pub fn list_sessions_light(app: AppHandle, offset: Option<u64>) -> Result<Vec<Value>, String> {
     light_page(&db(&app)?, offset.unwrap_or(0).min(i64::MAX as u64) as i64)
 }
+// 同英雄历史相似度：本地规则，不调模型。集合是「候选/已选海克斯归一后的 ID」，
+// 相似度 = Jaccard(本局候选∪本局已选, 那局实际选择∪那局已选)，认不出的文本不进集合。
+const SIM_SCAN: i64 = 200;
+const SIM_LIMIT: u64 = 5;
+fn own_player(s: &Value) -> Option<&Value> {
+    let own = s["ownPlayerId"].as_str()?;
+    if own.is_empty() {
+        return None;
+    }
+    s["players"]
+        .as_array()?
+        .iter()
+        .find(|p| p["id"].as_str() == Some(own))
+}
+fn collect_ids<'a>(items: impl Iterator<Item = &'a str>, out: &mut BTreeSet<String>) {
+    for raw in items {
+        if let Some(id) = canonical_augment(raw) {
+            out.insert(id);
+        }
+    }
+}
+fn player_augments(s: &Value) -> Vec<String> {
+    own_player(s)
+        .and_then(|p| p["augments"].as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .take(6)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+/// 本局视角：候选海克斯（id 与名字都试）+ 自己已选海克斯。
+fn current_set(s: &Value) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for c in s["candidates"].as_array().into_iter().flatten() {
+        for key in ["id", "name"] {
+            if let Some(v) = c[key].as_str() {
+                if let Some(id) = canonical_augment(v) {
+                    out.insert(id);
+                }
+            }
+        }
+    }
+    let own = player_augments(s);
+    collect_ids(own.iter().map(String::as_str), &mut out);
+    out
+}
+/// 历史视角：当时实际选择过的 + 那局已选海克斯，不带当时没选中的候选。
+fn past_set(s: &Value) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let chosen = chosen_names(s);
+    collect_ids(chosen.iter().map(String::as_str), &mut out);
+    let own = player_augments(s);
+    collect_ids(own.iter().map(String::as_str), &mut out);
+    out
+}
+/// decisions[].chosenId 是候选槽位 ID，先映射回候选名字（认不出来时退回 ID 本身）。
+fn chosen_names(s: &Value) -> Vec<String> {
+    let Some(ds) = s["decisions"].as_array() else {
+        return Vec::new();
+    };
+    let candidates = s["candidates"].as_array();
+    ds.iter()
+        .filter_map(|d| {
+            let id = d["chosenId"].as_str()?;
+            let name = candidates
+                .and_then(|cs| {
+                    cs.iter()
+                        .find(|c| c["id"].as_str() == Some(id))
+                        .and_then(|c| c["name"].as_str())
+                })
+                .filter(|n| !n.trim().is_empty())
+                .unwrap_or(id);
+            Some(name.to_string())
+        })
+        .collect()
+}
+fn overlap(a: &BTreeSet<String>, b: &BTreeSet<String>) -> f64 {
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let inter = a.intersection(b).count();
+    let union = a.len() + b.len() - inter;
+    if union == 0 {
+        0.0
+    } else {
+        inter as f64 / union as f64
+    }
+}
+/// 归一 ID -> 展示名（用本局与历史局的候选名，先到先得，剩下的退回 ID）。
+fn collect_display(s: &Value, map: &mut BTreeMap<String, String>) {
+    for c in s["candidates"].as_array().into_iter().flatten() {
+        let name = c["name"].as_str().unwrap_or("");
+        if name.trim().is_empty() {
+            continue;
+        }
+        for raw in [c["id"].as_str().unwrap_or(""), name] {
+            if let Some(id) = canonical_augment(raw) {
+                map.entry(id).or_insert_with(|| name.to_string());
+            }
+        }
+    }
+}
+fn clip(v: &Value, max: usize) -> String {
+    v.as_str().unwrap_or("").chars().take(max).collect()
+}
+fn clip_list(v: &Value, n: usize, max: usize) -> Vec<String> {
+    v.as_array()
+        .map(|a| a.iter().map(|x| clip(x, max)).take(n).collect())
+        .unwrap_or_default()
+}
+fn sim_entry(
+    current: &Value,
+    past: &Value,
+    cur_set: &BTreeSet<String>,
+    display: &BTreeMap<String, String>,
+) -> Value {
+    let p = past_set(past);
+    let champ = own_player(past)
+        .and_then(|p| p["champion"].as_str())
+        .unwrap_or("");
+    let sim = overlap(cur_set, &p);
+    let matched: Vec<String> = cur_set
+        .intersection(&p)
+        .map(|id| display.get(id).cloned().unwrap_or_else(|| id.clone()))
+        .take(6)
+        .collect();
+    let same = {
+        let cur = own_player(current)
+            .and_then(|p| p["champion"].as_str())
+            .unwrap_or("");
+        !cur.is_empty() && !champ.is_empty() && cur == champ
+    };
+    let mut chosen = chosen_names(past);
+    let chosen = chosen.pop();
+    let id = past["id"].as_str().unwrap_or("");
+    let mut e = serde_json::Map::new();
+    e.insert("id".into(), json!(id));
+    if let Some(v) = past.get("createdAt") {
+        e.insert("createdAt".into(), v.clone());
+    }
+    if let Some(v) = past.get("updatedAt") {
+        e.insert("updatedAt".into(), v.clone());
+    }
+    e.insert("ownChampion".into(), json!(champ));
+    e.insert("ownAugments".into(), json!(player_augments(past)));
+    if let Some(c) = chosen.filter(|c| !c.trim().is_empty()) {
+        e.insert("chosen".into(), json!(c));
+    }
+    if !past["result"].is_null() {
+        e.insert("result".into(), past["result"].clone());
+    }
+    if !past["outcome"].as_str().unwrap_or("").is_empty() {
+        e.insert("outcome".into(), json!(clip(&past["outcome"], 1000)));
+    }
+    if past["review"].is_object() {
+        e.insert(
+            "review".into(),
+            json!({
+                "summary": clip(&past["review"]["summary"], 1500),
+                "lessons": clip_list(&past["review"]["lessons"], 5, 400),
+                "caveats": clip_list(&past["review"]["caveats"], 3, 300),
+            }),
+        );
+    }
+    e.insert("similarity".into(), json!((sim * 100.0).round() / 100.0));
+    e.insert("matched".into(), json!(matched));
+    e.insert("sameChampion".into(), json!(same));
+    Value::Object(e)
+}
+/// 最近 SIM_SCAN 条档案里挑最像的 limit 条：同英雄优先，其次相似度，再按时间倒序。
+pub fn similar_sessions(
+    c: &Connection,
+    current: &Value,
+    limit: usize,
+) -> Result<Vec<Value>, String> {
+    let cur_set = current_set(current);
+    let cur_id = current["id"].as_str().unwrap_or("");
+    let cur_champ = own_player(current)
+        .and_then(|p| p["champion"].as_str())
+        .unwrap_or("");
+    let mut display = BTreeMap::new();
+    collect_display(current, &mut display);
+    let mut rows = Vec::new();
+    {
+        let mut q = c
+            .prepare(&format!(
+                "SELECT data FROM sessions WHERE {ARCHIVE_CONTENT} AND id<>?1 \
+                 ORDER BY updated_at DESC,id DESC LIMIT ?2"
+            ))
+            .map_err(|e| e.to_string())?;
+        let mapped = q
+            .query_map(params![cur_id, SIM_SCAN], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        for row in mapped {
+            let raw = row.map_err(|e| e.to_string())?;
+            if let Ok(v) = parse(&raw) {
+                rows.push(v);
+            }
+        }
+    }
+    let mut scored: Vec<(bool, f64, String, Value)> = Vec::new();
+    for row in rows {
+        if row["id"].as_str() == Some(cur_id) {
+            continue;
+        }
+        // 有重叠、同英雄或写过复盘才算参考；三条都不占的对局不进模型也不进界面。
+        let champ = own_player(&row)
+            .and_then(|p| p["champion"].as_str())
+            .unwrap_or("");
+        let same = !cur_champ.is_empty() && !champ.is_empty() && cur_champ == champ;
+        let past = past_set(&row);
+        let sim = overlap(&cur_set, &past);
+        if !(same || sim > 0.0 || row["review"].is_object()) {
+            continue;
+        }
+        collect_display(&row, &mut display);
+        let stamp = row["updatedAt"]
+            .as_str()
+            .or_else(|| row["createdAt"].as_str())
+            .unwrap_or("")
+            .to_string();
+        let entry = sim_entry(current, &row, &cur_set, &display);
+        scored.push((same, sim, stamp, entry));
+    }
+    scored.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then(
+                b.1.partial_cmp(&a.1)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
+            .then(b.2.cmp(&a.2))
+    });
+    Ok(scored
+        .into_iter()
+        .take(limit)
+        .map(|(_, _, _, e)| e)
+        .collect())
+}
+#[tauri::command]
+pub fn history_similarity(
+    app: AppHandle,
+    session: Value,
+    limit: Option<u64>,
+) -> Result<Value, String> {
+    Ok(json!(similar_sessions(
+        &db(&app)?,
+        &session,
+        limit.unwrap_or(SIM_LIMIT).min(20) as usize
+    )?))
+}
 #[tauri::command]
 pub fn get_session(app: AppHandle, id: String) -> Result<Value, String> {
     let raw: String = db(&app)?
@@ -385,6 +644,80 @@ fn by_match(c: &Connection, id: &str) -> Result<Option<Value>, String> {
 pub fn get_session_by_match(app: AppHandle, match_id: String) -> Result<Option<Value>, String> {
     let out = by_match(&db(&app)?, &match_id);
     out
+}
+fn export_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let p = dir(app)?.join("exports");
+    fs::create_dir_all(&p).map_err(|e| e.to_string())?;
+    Ok(p)
+}
+fn export_file_name(prefix: &str, id: &str) -> String {
+    let safe: String = id
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
+            c if (c as u32) < 0x20 => '-',
+            c => c,
+        })
+        .collect();
+    let trimmed = safe.trim().trim_matches('-');
+    let stem: String = if trimmed.is_empty() {
+        "unknown".into()
+    } else {
+        trimmed.chars().take(80).collect()
+    };
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    format!("{prefix}-{stem}-{stamp}.json")
+}
+#[tauri::command]
+pub fn export_session(app: AppHandle, session: Value) -> Result<String, String> {
+    let id = session
+        .get("matchId")
+        .and_then(Value::as_str)
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| session.get("id").and_then(Value::as_str))
+        .unwrap_or("unknown");
+    let path = export_dir(&app)?.join(export_file_name("对局", id));
+    let text = serde_json::to_string_pretty(&session).map_err(|e| e.to_string())?;
+    fs::write(&path, text).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+#[tauri::command]
+pub fn export_history(app: AppHandle) -> Result<Value, String> {
+    let c = db(&app)?;
+    let mut q = c
+        .prepare("SELECT data FROM sessions ORDER BY updated_at DESC,id DESC")
+        .map_err(|e| e.to_string())?;
+    let rows = q
+        .query_map([], |r| r.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    let mut sessions: Vec<Value> = Vec::new();
+    let mut unreadable = 0usize;
+    for row in rows {
+        match serde_json::from_str::<Value>(&row.map_err(|e| e.to_string())?) {
+            Ok(v) => sessions.push(v),
+            Err(_) => unreadable += 1,
+        }
+    }
+    let exported_at = chrono::Local::now().to_rfc3339();
+    let payload = json!({
+        "app": "Hexglow",
+        "schema": 1,
+        "exportedAt": exported_at,
+        "sessionCount": sessions.len(),
+        "unreadable": unreadable,
+        "sessions": sessions
+    });
+    let stamp = chrono::Local::now().format("%Y%m%d");
+    let path = export_dir(&app)?.join(export_file_name("全部对局", &stamp.to_string()));
+    let text = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
+    let bytes = text.len();
+    fs::write(&path, text).map_err(|e| e.to_string())?;
+    Ok(json!({
+        "path": path.to_string_lossy(),
+        "count": sessions.len(),
+        "bytes": bytes,
+        "unreadable": unreadable
+    }))
 }
 fn prepared(session: &Value) -> Result<(String, String), String> {
     let mut v = session.clone();
@@ -487,6 +820,64 @@ mod tests {
         assert_eq!(logical_bytes(&c).unwrap(), before);
     }
     #[test]
+    fn history_similarity_prefers_same_champion_then_overlap() {
+        let mut c = memory();
+        let mk = |id: &str, champ: &str, aug: &str, chosen: &str, at: &str| {
+            json!({
+                "id": id, "createdAt": at, "updatedAt": at,
+                "ownPlayerId": "me",
+                "players": [{"id":"me","champion":champ,"augments":aug}],
+                "candidates": [{"id":"1001","name":"泰坦的坚决"},{"id":"1002","name":"尖端发明家"}],
+                "decisions": [{"at": at, "chosenId": chosen}],
+                "result": {"status":"win","source":"manual"},
+                "outcome": "按计划成型",
+                "review": {"summary":"先手装更稳","lessons":["早做前排"],"caveats":[]}
+            })
+        };
+        write_session(&mut c, &mk("a", "阿狸", "1001", "1001", "2026-01-03T00:00:00Z"), MIB).unwrap();
+        write_session(&mut c, &mk("b", "阿狸", "", "1002", "2026-01-02T00:00:00Z"), MIB).unwrap();
+        write_session(&mut c, &mk("c", "盖伦", "1001", "1001", "2026-01-01T00:00:00Z"), MIB).unwrap();
+        write_session(&mut c, &mk("cur", "阿狸", "", "", "2026-01-04T00:00:00Z"), MIB).unwrap();
+        // 异英雄 + 无重叠 + 没复盘：不构成参考，不进结果
+        write_session(
+            &mut c,
+            &json!({"id":"d","createdAt":"2026-01-05T00:00:00Z","updatedAt":"2026-01-05T00:00:00Z",
+                "ownPlayerId":"me","players":[{"id":"me","champion":"盖伦","augments":[]}],
+                "candidates":[{"id":"1004","name":"回归基本功"}],"decisions":[],
+                "result":{"status":"unknown","source":"unknown"},"outcome":""}),
+            MIB,
+        )
+        .unwrap();
+        let cur = json!({
+            "id": "cur", "ownPlayerId": "me",
+            "players": [{"id":"me","champion":"阿狸","augments":[]}],
+            "candidates": [{"id":"1001","name":"泰坦的坚决"},{"id":"1002","name":"尖端发明家"}]
+        });
+        let out = similar_sessions(&c, &cur, 5).unwrap();
+        let ids: Vec<&str> = out.iter().filter_map(|e| e["id"].as_str()).collect();
+        // 同英雄优先，其次相似度，最后按时间倒序；自己不参与
+        assert_eq!(ids, vec!["a", "b", "c"]);
+        assert_eq!(out[0]["sameChampion"], json!(true));
+        assert_eq!(out[2]["sameChampion"], json!(false));
+        // 重叠显示名来自候选名，而不是槽位 ID
+        assert_eq!(out[0]["matched"], json!(["泰坦的坚决"]));
+        assert_eq!(out[0]["chosen"], json!("泰坦的坚决"));
+        assert_eq!(out[0]["review"]["summary"], json!("先手装更稳"));
+        assert_eq!(out[0]["outcome"], json!("按计划成型"));
+        assert_eq!(out[0]["similarity"], json!(0.5));
+        // 槽位 ID 与空名字认不出海克斯，不制造假重叠；排序仍按同英雄+时间
+        let weak = json!({
+            "id":"cur","ownPlayerId":"me",
+            "players":[{"id":"me","champion":"阿狸","augments":[]}],
+            "candidates":[{"id":"1","name":""},{"id":"2","name":""}]
+        });
+        let out2 = similar_sessions(&c, &weak, 5).unwrap();
+        assert!(out2.iter().all(|e| e["similarity"].as_f64() == Some(0.0)));
+        assert_eq!(out2[0]["id"], json!("a"));
+        // limit 生效
+        assert_eq!(similar_sessions(&c, &cur, 1).unwrap().len(), 1);
+    }
+    #[test]
     fn maintenance_keeps_core_and_persists_caps() {
         let mut c = memory();
         let v = json!({"id":"a","samples":(0..50).map(|_|json!({"at":"2099-01-01T00:00:00Z","raw":"x"})).collect::<Vec<_>>(),"decisions":[{"at":"core","context":{"liveData":{"hp":4}}}],"review":{"summary":"core"}});
@@ -551,5 +942,18 @@ mod tests {
             .query_row("SELECT count(*) FROM sessions", [], |r| r.get(0))
             .unwrap();
         assert_eq!(stored, rows.len() as i64);
+    }
+    #[test]
+    fn export_file_names_stay_windows_safe() {
+        let clean = export_file_name("对局", "500904965221");
+        assert!(clean.starts_with("对局-500904965221-"));
+        assert!(clean.ends_with(".json"));
+        let dirty = export_file_name("对局", "a/b\\c:d*e?\"f<>|g");
+        assert!(dirty
+            .chars()
+            .all(|c| !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')));
+        assert!(dirty.ends_with(".json"));
+        assert!(export_file_name("对局", "   ").contains("unknown"));
+        assert!(export_file_name("全部对局", "20261005").contains("全部对局-20261005-"));
     }
 }

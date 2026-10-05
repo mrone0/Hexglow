@@ -137,6 +137,8 @@ pub fn ocr_scan(
     let candidates = crate::scoring::match_augments(&lines);
     let elapsed_ms = started.elapsed().as_millis();
     if let Ok((_, logs)) = crate::collector::directories(&app) {
+        // 计数先于写日志：统计文件缺失时会回读现有日志补齐，避免把本次扫描算两遍。
+        crate::collector::record_ocr_scan(&logs, &source, candidates.len());
         let _ = crate::collector::append_log(
             &logs,
             "info",
