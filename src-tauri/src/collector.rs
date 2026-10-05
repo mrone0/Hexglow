@@ -493,13 +493,7 @@ fn postgame_augments(eog: &Value, history: &Value, game: Option<&str>) -> Value 
         let mut matches = Vec::new();
         collect_history_games(history, game, &mut matches);
         for entry in matches {
-            scan_augments(
-                entry,
-                "",
-                Whereabouts::default(),
-                &mut fields,
-                &mut players,
-            );
+            scan_augments(entry, "", Whereabouts::default(), &mut fields, &mut players);
         }
     }
     let identified: Vec<(&String, &PlayerEvidence)> = players
@@ -534,6 +528,136 @@ pub fn postgame_entries(session: Value) -> Value {
         Some(eog) if !eog.is_null() => postgame_augments(eog, &Value::Null, None),
         _ => Value::Null,
     }
+}
+
+// 两份赛后证据并集：同一玩家取海克斯更多的一份（并补齐缺失的英雄/阵营），字段路径取并集。
+fn merge_postgame_entries(left: &Value, right: &Value) -> Value {
+    let mut players: BTreeMap<String, Value> = BTreeMap::new();
+    let mut fields: BTreeSet<String> = BTreeSet::new();
+    for source in [left, right] {
+        let Some(map) = source.as_object() else {
+            continue;
+        };
+        if let Some(items) = map.get("players").and_then(Value::as_array) {
+            for item in items {
+                let Some(key) = item.get("key").and_then(Value::as_str) else {
+                    continue;
+                };
+                match players.get_mut(key) {
+                    None => {
+                        players.insert(key.to_string(), item.clone());
+                    }
+                    Some(existing) => {
+                        let have = existing["augments"].as_array().map(Vec::len).unwrap_or(0);
+                        let next = item["augments"].as_array().map(Vec::len).unwrap_or(0);
+                        if next > have {
+                            *existing = item.clone();
+                        } else {
+                            for field in ["champion", "team"] {
+                                if existing.get(field).map_or(true, Value::is_null) {
+                                    if let Some(value) = item.get(field) {
+                                        existing[field] = value.clone();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(items) = map.get("fields").and_then(Value::as_array) {
+            for item in items {
+                if let Some(text) = item.as_str() {
+                    fields.insert(text.to_string());
+                }
+            }
+        }
+    }
+    if players.is_empty() {
+        return Value::Null;
+    }
+    json!({
+        "players": players.into_values().collect::<Vec<_>>(),
+        "fields": fields,
+    })
+}
+
+// 打开档案时现场补录：客户端在线就重新拉 EOG 与最近比赛历史（按本局 gameId 归属），
+// 客户端不可用或已超窗时回落到档案里存下的 EOG 证据。返回 {players, fields} 或 null。
+#[tauri::command]
+pub async fn postgame_rescan(
+    app: AppHandle,
+    session: Value,
+    lockfile_path: Option<String>,
+) -> Value {
+    let game = session
+        .get("matchId")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string);
+    let stored = session
+        .get("endOfGame")
+        .cloned()
+        .filter(|value| !value.is_null());
+    let mut merged = stored
+        .as_ref()
+        .map(|eog| postgame_augments(eog, &Value::Null, game.as_deref()))
+        .unwrap_or(Value::Null);
+    let deadline = Instant::now() + Duration::from_secs(6);
+    let credentials =
+        tauri::async_runtime::spawn_blocking(move || discover(lockfile_path.as_deref()).0)
+            .await
+            .unwrap_or(None);
+    if let (Some(credentials), Ok(client)) = (credentials.as_ref(), riot_client()) {
+        let eog = get_json(
+            &client,
+            Some(credentials),
+            "/lol-end-of-game/v1/eog-stats-block",
+            deadline,
+        )
+        .await
+        .unwrap_or(Value::Null);
+        let history = get_json(
+            &client,
+            Some(credentials),
+            "/lol-match-history/v1/products/lol/current-summoner/matches?begin=0&count=10",
+            deadline,
+        )
+        .await
+        .unwrap_or(Value::Null);
+        merged =
+            merge_postgame_entries(&merged, &postgame_augments(&eog, &history, game.as_deref()));
+        // 最近几局里没有本局时，按 gameId 直接问这一局（只接受纯数字，避免拼进 URL）。
+        let direct = game
+            .as_deref()
+            .filter(|id| !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()));
+        if direct.is_some()
+            && merged.as_object().map_or(true, |map| {
+                map.get("players")
+                    .and_then(Value::as_array)
+                    .map_or(true, Vec::is_empty)
+            })
+        {
+            if let Ok(value) = get_json(
+                &client,
+                Some(credentials),
+                &format!("/lol-match-history/v1/games/{}", direct.unwrap()),
+                deadline,
+            )
+            .await
+            {
+                merged = merge_postgame_entries(
+                    &merged,
+                    &postgame_augments(&Value::Null, &value, game.as_deref()),
+                );
+            }
+        }
+    }
+    if merged.as_object().map_or(true, |map| map.is_empty()) {
+        return Value::Null;
+    }
+    log_postgame_scan(&app, &merged);
+    merged
 }
 
 // 旧 v4 结构是 {games:{games:[{gameId,participants:[…]}]}}；按 gameId 只认这一局。
@@ -859,7 +983,12 @@ fn cap_existing_log(path: &Path) -> std::io::Result<u64> {
 }
 
 // Production callers hold STATE across rotation/write/read (single-process logger).
-pub(crate) fn append_log(logs: &Path, level: &str, event: &str, message: &str) -> std::io::Result<()> {
+pub(crate) fn append_log(
+    logs: &Path,
+    level: &str,
+    event: &str,
+    message: &str,
+) -> std::io::Result<()> {
     let bytes = log_entry(level, event, message);
     let path = logs.join("collector.jsonl");
     let previous = logs.join("collector.previous.jsonl");
@@ -1185,6 +1314,32 @@ pub fn diagnostics(app: AppHandle) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rescan_merges_stored_and_live_evidence() {
+        let stored = json!({"players":[{"key":"me","augments":["A"]}], "fields":["/stored"]});
+        let live = json!({
+            "players":[
+                {"key":"me","augments":["A","B"],"champion":"Ahri"},
+                {"key":"other","augments":["C"],"team":"CHAOS"}
+            ],
+            "fields":["/live"]
+        });
+        let merged = merge_postgame_entries(&stored, &live);
+        let players = merged["players"].as_array().unwrap();
+        assert_eq!(players.len(), 2);
+        let me = players.iter().find(|p| p["key"] == "me").unwrap();
+        assert_eq!(me["augments"].as_array().unwrap().len(), 2);
+        assert_eq!(me["champion"], "Ahri");
+        assert!(players.iter().any(|p| p["key"] == "other"));
+        let fields = merged["fields"].as_array().unwrap();
+        assert!(fields.iter().any(|f| f == "/stored"));
+        assert!(fields.iter().any(|f| f == "/live"));
+        // 只有一份证据时原样返回；两份都空时返回 null。
+        assert_eq!(merge_postgame_entries(&Value::Null, &live), live);
+        assert!(merge_postgame_entries(&Value::Null, &Value::Null).is_null());
+    }
+
     struct TempLogs(PathBuf);
     impl TempLogs {
         fn new() -> Self {
@@ -1333,7 +1488,10 @@ mod tests {
         assert_eq!(players[0]["team"], "ORDER");
         // 没有存下赛后证据的旧档案不编造条目。
         assert_eq!(postgame_entries(json!({"matchId":"1"})), Value::Null);
-        assert_eq!(postgame_entries(json!({"matchId":"1","endOfGame":null})), Value::Null);
+        assert_eq!(
+            postgame_entries(json!({"matchId":"1","endOfGame":null})),
+            Value::Null
+        );
     }
 
     #[test]
