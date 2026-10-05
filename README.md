@@ -2,11 +2,9 @@
 
 > **AGPL-3.0-only 开源项目。开源不是放弃版权。** 商用允许，但分发及修改版网络服务必须依法履行对应的开源、许可与声明义务；禁止违反许可的闭源分发及冒充官方。请先阅读 [开源许可与使用声明](OPEN_SOURCE.md) 和 [完整许可证](LICENSE)。
 
-**让每一次选择，都有微光指引。** 面向 Windows 的本地海克斯大乱斗决策辅助原型。Tauri 2 + Rust + React/TypeScript + SQLite；macOS 仅用于开发，不作为游戏验收平台。
+**让每一次选择，都有微光指引。** 面向 Windows 的本地海克斯大乱斗决策辅助原型。Tauri 2 + Rust + React/TypeScript + SQLite。
 
-## Mac 看效果 / 本轮第一版
-
-Mac 可执行 `pnpm tauri dev` 打开真实桌面 UI；也可编译后直接运行 `./src-tauri/target/debug/Hexglow`。知识工坊编辑是真实文件操作；界面不再提供演示/模拟对局入口，布局以真实数据与截图验收。
+知识工坊编辑是真实文件操作；界面不再提供演示/模拟对局入口，布局以真实数据与截图验收。
 
 ### OKF 知识工坊
 
@@ -44,22 +42,20 @@ pnpm tauri dev
 pnpm build
 pnpm test
 cargo test --manifest-path src-tauri/Cargo.toml --locked
-# 在 Windows 上生成 release 可执行文件与 NSIS 安装器（0.0.3）
+# 在 Windows 上生成 release 可执行文件与 NSIS 安装器（0.0.5）
 # 已启用 createUpdaterArtifacts，构建必须先设置更新签名私钥，否则直接失败：
 #   PowerShell: $env:TAURI_SIGNING_PRIVATE_KEY="$env:USERPROFILE\.tauri\hexglow.key"
 #   bash:      export TAURI_SIGNING_PRIVATE_KEY="$HOME/.tauri/hexglow.key"
 pnpm tauri build
 # 显式指定打包格式时等价
 pnpm tauri build --bundles nsis
-# Mac 仅开发编译，不生成正式发布包
-pnpm tauri build --debug --no-bundle
 ```
 
 当前版本 **0.0.5**，版本号需同步改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`。release 产物在 `src-tauri/target/release/Hexglow.exe` 与 `src-tauri/target/release/bundle/nsis/Hexglow_0.0.5_x64-setup.exe`。安装器为当前用户安装（不提权），含中/英文语言选择。版本号从 0.0.1 起算：`v0.0.1` = 首个版本，`v0.0.2` = 首次生产化，`v0.0.4` = 首个自动更新发布，`0.0.5` = 当前（修复 release 控制台窗口，`main.rs` 恢复 `windows_subsystem = "windows"`）。
 
-自动更新（0.0.3 接入，0.0.4 起端到端可用）：`tauri-plugin-updater` + `bundle.createUpdaterArtifacts`，构建额外产出同名 `.sig`（更新签名校验用，**不是** Authenticode 代码签名）；私钥在 `%USERPROFILE%\.tauri\hexglow.key`（无密码，绝不提交），CI/本地用 `scripts\make-latest-json.ps1` 生成 `latest.json`。设置页「04 应用更新」可检查并下载安装（Windows passive 模式，安装阶段应用自动退出）。端点 `https://github.com/mrone0/Hexglow/releases/latest/download/latest.json`；**仓库必须保持 public**（private 状态该地址 404）。推送 `v<版本>` tag 后 CI 自动构建、生成 `latest.json` 并创建 Release（tag 必须等于 `v<package.json 版本>`，否则 release job 失败）。CI 构建需要 secret `TAURI_SIGNING_PRIVATE_KEY`（及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），未配置时构建按设计失败。
+自动更新（0.0.3 接入，0.0.4 起端到端可用，**已实测两轮 0.0.3 → 0.0.4 → 0.0.5 全通过**）：`tauri-plugin-updater` + `bundle.createUpdaterArtifacts`，构建额外产出同名 `.sig`（更新签名校验用，**不是** Authenticode 代码签名）；私钥在 `%USERPROFILE%\.tauri\hexglow.key`（无密码，绝不提交），CI/本地用 `scripts\make-latest-json.ps1` 生成 `latest.json`（UTF-8 无 BOM，带 BOM 会被 serde_json 拒绝）。设置页「04 应用更新」可检查并下载安装（Windows passive 模式，安装阶段应用自动退出，装完 NSIS 会自动重启应用）。端点 `https://github.com/mrone0/Hexglow/releases/latest/download/latest.json`；**仓库必须保持 public**（private 状态该地址 404）。推送 `v<版本>` tag 后 CI 自动构建、生成 `latest.json` 并创建 [Release](https://github.com/mrone0/Hexglow/releases)（tag 必须等于 `v<package.json 版本>`，否则 release job 失败；secret 必须在 run 启动前就存在）。CI 构建需要 secret `TAURI_SIGNING_PRIVATE_KEY`（及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），未配置时构建按设计失败。
 
-GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有 Mac/Linux 构建矩阵。推送到 GitHub 后才会运行，是否已有线上结果以 Actions 页面为准。Windows 配置自动启用 NSIS；安装器未做 Authenticode 代码签名（更新签名的 `.sig` 是另一回事），可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
+GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有其他平台构建矩阵；推送与 tag 均会触发，签名构建 + tag 发布已实跑（结果见 [Actions](https://github.com/mrone0/Hexglow/actions) 与 [Releases](https://github.com/mrone0/Hexglow/releases)）。Windows 配置自动启用 NSIS；安装器未做 Authenticode 代码签名（更新签名的 `.sig` 是另一回事），可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
 
 详细验收见 [docs/WINDOWS-TESTING.md](docs/WINDOWS-TESTING.md)。
 
@@ -125,4 +121,4 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 
 内置英雄/海克斯数据来自打包数据与知识种子（逐条标 `verified: false`，不冒充版本权威）；截屏 OCR、对局内可折叠侧栏与赛后补录均为本地实现，不自动选择、无后台守护服务、不训练模型权重、不提供响应延迟保证。游戏身份缺失且生命周期观察中断时无法绝对证明局次，采用保守切分；真实长期运行需继续验证。
 
-长期运行稳定性、真实模型服务信息与 Windows 安装器验收仍待完成。具体测试结果见 [VALIDATION.md](VALIDATION.md)。
+长期运行稳定性、真实模型服务信息仍待完成；安装与更新链路已通过 QA 脚本（`scripts/qa-windows.ps1`）与两轮自动更新端到端验收。具体测试结果见 [VALIDATION.md](VALIDATION.md)。
