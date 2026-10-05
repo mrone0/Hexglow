@@ -38,8 +38,12 @@ $latest = [ordered]@{
     pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     platforms = $platforms
 }
-$latest | ConvertTo-Json -Depth 6 | Set-Content -Path $OutFile -Encoding UTF8
-Write-Host "已生成 $OutFile"
+$json = $latest | ConvertTo-Json -Depth 6
+# UTF-8 无 BOM：serde_json/reqwest 解析带 BOM 的响应会直接报错，更新检查失败
+[IO.File]::WriteAllText($OutFile, $json + "`n", [Text.UTF8Encoding]::new($false))
+$head = ([IO.File]::ReadAllBytes($OutFile)[0..2] -join ',')
+if ($head -eq '239,187,191') { throw "latest.json 含 UTF-8 BOM，更新器会拒绝解析" }
+Write-Host "已生成 $OutFile（UTF-8 无 BOM）"
 Write-Host "发布约定：Release tag 用 v$Version，资产至少包含 Hexglow_$($Version)_x64-setup.exe 和 latest.json（本文件）；"
 Write-Host "端点 https://github.com/$Repo/releases/latest/download/latest.json 指向最新 Release 的 latest.json。"
-Write-Host "注意：仓库为 private 时该 URL 不带 token 会 404，需要公开仓库或改用公开静态托管。"
+Write-Host "注意：仓库必须保持 public，private 状态该 URL 不带 token 会 404。推送 v<版本> tag 后 CI 会自动生成本文件并创建 Release。"

@@ -55,9 +55,9 @@ pnpm tauri build --bundles nsis
 pnpm tauri build --debug --no-bundle
 ```
 
-当前版本 **0.0.3**，版本号需同步改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`。release 产物在 `src-tauri/target/release/Hexglow.exe` 与 `src-tauri/target/release/bundle/nsis/Hexglow_0.0.3_x64-setup.exe`。安装器为当前用户安装（不提权），含中/英文语言选择。版本号从 0.0.1 起算：`v0.0.1` = 首个版本，`v0.0.2` = 首次生产化，`0.0.3` = 当前（含档案现场补录修复，未打 tag）。
+当前版本 **0.0.4**，版本号需同步改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`。release 产物在 `src-tauri/target/release/Hexglow.exe` 与 `src-tauri/target/release/bundle/nsis/Hexglow_0.0.4_x64-setup.exe`。安装器为当前用户安装（不提权），含中/英文语言选择。版本号从 0.0.1 起算：`v0.0.1` = 首个版本，`v0.0.2` = 首次生产化，`0.0.4` = 当前（首个自动更新发布，tag `v0.0.4`）。
 
-自动更新（0.0.3 接入）：`tauri-plugin-updater` + `bundle.createUpdaterArtifacts`，构建额外产出同名 `.sig`（更新签名校验用，**不是** Authenticode 代码签名）；私钥在 `%USERPROFILE%\.tauri\hexglow.key`（无密码，绝不提交），发布前用 `scripts\make-latest-json.ps1` 生成 `latest.json`，与安装器一起挂到 tag 为 `v<版本>` 的 Release。设置页「04 应用更新」可检查并下载安装（Windows passive 模式，安装阶段应用自动退出）。端点 `https://github.com/mrone0/Hexglow/releases/latest/download/latest.json`；**仓库为 private 时该地址会 404**，需公开仓库或改用公开静态托管。CI 构建同样需要 secret `TAURI_SIGNING_PRIVATE_KEY`（及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），未配置时构建按设计失败。
+自动更新（0.0.3 接入，0.0.4 起端到端可用）：`tauri-plugin-updater` + `bundle.createUpdaterArtifacts`，构建额外产出同名 `.sig`（更新签名校验用，**不是** Authenticode 代码签名）；私钥在 `%USERPROFILE%\.tauri\hexglow.key`（无密码，绝不提交），CI/本地用 `scripts\make-latest-json.ps1` 生成 `latest.json`。设置页「04 应用更新」可检查并下载安装（Windows passive 模式，安装阶段应用自动退出）。端点 `https://github.com/mrone0/Hexglow/releases/latest/download/latest.json`；**仓库必须保持 public**（private 状态该地址 404）。推送 `v<版本>` tag 后 CI 自动构建、生成 `latest.json` 并创建 Release（tag 必须等于 `v<package.json 版本>`，否则 release job 失败）。CI 构建需要 secret `TAURI_SIGNING_PRIVATE_KEY`（及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），未配置时构建按设计失败。
 
 GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有 Mac/Linux 构建矩阵。推送到 GitHub 后才会运行，是否已有线上结果以 Actions 页面为准。Windows 配置自动启用 NSIS；安装器未做 Authenticode 代码签名（更新签名的 `.sig` 是另一回事），可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
 
