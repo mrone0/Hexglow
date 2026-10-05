@@ -44,7 +44,7 @@ pnpm tauri dev
 pnpm build
 pnpm test
 cargo test --manifest-path src-tauri/Cargo.toml --locked
-# 在 Windows 上生成 release 可执行文件与 NSIS 安装器（0.2.0）
+# 在 Windows 上生成 release 可执行文件与 NSIS 安装器（0.0.3）
 pnpm tauri build
 # 显式指定打包格式时等价
 pnpm tauri build --bundles nsis
@@ -52,7 +52,7 @@ pnpm tauri build --bundles nsis
 pnpm tauri build --debug --no-bundle
 ```
 
-当前版本 **0.2.0**，版本号需同步改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`。release 产物在 `src-tauri/target/release/Hexglow.exe` 与 `src-tauri/target/release/bundle/nsis/Hexglow_0.2.0_x64-setup.exe`。安装器为当前用户安装（不提权），含中/英文语言选择。
+当前版本 **0.0.3**，版本号需同步改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`。release 产物在 `src-tauri/target/release/Hexglow.exe` 与 `src-tauri/target/release/bundle/nsis/Hexglow_0.0.3_x64-setup.exe`。安装器为当前用户安装（不提权），含中/英文语言选择。版本号从 0.0.1 起算：`v0.0.1` = 首个版本，`v0.0.2` = 首次生产化，`0.0.3` = 当前（含档案现场补录修复，未打 tag）。
 
 GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有 Mac/Linux 构建矩阵。推送到 GitHub 后才会运行，是否已有线上结果以 Actions 页面为准。Windows 配置自动启用 NSIS；安装器未签名，可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
 
@@ -82,7 +82,7 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 - `manual`：用户补充，不能覆盖已获得的自动结果证据。
 - `unknown`：没捕获到结算、接口版本不兼容、证据不足或归属不明。客户端断开或工具退出绝不等于失败。
 
-原始数据是否包含最终伤害、经济和击杀统计依接口实际返回；当前不虚构缺失字段。数据存储在应用数据目录的 `sessions.sqlite3`，UI“运行日志”页显示确切路径。0.2.0 起 identifier 为 `ai.hexglow.desktop`（替换占位 `com.local.lol-augment-assistant`，本机已有数据整目录复制到新路径，旧目录保留作备份；后续不得再改，除非同步做迁移）。档案界面每页 50 条轻量摘要（过滤掉 `players=0` 且没有可核对内容的空记录，只隐藏不删除），支持上一页/下一页、按需读取完整会话、删除整场对局或单条分析。删除分析会清除旧复盘，避免引用已删除判断。没有导出 UI。旧版本手填 outcome 不自动转成有证据的胜负。
+原始数据是否包含最终伤害、经济和击杀统计依接口实际返回；当前不虚构缺失字段。数据存储在应用数据目录的 `sessions.sqlite3`，UI“运行日志”页显示确切路径。0.0.2 起 identifier 为 `ai.hexglow.desktop`（替换占位 `com.local.lol-augment-assistant`，本机已有数据整目录复制到新路径，旧目录保留作备份；后续不得再改，除非同步做迁移）。档案界面每页 50 条轻量摘要（过滤掉 `players=0` 且没有可核对内容的空记录，只隐藏不删除），支持上一页/下一页、按需读取完整会话、删除整场对局或单条分析。删除分析会清除旧复盘，避免引用已删除判断。没有导出 UI。旧版本手填 outcome 不自动转成有证据的胜负。
 
 ## 视觉与日志
 
