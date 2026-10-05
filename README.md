@@ -14,8 +14,6 @@
 
 分析时精确匹配英雄/候选/已选海克斯，沿一层文档链接补充，最多16份/64KiB，缺失和版本警告展示在依据区域。整篇优先；整篇超出 64 KiB 预算时按章节裁剪（英雄保留海克斯搭配/基础机制等，海克斯保留完整效果/相关交互等，自定义章节排最后），依据区域与证据会标注 `path#章节` 并提示裁剪。完整英雄目录、自动知识修订尚未完成。
 
-换会话继续开发请先读 [开发续接指南](docs/DEVELOPMENT.md)。
-
 ## 已实现的使用流程
 
 1. 在已运行 LoL 的 Windows 电脑打开 Hexglow，即刻发现客户端，无需手动开始连接。
@@ -56,8 +54,6 @@ pnpm tauri build --bundles nsis
 自动更新（0.0.3 接入，0.0.4 起端到端可用，**已实测两轮 0.0.3 → 0.0.4 → 0.0.5 全通过**）：`tauri-plugin-updater` + `bundle.createUpdaterArtifacts`，构建额外产出同名 `.sig`（更新签名校验用，**不是** Authenticode 代码签名）；私钥在 `%USERPROFILE%\.tauri\hexglow.key`（无密码，绝不提交），CI/本地用 `scripts\make-latest-json.ps1` 生成 `latest.json`（UTF-8 无 BOM，带 BOM 会被 serde_json 拒绝）。设置页「04 应用更新」可检查并下载安装（Windows passive 模式，安装阶段应用自动退出，装完 NSIS 会自动重启应用）。端点 `https://github.com/mrone0/Hexglow/releases/latest/download/latest.json`；**仓库必须保持 public**（private 状态该地址 404）。推送 `v<版本>` tag 后 CI 自动构建、生成 `latest.json` 并创建 [Release](https://github.com/mrone0/Hexglow/releases)（tag 必须等于 `v<package.json 版本>`，否则 release job 失败；secret 必须在 run 启动前就存在）。CI 构建需要 secret `TAURI_SIGNING_PRIVATE_KEY`（及可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），未配置时构建按设计失败。
 
 GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windows.yml)，只有 `windows-latest`，没有其他平台构建矩阵；推送与 tag 均会触发，签名构建 + tag 发布已实跑（结果见 [Actions](https://github.com/mrone0/Hexglow/actions) 与 [Releases](https://github.com/mrone0/Hexglow/releases)）。Windows 配置自动启用 NSIS；安装器未做 Authenticode 代码签名（更新签名的 `.sig` 是另一回事），可能触发 SmartScreen，不能宣称已获平台信任。WebView2 缺失时安装器会下载引导程序，严格离线电脑需预先安装 WebView2。
-
-详细验收见 [docs/WINDOWS-TESTING.md](docs/WINDOWS-TESTING.md)。
 
 ## 现在记录了哪些内容？
 
@@ -121,4 +117,4 @@ GitHub Actions 配置见 [.github/workflows/windows.yml](.github/workflows/windo
 
 内置英雄/海克斯数据来自打包数据与知识种子（逐条标 `verified: false`，不冒充版本权威）；截屏 OCR、对局内可折叠侧栏与赛后补录均为本地实现，不自动选择、无后台守护服务、不训练模型权重、不提供响应延迟保证。游戏身份缺失且生命周期观察中断时无法绝对证明局次，采用保守切分；真实长期运行需继续验证。
 
-长期运行稳定性、真实模型服务信息仍待完成；安装与更新链路已通过 QA 脚本（`scripts/qa-windows.ps1`）与两轮自动更新端到端验收。具体测试结果见 [VALIDATION.md](VALIDATION.md)。
+长期运行稳定性、真实模型服务信息仍待完成；安装与更新链路已通过 QA 脚本（`scripts/qa-windows.ps1`）与两轮自动更新端到端验收。
