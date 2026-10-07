@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "champions": {
+    "Ekko": {
+      "abilitySource": "https://ddragon.leagueoflegends.com/cdn/16.19.1/data/zh_CN/champion/Ekko.json",
+      "abilityPatch": "16.19.1",
+      "passive": {
+        "name": "Z型驱动共振",
+        "description": "每当艾克对相同目标施放第三次普攻或伤害性技能时，都会造成额外魔法伤害，并且如果目标是英雄，那么艾克还会获得爆发性的移动速度加成。<br><br>"
+      },
+      "spells": [
+        {
+          "id": "EkkoQ",
+          "name": "时间卷曲器",
+          "description": "艾克扔出一个时光手雷，这个手雷会在命中一个敌方英雄后扩展为一个时间扭曲的力场，对场内的所有敌方单位造成伤害和减速效果。然后它会在短暂的延迟后返回到艾克手上，返回途中会对沿途的敌人造成伤害。",
+          "tooltip": "艾克投出一个设备，造成<magicDamage>{{ initialdamage }}魔法伤害</magicDamage>。在命中一名英雄或到达它的距离终点后，它会扩展为一个领域来使其中的敌人<status>减速</status>{{ slowpercent*-100 }}%。在它扩展后，艾克会将其召回，造成<magicDamage>{{ recalldamage }}魔法伤害</magicDamage>。{{ spellmodifierdescriptionappend }}"
+        },
+        {
+          "id": "EkkoW",
+          "name": "时光交错",
+          "description": "艾克的普攻对低生命值的敌人造成额外魔法伤害。他可以施放【时光交错】来分离这条时间线，制造一个不稳定的异常时间点，这个时间点会在数秒后对范围内的敌人造成减速效果。如果艾克进入了这个异常时间点，那么他会获得护盾并让范围内的敌人因悬浮在时间中而陷入晕眩状态。",
+          "tooltip": "<spellPassive>被动：</spellPassive>艾克对生命值低于{{ belowhealththreshold*100 }}%的敌方英雄进行的攻击会造成<magicDamage>{{ missinghealthpercent }}已损失生命值的魔法伤害</magicDamage>。<br /><br /><spellActive>主动：</spellActive>在一阵延迟后，艾克放出一颗持续{{ slowzoneduration }}秒的时空球体来使其中的敌人<status>减速</status>{{ slowpercent }}%。如果艾克进入了球体，那么他会将其引爆，造成{{ stunduration }}秒<status>晕眩</status>并获得<shield>{{ totalshield }}护盾值</shield>。{{ spellmodifierdescriptionappend }}"
+        },
+        {
+          "id": "EkkoE",
+          "name": "相位俯冲",
+          "description": "艾克在为Z型驱动充能的同时灵巧地滚动。他的下次攻击将造成魔法伤害并扭曲时间，并让他传送到他的攻击目标旁。",
+          "tooltip": "艾克突进并强化他的下次攻击，以获得额外距离、将他传送到他的目标处、并造成额外的<magicDamage>{{ totaldamage }}魔法伤害</magicDamage>。{{ spellmodifierdescriptionappend }}"
+        },
+        {
+          "id": "EkkoR",
+          "name": "时空断裂",
+          "description": "艾克打破他的时间线，变得不可被选取并回溯到一个更加有利的时间点上。他会回到几秒前的位置，并治疗这几秒内所受的伤势。在完成传送后，传送终点区域附近的敌人都会受到巨量伤害。",
+          "tooltip": "艾克回到过去的时间点上，进入凝滞状态同时传送回他4秒前所在的位置，并在到达后对附近的所有敌人造成<magicDamage>{{ totaldamage }}魔法伤害</magicDamage>。此外，艾克会治疗自身<healing>{{ totalbaseheal }}</healing>生命值，且最近4秒里每损失1%生命值就会使这个治疗效果提升{{ percenthealampperpercentmissinghealth }}%。{{ spellmodifierdescriptionappend }}"
+        }
+      ],
+      "mechanics": {
+        "traits": [
+          "spell-damage",
+          "returning-projectile",
+          "empowered-attack",
+          "conditional-attack-damage",
+          "self-shield",
+          "hard-cc"
+        ],
+        "evidence": [
+          "Q 去程与回程均造成伤害。",
+          "P 由同目标第三次普攻或伤害技能触发。",
+          "W 普攻对低生命敌人造成额外魔法伤害；E 强化下一次攻击。"
+        ],
+        "limitations": [
+          "未核实虚幻武器与三环被动、W 或 E 的特殊交互，不推断额外层数、触发次数或效率。",
+          "官方 tooltip 中未展开的变量不作为数值评分依据。"
+        ]
+      }
+    }
+  }
+}

@@ -92,8 +92,7 @@
    "category": "defense",
    "tags": [
     "haste",
-    "sustain",
-    "ultimate"
+    "sustain"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/BackToBasics_small.png",
    "verified": false,
@@ -114,7 +113,6 @@
    "effect": "在朝着低生命值的友军移动时，获得移动速度。你的治疗和护盾获得提升，基于你目标的低生命值程度。",
    "category": "defense",
    "tags": [
-    "hp",
     "sustain",
     "mobility"
    ],
@@ -177,8 +175,9 @@
    "aliases": [],
    "rarity": "prismatic",
    "effect": "施放你的终极技能会使你进入短时间的免疫伤害状态。",
-   "category": "damage",
+   "category": "defense",
    "tags": [
+    "tank",
     "ultimate"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/CantTouchThis_small.png",
@@ -198,7 +197,7 @@
    "aliases": [],
    "rarity": "gold",
    "effect": "获得1500生命值，但你造成的伤害降低10%。",
-   "category": "damage",
+   "category": "defense",
    "tags": [
     "hp"
    ],
@@ -393,9 +392,10 @@
    "aliases": [],
    "rarity": "silver",
    "effect": "对敌人造成伤害时会施加一层持续4秒且可叠加的护甲和魔法抗性击碎效果。",
-   "category": "defense",
+   "category": "damage",
    "tags": [
-    "tank",
+    "ad",
+    "ap",
     "stack"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Erosion_small.png",
@@ -417,8 +417,7 @@
    "effect": "你的技能可施加攻击特效。每个目标有1秒冷却时间。",
    "category": "utility",
    "tags": [
-    "onhit",
-    "haste"
+    "onhit"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/EtherealWeapon_small.png",
    "verified": false,
@@ -566,7 +565,6 @@
    "effect": "你的减速效果可使移动速度降低额外的75。",
    "category": "utility",
    "tags": [
-    "mobility",
     "cc"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/IceCold_small.png",
@@ -808,7 +806,7 @@
    "aliases": [],
    "rarity": "silver",
    "effect": "获得【海洋龙魂】，在对敌方英雄造成伤害后提供高额的生命和法力回复。",
-   "category": "damage",
+   "category": "defense",
    "tags": [
     "sustain",
     "mana"
@@ -1057,7 +1055,8 @@
    "effect": "暴击造成伤害的12%会等额治疗你自身。\n\n获得 25%暴击几率。",
    "category": "damage",
    "tags": [
-    "crit"
+    "crit",
+    "sustain"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SoulSiphon_small.png",
    "verified": false,
@@ -1138,11 +1137,10 @@
    "aliases": [],
    "rarity": "gold",
    "effect": "获得18%护甲穿透和法术穿透。",
-   "category": "defense",
+   "category": "damage",
    "tags": [
     "ad",
-    "ap",
-    "tank"
+    "ap"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ThreadTheNeedle_small.png",
    "verified": false,
@@ -1341,7 +1339,7 @@
    "aliases": [],
    "rarity": "silver",
    "effect": "获得100%移动速度，在受到伤害后失效6秒。",
-   "category": "damage",
+   "category": "utility",
    "tags": [
     "mobility"
    ],
@@ -1386,8 +1384,7 @@
    "effect": "用一个非终极技能狙击一个敌人时，返还该技能80%冷却时间(周期性技能返还65%)。",
    "category": "utility",
    "tags": [
-    "haste",
-    "ultimate"
+    "haste"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SkilledSniper_small.png",
    "verified": false,
@@ -1412,7 +1409,6 @@
    "effect": "获得额外攻击距离。",
    "category": "utility",
    "tags": [
-    "ad",
     "range"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ScopiestWeapons_small.png",
@@ -1783,7 +1779,7 @@
    "aliases": [],
    "rarity": "gold",
    "effect": "每拥有1法术强度就会获得3护盾值。阵亡时或耗尽后70秒重置。",
-   "category": "damage",
+   "category": "defense",
    "tags": [
     "ap",
     "sustain"
@@ -1916,7 +1912,6 @@
    "effect": "将额外攻击力转化为法术强度。获得15%法术强度。",
    "category": "damage",
    "tags": [
-    "ad",
     "ap"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/ADAPt_small.png",
@@ -1938,8 +1933,7 @@
    "effect": "将法术强度转化为额外攻击力。获得15%攻击力。",
    "category": "damage",
    "tags": [
-    "ad",
-    "ap"
+    "ad"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Escapade_small.png",
    "verified": false,
@@ -2108,8 +2102,10 @@
    "aliases": [],
    "rarity": "gold",
    "effect": "每35秒，自动施放一颗护体星星。在它着陆时，你和附近的友军们进入持续若干秒的免疫伤害状态。",
-   "category": "damage",
-   "tags": [],
+   "category": "defense",
+   "tags": [
+    "tank"
+   ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/SlowActingPainkillers_small.png",
    "verified": false,
    "effectSource": "aramgg.com",
@@ -2129,8 +2125,7 @@
    "effect": "获得50移动速度和40%减速抗性。",
    "category": "utility",
    "tags": [
-    "mobility",
-    "cc"
+    "mobility"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/LegDay_small.png",
    "verified": false,
@@ -2403,9 +2398,7 @@
    "rarity": "prismatic",
    "effect": "减少30%最大生命值。造成额外真实伤害。",
    "category": "damage",
-   "tags": [
-    "hp"
-   ],
+   "tags": [],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GlassCannon_small.png",
    "verified": false,
    "effectSource": "hexdata.com.cn",
@@ -2657,7 +2650,6 @@
    "effect": "参与击杀时，产生一次爆炸，对附近其它敌人们造成60%减速，并且造成基于他们当前生命值的伤害。",
    "category": "damage",
    "tags": [
-    "hp",
     "cc"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SpiritualPurification_small.png",
@@ -3003,9 +2995,10 @@
    "aliases": [],
    "rarity": "prismatic",
    "effect": "雪球获得100技能急速。\n\n你在用【雪球】冲刺后短暂免疫伤害。\n\n如果你没有雪球，获得一个雪球。",
-   "category": "damage",
+   "category": "defense",
    "tags": [
     "haste",
+    "tank",
     "mobility",
     "summoner"
    ],
@@ -3223,7 +3216,7 @@
    "effect": "你的咒刃效果造成额外伤害并治疗你自身，治疗量相当于目标生命值的一定百分比。此外，获得250金币。",
    "category": "defense",
    "tags": [
-    "hp",
+    "sustain",
     "economy"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeSheen_small.png",
@@ -3246,7 +3239,6 @@
    "category": "damage",
    "tags": [
     "ap",
-    "hp",
     "sustain"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/EmpoweredByTheFaithful_small.png",
@@ -3285,9 +3277,9 @@
    "aliases": [],
    "rarity": "prismatic",
    "effect": "你的攻击和技能会处决低生命值的敌方英雄，从而击退并引发一次爆炸，同时治疗你自身。",
-   "category": "defense",
+   "category": "damage",
    "tags": [
-    "hp"
+    "sustain"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Dropkick_small.png",
    "verified": false,
@@ -3308,7 +3300,6 @@
    "effect": "获得额外暴击几率和额外攻击速度（随法术强度变化）。",
    "category": "damage",
    "tags": [
-    "ad",
     "ap",
     "as",
     "crit"
@@ -3386,7 +3377,6 @@
    "effect": "获得百分比冷却缩减并将你的所有攻击速度转化为技能急速。",
    "category": "utility",
    "tags": [
-    "as",
     "haste"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/PuristCaster_small.png",
@@ -3428,9 +3418,8 @@
    "aliases": [],
    "rarity": "silver",
    "effect": "在朝着低生命值的敌人时，获得额外移动速度。",
-   "category": "defense",
+   "category": "utility",
    "tags": [
-    "hp",
     "mobility"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/KillSecure_small.png",
@@ -3741,7 +3730,9 @@
    "rarity": "silver",
    "effect": "用【指定技能】伤害敌方英雄时会治疗你。",
    "category": "damage",
-   "tags": [],
+   "tags": [
+    "sustain"
+   ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Silver.png",
    "verified": false,
    "effectSource": "hexdata.com.cn",
@@ -3790,6 +3781,7 @@
    "effect": "用你的【指定技能】定身或缚地敌方英雄时造成额外伤害并对你进行治疗。",
    "category": "damage",
    "tags": [
+    "sustain",
     "cc"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeHubris_small.png",
@@ -3972,7 +3964,8 @@
    "effect": "在战斗状态下，自动施放一次环形斧头挥舞从而造成物理伤害。被斧刃命中的敌人们受到额外伤害并治疗你。",
    "category": "damage",
    "tags": [
-    "ad"
+    "ad",
+    "sustain"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/EndlessDecimate_small.png",
    "verified": false,
@@ -4012,7 +4005,6 @@
    "effect": "在你的【指定技能】持续期间获得额外攻击距离和额外攻击速度。",
    "category": "damage",
    "tags": [
-    "ad",
     "as",
     "range"
    ],
@@ -4165,7 +4157,6 @@
    "effect": "为友方英雄提供治疗和护盾时会为你积攒一颗【灵魄炸弹】。在满层时，投掷该炸弹至生命值最低的那个友军，从而对其和附近友军们提供治疗和护盾。",
    "category": "defense",
    "tags": [
-    "hp",
     "sustain"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/SpiritBomb_small.png",
@@ -4678,6 +4669,7 @@
    "tags": [
     "haste",
     "hp",
+    "sustain",
     "economy"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeIE_small.png",
@@ -4719,7 +4711,8 @@
    "effect": "获得 ?。\n\n你所受的?伤害会在周期内持续扣除。\n在参与一次击杀后，即刻治疗更多生命值。",
    "category": "defense",
    "tags": [
-    "hp"
+    "hp",
+    "sustain"
    ],
    "iconPath": "/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/UpgradeDeathDance_small.png",
    "verified": false,

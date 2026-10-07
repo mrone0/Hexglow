@@ -1,0 +1,36 @@
+{
+  "model": "PP-OCRv6 Small",
+  "license": "Apache-2.0",
+  "upstream": "https://github.com/PaddlePaddle/PaddleOCR",
+  "distribution": "https://github.com/GreatV/oar-ocr/releases/tag/v0.7.0",
+  "hashSource": "https://github.com/GreatV/oar-ocr/blob/v0.9.2/oar-ocr-core/src/core/download/registry.rs",
+  "files": [
+    {
+      "name": "pp-ocrv6_small_det.onnx",
+      "size": 9880512,
+      "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+      "urls": [
+        "https://github.com/GreatV/oar-ocr/releases/download/v0.7.0/pp-ocrv6_small_det.onnx",
+        "https://www.modelscope.cn/api/v1/models/greatv/oar-ocr/repo?Revision=master&FilePath=pp-ocrv6_small_det.onnx"
+      ]
+    },
+    {
+      "name": "pp-ocrv6_small_rec.onnx",
+      "size": 21159378,
+      "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634",
+      "urls": [
+        "https://github.com/GreatV/oar-ocr/releases/download/v0.7.0/pp-ocrv6_small_rec.onnx",
+        "https://www.modelscope.cn/api/v1/models/greatv/oar-ocr/repo?Revision=master&FilePath=pp-ocrv6_small_rec.onnx"
+      ]
+    },
+    {
+      "name": "ppocrv6_dict.txt",
+      "size": 74947,
+      "sha256": "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d",
+      "urls": [
+        "https://github.com/GreatV/oar-ocr/releases/download/v0.7.0/ppocrv6_dict.txt",
+        "https://www.modelscope.cn/api/v1/models/greatv/oar-ocr/repo?Revision=master&FilePath=ppocrv6_dict.txt"
+      ]
+    }
+  ]
+}

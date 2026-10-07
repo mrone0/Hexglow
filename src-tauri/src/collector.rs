@@ -242,15 +242,39 @@ fn riot_client() -> Result<Client, String> {
         .build()
         .map_err(|_| "Local Riot API client initialization failed".into())
 }
+// Only a fixed error class and numeric status may leave the transport layer.
+// reqwest's display error can contain URLs; response bodies may contain identities.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+enum ApiError {
+    #[error("http-status-{0}")]
+    Http(u16),
+    #[error("poll-budget-exhausted")]
+    Budget,
+    #[error("unavailable")]
+    Unavailable,
+    #[error("oversized-response")]
+    Oversized,
+    #[error("read-error")]
+    Read,
+    #[error("invalid-json")]
+    InvalidJson,
+}
+
+impl ApiError {
+    fn stops_fallback(self) -> bool {
+        matches!(self, Self::Http(401 | 403 | 429) | Self::Budget)
+    }
+}
+
 async fn get_json(
     client: &Client,
     credentials: Option<&Credentials>,
     path: &str,
     deadline: Instant,
-) -> Result<Value, &'static str> {
+) -> Result<Value, ApiError> {
     let remaining = deadline.saturating_duration_since(Instant::now());
     if remaining.is_zero() {
-        return Err("poll-budget-exhausted");
+        return Err(ApiError::Budget);
     }
     let port = credentials.map_or(2999, |c| c.port);
     // All callers supply compile-time endpoint paths; no host/URL from external data.
@@ -260,24 +284,24 @@ async fn get_json(
     if let Some(c) = credentials {
         request = request.basic_auth("riot", Some(&c.password));
     }
-    let mut response = request.send().await.map_err(|_| "unavailable")?;
+    let mut response = request.send().await.map_err(|_| ApiError::Unavailable)?;
     if !response.status().is_success() {
-        return Err("http-error");
+        return Err(ApiError::Http(response.status().as_u16()));
     }
     if response
         .content_length()
         .is_some_and(|n| n > MAX_BODY as u64)
     {
-        return Err("oversized-response");
+        return Err(ApiError::Oversized);
     }
     let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(|_| "read-error")? {
+    while let Some(chunk) = response.chunk().await.map_err(|_| ApiError::Read)? {
         if bytes.len() + chunk.len() > MAX_BODY {
-            return Err("oversized-response");
+            return Err(ApiError::Oversized);
         }
         bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_slice(&bytes).map_err(|_| "invalid-json")
+    serde_json::from_slice(&bytes).map_err(|_| ApiError::InvalidJson)
 }
 fn id(v: &Value) -> Option<String> {
     match v {
@@ -291,7 +315,24 @@ fn id(v: &Value) -> Option<String> {
     }
 }
 fn game_id(v: &Value) -> Option<String> {
-    id(&v["gameId"]).or_else(|| id(&v["gameData"]["gameId"]))
+    match (
+        v.get("gameId"),
+        v.get("gameData").and_then(|data| data.get("gameId")),
+    ) {
+        (Some(top), Some(nested)) => {
+            let top = id(top)?;
+            let nested = id(nested)?;
+            (top == nested).then_some(top)
+        }
+        (Some(value), None) | (None, Some(value)) => id(value),
+        (None, None) => None,
+    }
+}
+fn has_game_id_field(v: &Value) -> bool {
+    v.get("gameId").is_some()
+        || v.get("gameData")
+            .and_then(|data| data.get("gameId"))
+            .is_some()
 }
 fn phase_name(v: &Value) -> &'static str {
     match v.as_str().unwrap_or("") {
@@ -342,9 +383,16 @@ fn correlate_payloads(
 ) -> Option<String> {
     let session_id = game_id(session);
     let live_id = game_id(live);
+    if has_game_id_field(session) && session_id.is_none() {
+        *live = Value::Null;
+        *eog = Value::Null;
+        warnings.push("LCU session association withheld: invalid or conflicting game ID".into());
+        return None;
+    }
     let coherent_phase = matches!(phase, "InProgress" | "Reconnect") || end_phase(phase);
     let ids_conflict = matches!((&session_id, &live_id), (Some(a), Some(b)) if a != b);
-    if !live.is_null() && (ids_conflict || (lcu_connected && !coherent_phase)) {
+    let live_id_invalid = has_game_id_field(live) && live_id.is_none();
+    if !live.is_null() && (live_id_invalid || ids_conflict || (lcu_connected && !coherent_phase)) {
         *live = Value::Null;
         warnings.push("Live data withheld: lifecycle or game ID does not match LCU".into());
     }
@@ -379,7 +427,11 @@ fn result_value(
 fn outcome(live: &Value, session: &Value, eog: &Value, summoner: &Value, at: &str) -> Value {
     let session_id = game_id(session);
     let live_id = game_id(live);
-    let live_matches = !matches!((&session_id, &live_id), (Some(a), Some(b)) if a != b);
+    let session_id_invalid = has_game_id_field(session) && session_id.is_none();
+    let live_id_invalid = has_game_id_field(live) && live_id.is_none();
+    let live_matches = !session_id_invalid
+        && !live_id_invalid
+        && !matches!((&session_id, &live_id), (Some(a), Some(b)) if a != b);
     let active = &live["activePlayer"];
     let identity = |p: &Value| -> Option<String> {
         if let Some(riot) = p["riotId"].as_str().filter(|s| !s.is_empty()) {
@@ -421,7 +473,7 @@ fn outcome(live: &Value, session: &Value, eog: &Value, summoner: &Value, at: &st
                 return result_value(
                     status,
                     "live-game-end",
-                    live_id.as_deref(),
+                    live_id.as_deref().or(session_id.as_deref()),
                     at,
                     json!({"event":"GameEnd","result":event["Result"],"activePlayerMatched":true}),
                 );
@@ -429,6 +481,9 @@ fn outcome(live: &Value, session: &Value, eog: &Value, summoner: &Value, at: &st
         }
     }
     // An EOG block without its own ID is never correlated, even if a session exists.
+    if session_id_invalid {
+        return unknown(at);
+    }
     let Some(eog_id) = game_id(eog) else {
         return unknown(at);
     };
@@ -472,6 +527,7 @@ struct Whereabouts {
     identity: Option<String>,
     champion: Option<String>,
     team: Option<String>,
+    record_path: Option<String>,
 }
 
 // 一个身份名下的赛后证据：海克斯集合 + 可用于兜底匹配的归属信息。
@@ -480,61 +536,100 @@ struct PlayerEvidence {
     augments: BTreeSet<String>,
     champion: Option<String>,
     team: Option<String>,
+    conflicted: bool,
 }
 
-// 赛后补录：EOG / 比赛历史的字段结构由客户端版本决定，先递归扫描含 augment 的字段
-// 并记录路径，再按记录自身（或父记录）的身份键把海克斯归到玩家名下。
-fn postgame_augments(eog: &Value, history: &Value, game: Option<&str>) -> Value {
+fn complete_riot_id(value: &str) -> bool {
+    value.split_once('#').is_some_and(|(name, tag)| {
+        !name.trim().is_empty() && !tag.trim().is_empty() && !tag.contains('#')
+    })
+}
+
+fn conflicting_metadata(left: Option<&str>, right: Option<&str>) -> bool {
+    matches!((left, right), (Some(a), Some(b)) if !a.trim().eq_ignore_ascii_case(b.trim()))
+}
+
+// Keep each weakly identified player record separate until collisions are known.
+// Nested stat fields retain the owning record path; a short name is not a unique ID.
+fn scan_postgame_payload(value: &Value) -> Value {
     let mut fields = BTreeSet::new();
-    let mut players: BTreeMap<String, PlayerEvidence> = BTreeMap::new();
-    scan_augments(eog, "", Whereabouts::default(), &mut fields, &mut players);
-    // 比赛历史可能混着旧局：没有可核对的对局 ID 就不采信，避免张冠李戴。
-    if let Some(game) = game {
-        let mut matches = Vec::new();
-        collect_history_games(history, game, &mut matches);
-        for entry in matches {
-            scan_augments(entry, "", Whereabouts::default(), &mut fields, &mut players);
+    let mut players: BTreeMap<(String, String), PlayerEvidence> = BTreeMap::new();
+    let normalized = history_participants(value);
+    scan_augments(
+        &normalized,
+        "",
+        Whereabouts::default(),
+        &mut fields,
+        &mut players,
+    );
+    let mut occurrences: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut conflicted = BTreeSet::new();
+    for ((identity, _), entry) in &players {
+        *occurrences.entry(identity).or_default() += 1;
+        if entry.conflicted {
+            conflicted.insert(identity.as_str());
         }
     }
-    let identified: Vec<(&String, &PlayerEvidence)> = players
+    let identified: Vec<_> = players
         .iter()
-        .filter(|(key, _)| key.as_str() != "unknown")
+        .filter(|((identity, _), _)| {
+            identity != "unknown" && !conflicted.contains(identity.as_str())
+        })
+        .map(|((identity, path), entry)| {
+            let key = if !complete_riot_id(identity) && occurrences[identity.as_str()] > 1 {
+                // The frontend may use only unique champion/team attribution for
+                // these records, never the ambiguous short name.
+                format!("path:{path}")
+            } else {
+                identity.clone()
+            };
+            let mut item = json!({"key":key,"augments":&entry.augments});
+            if let Some(champion) = &entry.champion {
+                item["champion"] = Value::String(champion.clone());
+            }
+            if let Some(team) = &entry.team {
+                item["team"] = Value::String(team.clone());
+            }
+            item
+        })
         .collect();
-    if identified.is_empty() {
-        return Value::Null;
-    }
-    json!({
-        "players":identified.iter()
-            .map(|(key, entry)| {
-                let mut item = json!({"key":key,"augments":&entry.augments});
-                if let Some(champion) = &entry.champion {
-                    item["champion"] = Value::String(champion.clone());
-                }
-                if let Some(team) = &entry.team {
-                    item["team"] = Value::String(team.clone());
-                }
-                item
-            })
-            .collect::<Vec<_>>(),
-        "fields":fields,
-    })
+    merge_postgame_entries(&json!({"players":identified,"fields":fields}), &Value::Null)
+}
+
+// Scan EOG/history separately: identical array positions across responses do not
+// establish player identity. Only already-correlated games reach this function.
+fn postgame_augments(eog: &Value, history: &Value, game: Option<&str>) -> Value {
+    let eog = scan_postgame_payload(eog);
+    let history = game
+        .and_then(|game| matching_history(history, game))
+        .map(scan_postgame_payload)
+        .unwrap_or(Value::Null);
+    merge_postgame_entries(&eog, &history)
 }
 
 // 旧档案的本地补录：把保存下来的赛后证据按当前扫描规则重新归属，不联网、不改库，
 // 由前端决定是否写回。没有存下证据时返回 null。
 #[tauri::command]
 pub fn postgame_entries(session: Value) -> Value {
-    match session.get("endOfGame") {
-        Some(eog) if !eog.is_null() => postgame_augments(eog, &Value::Null, None),
+    match (id(&session["matchId"]), session.get("endOfGame")) {
+        (Some(game), Some(eog)) if game_id(eog).as_ref() == Some(&game) => {
+            postgame_augments(eog, &Value::Null, None)
+        }
         _ => Value::Null,
     }
 }
 
-// 两份赛后证据并集：同一玩家取海克斯更多的一份（并补齐缺失的英雄/阵营），字段路径取并集。
+// Correlated evidence for a trusted identity is a set union, not a longest-list
+// contest. Conflicting metadata is withheld, and unanchored weak keys may only
+// select an observed superset rather than inventing a cross-record union.
 fn merge_postgame_entries(left: &Value, right: &Value) -> Value {
-    let mut players: BTreeMap<String, Value> = BTreeMap::new();
+    merge_postgame_sources(&[left, right])
+}
+
+fn merge_postgame_sources(sources: &[&Value]) -> Value {
+    let mut groups: BTreeMap<String, Vec<(&Value, &[Value])>> = BTreeMap::new();
     let mut fields: BTreeSet<String> = BTreeSet::new();
-    for source in [left, right] {
+    for source in sources {
         let Some(map) = source.as_object() else {
             continue;
         };
@@ -543,26 +638,10 @@ fn merge_postgame_entries(left: &Value, right: &Value) -> Value {
                 let Some(key) = item.get("key").and_then(Value::as_str) else {
                     continue;
                 };
-                match players.get_mut(key) {
-                    None => {
-                        players.insert(key.to_string(), item.clone());
-                    }
-                    Some(existing) => {
-                        let have = existing["augments"].as_array().map(Vec::len).unwrap_or(0);
-                        let next = item["augments"].as_array().map(Vec::len).unwrap_or(0);
-                        if next > have {
-                            *existing = item.clone();
-                        } else {
-                            for field in ["champion", "team"] {
-                                if existing.get(field).map_or(true, Value::is_null) {
-                                    if let Some(value) = item.get(field) {
-                                        existing[field] = value.clone();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                groups
+                    .entry(key.to_string())
+                    .or_default()
+                    .push((item, items));
             }
         }
         if let Some(items) = map.get("fields").and_then(Value::as_array) {
@@ -573,107 +652,274 @@ fn merge_postgame_entries(left: &Value, right: &Value) -> Value {
             }
         }
     }
+    let mut players = Vec::new();
+    for (key, items) in groups {
+        let metadata = |item: &Value, field: &str| {
+            item[field]
+                .as_str()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+        };
+        let mut champion = None;
+        let mut team = None;
+        let mut conflict = false;
+        for (item, _) in &items {
+            let next_champion = metadata(item, "champion");
+            let next_team = metadata(item, "team");
+            conflict |= conflicting_metadata(champion.as_deref(), next_champion.as_deref())
+                || conflicting_metadata(team.as_deref(), next_team.as_deref());
+            champion = champion.or(next_champion);
+            team = team.or(next_team);
+        }
+        if conflict {
+            continue;
+        }
+        let sets: Vec<BTreeSet<String>> = items
+            .iter()
+            .map(|(item, _)| {
+                item["augments"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .filter(|s| !s.trim().is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .collect();
+        let anchored = items.iter().all(|(item, siblings)| {
+            let (Some(champion), Some(team)) = (metadata(item, "champion"), metadata(item, "team"))
+            else {
+                return false;
+            };
+            siblings
+                .iter()
+                .filter(|sibling| {
+                    metadata(sibling, "champion")
+                        .is_some_and(|value| value.eq_ignore_ascii_case(&champion))
+                        && metadata(sibling, "team")
+                            .is_some_and(|value| value.eq_ignore_ascii_case(&team))
+                })
+                .count()
+                == 1
+        });
+        let augments = if complete_riot_id(&key) || anchored {
+            sets.iter()
+                .flat_map(|set| set.iter().cloned())
+                .collect::<BTreeSet<_>>()
+        } else {
+            // Array paths identify one payload's records, never a player across
+            // payloads. Every source must independently supply a unique anchor.
+            if key.starts_with("path:") && items.len() > 1 {
+                continue;
+            }
+            // A lone weak record or an observed superset remains usable. Two
+            // complementary lists with no identity/metadata anchor are ambiguous.
+            let supersets: Vec<_> = sets
+                .iter()
+                .enumerate()
+                .filter(|(_, set)| sets.iter().all(|other| other.is_subset(set)))
+                .collect();
+            let Some(&(index, superset)) = supersets.first() else {
+                continue;
+            };
+            // Keep one actually observed row, not a synthetic identity assembled
+            // from different weak records. Equal supersets with different
+            // metadata cannot be selected safely or order-independently.
+            champion = metadata(items[index].0, "champion");
+            team = metadata(items[index].0, "team");
+            if supersets.iter().any(|(index, _)| {
+                metadata(items[*index].0, "champion") != champion
+                    || metadata(items[*index].0, "team") != team
+            }) {
+                continue;
+            }
+            superset.clone()
+        };
+        if augments.is_empty() {
+            continue;
+        }
+        let mut item = json!({"key":key,"augments":augments});
+        if let Some(champion) = champion {
+            item["champion"] = json!(champion);
+        }
+        if let Some(team) = team {
+            item["team"] = json!(team);
+        }
+        players.push(item);
+    }
     if players.is_empty() {
         return Value::Null;
     }
     json!({
-        "players": players.into_values().collect::<Vec<_>>(),
+        "players": players,
         "fields": fields,
     })
 }
 
-// 打开档案时现场补录：客户端在线就重新拉 EOG 与最近比赛历史（按本局 gameId 归属），
-// 客户端不可用或已超窗时回落到档案里存下的 EOG 证据。返回 {players, fields} 或 null。
+// Every endpoint is attempted at most once per bounded pass. The frontend owns
+// delayed retries and persists results against the captured session/match ID.
 #[tauri::command]
 pub async fn postgame_rescan(
     app: AppHandle,
     session: Value,
     lockfile_path: Option<String>,
 ) -> Value {
-    let game = session
-        .get("matchId")
-        .and_then(Value::as_str)
-        .filter(|id| !id.is_empty())
-        .map(str::to_string);
-    let stored = session
-        .get("endOfGame")
-        .cloned()
-        .filter(|value| !value.is_null());
-    let mut merged = stored
-        .as_ref()
-        .map(|eog| postgame_augments(eog, &Value::Null, game.as_deref()))
-        .unwrap_or(Value::Null);
-    let deadline = Instant::now() + Duration::from_secs(6);
-    let credentials =
-        tauri::async_runtime::spawn_blocking(move || discover(lockfile_path.as_deref()).0)
+    let mut warnings = Vec::new();
+    let Some(game) = id(&session["matchId"]) else {
+        return recovery_payload(
+            &session,
+            &Value::Null,
+            &Value::Null,
+            &Value::Null,
+            &now(),
+            vec!["Postgame recovery withheld: missing or invalid game ID".into()],
+        );
+    };
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let (credentials, discovered) =
+        tauri::async_runtime::spawn_blocking(move || discover(lockfile_path.as_deref()))
             .await
-            .unwrap_or(None);
-    if let (Some(credentials), Ok(client)) = (credentials.as_ref(), riot_client()) {
-        let eog = get_json(
-            &client,
-            Some(credentials),
-            "/lol-end-of-game/v1/eog-stats-block",
-            deadline,
-        )
-        .await
-        .unwrap_or(Value::Null);
-        let history = get_json(
-            &client,
-            Some(credentials),
-            "/lol-match-history/v1/products/lol/current-summoner/matches?begin=0&count=10",
-            deadline,
-        )
-        .await
-        .unwrap_or(Value::Null);
-        merged =
-            merge_postgame_entries(&merged, &postgame_augments(&eog, &history, game.as_deref()));
-        // 最近几局里没有本局时，按 gameId 直接问这一局（只接受纯数字，避免拼进 URL）。
-        let direct = game
-            .as_deref()
-            .filter(|id| !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()));
-        if direct.is_some()
-            && merged.as_object().map_or(true, |map| {
-                map.get("players")
-                    .and_then(Value::as_array)
-                    .map_or(true, Vec::is_empty)
+            .unwrap_or_else(|_| (None, vec!["Local discovery task failed".into()]));
+    warnings.extend(discovered);
+    let (mut eog, mut history, mut summoner) = (Value::Null, Value::Null, Value::Null);
+    match (credentials.as_ref(), riot_client()) {
+        (Some(credentials), Ok(client)) => {
+            let fetched = fetch_recovery(&game, &session["endOfGame"], |path| {
+                let client = client.clone();
+                let credentials = credentials.clone();
+                async move { get_json(&client, Some(&credentials), &path, deadline).await }
             })
-        {
-            if let Ok(value) = get_json(
-                &client,
-                Some(credentials),
-                &format!("/lol-match-history/v1/games/{}", direct.unwrap()),
-                deadline,
-            )
-            .await
-            {
-                merged = merge_postgame_entries(
-                    &merged,
-                    &postgame_augments(&Value::Null, &value, game.as_deref()),
-                );
-            }
+            .await;
+            (eog, history, summoner) = (fetched.0, fetched.1, fetched.2);
+            warnings.extend(fetched.3);
+        }
+        (None, _) => warnings.push("League client was not discovered".into()),
+        (_, Err(error)) => warnings.push(error),
+    }
+    let mut payload = recovery_payload(&session, &eog, &history, &summoner, &now(), warnings);
+    sanitize(
+        &mut payload,
+        credentials.as_ref().map(|c| c.password.as_str()),
+    );
+    log_postgame_scan(&app, &payload);
+    let messages = payload["warnings"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })
+        .unwrap_or_default();
+    log_event(
+        &app,
+        if messages.is_empty() { "info" } else { "warn" },
+        "postgame-recovery",
+        &format!(
+            "evidence={}; result={}; {}",
+            payload["evidenceSource"].as_str().unwrap_or("none"),
+            payload["result"]["status"].as_str().unwrap_or("unknown"),
+            messages
+        ),
+    );
+    payload
+}
+
+async fn recovery_request<F, Fut>(
+    fetch: &mut F,
+    path: &str,
+    label: &str,
+    warnings: &mut Vec<String>,
+    stopped: &mut bool,
+) -> Value
+where
+    F: FnMut(String) -> Fut,
+    Fut: std::future::Future<Output = Result<Value, ApiError>>,
+{
+    match fetch(path.to_owned()).await {
+        Ok(value) => value,
+        Err(error) => {
+            *stopped = error.stops_fallback();
+            warnings.push(format!("{label}: {error}"));
+            Value::Null
         }
     }
-    if merged.as_object().map_or(true, |map| map.is_empty()) {
-        return Value::Null;
+}
+
+async fn fetch_recovery<F, Fut>(
+    game: &str,
+    stored: &Value,
+    mut fetch: F,
+) -> (Value, Value, Value, Vec<String>)
+where
+    F: FnMut(String) -> Fut,
+    Fut: std::future::Future<Output = Result<Value, ApiError>>,
+{
+    let mut warnings = Vec::new();
+    let mut stopped = false;
+    let eog = recovery_request(
+        &mut fetch,
+        "/lol-end-of-game/v1/eog-stats-block",
+        "LCU end-of-game",
+        &mut warnings,
+        &mut stopped,
+    )
+    .await;
+    let mut history = Value::Null;
+    if !stopped {
+        history = recovery_request(
+            &mut fetch,
+            &format!("/lol-match-history/v1/games/{game}"),
+            "LCU match history direct",
+            &mut warnings,
+            &mut stopped,
+        )
+        .await;
     }
-    log_postgame_scan(&app, &merged);
-    merged
+    if !stopped && matching_history(&history, game).is_none() {
+        history = recovery_request(
+            &mut fetch,
+            "/lol-match-history/v1/products/lol/current-summoner/matches?begin=0&count=10",
+            "LCU match history recent",
+            &mut warnings,
+            &mut stopped,
+        )
+        .await;
+    }
+    let mut summoner = Value::Null;
+    if !stopped
+        && (game_id(&eog).as_deref() == Some(game)
+            || matching_history(&history, game).is_some()
+            || game_id(stored).as_deref() == Some(game))
+    {
+        summoner = recovery_request(
+            &mut fetch,
+            "/lol-summoner/v1/current-summoner",
+            "LCU current summoner",
+            &mut warnings,
+            &mut stopped,
+        )
+        .await;
+    }
+    (eog, history, summoner, warnings)
 }
 
 // 旧 v4 结构是 {games:{games:[{gameId,participants:[…]}]}}；按 gameId 只认这一局。
 fn collect_history_games<'a>(node: &'a Value, game: &str, out: &mut Vec<&'a Value>) {
     match node {
         Value::Object(map) => {
-            for (key, value) in map {
-                if key.eq_ignore_ascii_case("games") {
-                    if let Value::Array(items) = value {
-                        for item in items {
-                            if game_id(item).as_deref() == Some(game) {
-                                out.push(item);
-                            }
-                        }
-                    }
+            // Direct /games/{id} returns the game itself, not a games array.
+            // Never descend through an explicitly different game's payload.
+            if has_game_id_field(node) {
+                if game_id(node).as_deref() == Some(game) {
+                    out.push(node);
                 }
+                return;
+            }
+            for value in map.values() {
                 collect_history_games(value, game, out);
             }
         }
@@ -686,9 +932,236 @@ fn collect_history_games<'a>(node: &'a Value, game: &str, out: &mut Vec<&'a Valu
     }
 }
 
+fn matching_history<'a>(history: &'a Value, game: &str) -> Option<&'a Value> {
+    let mut matches = Vec::new();
+    collect_history_games(history, game, &mut matches);
+    // Identical duplicated wrappers are harmless; conflicting copies are not evidence.
+    let first = *matches.first()?;
+    matches.iter().all(|entry| *entry == first).then_some(first)
+}
+
+// Join the legacy history's separate identity table only via a unique participant ID.
+// Keep the original history untouched for archive evidence.
+fn history_participants(game: &Value) -> Value {
+    let mut normalized = game.clone();
+    let Some(participants) = normalized
+        .get_mut("participants")
+        .and_then(Value::as_array_mut)
+    else {
+        return normalized;
+    };
+    for participant in participants {
+        let Some(participant_id) = id(&participant["participantId"]) else {
+            continue;
+        };
+        let unique_participant = game["participants"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|p| id(&p["participantId"]).as_ref() == Some(&participant_id))
+            .count()
+            == 1;
+        let identities: Vec<_> = game["participantIdentities"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|p| id(&p["participantId"]).as_ref() == Some(&participant_id))
+            .collect();
+        if !unique_participant || identities.len() != 1 {
+            continue;
+        }
+        if let (Some(identity), Some(target)) = (
+            identities[0]["player"].as_object(),
+            participant.as_object_mut(),
+        ) {
+            for key in [
+                "summonerId",
+                "summonerName",
+                "riotId",
+                "riotIdGameName",
+                "riotIdTagLine",
+                "gameName",
+                "tagLine",
+            ] {
+                if let Some(value) = identity.get(key) {
+                    target.entry(key).or_insert_with(|| value.clone());
+                }
+            }
+        }
+    }
+    normalized
+}
+
+fn history_outcome(history: &Value, game: &str, summoner: &Value, at: &str) -> Value {
+    let Some(entry) = matching_history(history, game) else {
+        return unknown(at);
+    };
+    let Some(own_id) = id(&summoner["summonerId"]) else {
+        return unknown(at);
+    };
+    let own: Vec<_> = if let Some(identities) = entry["participantIdentities"].as_array() {
+        let own: Vec<_> = identities
+            .iter()
+            .filter(|p| id(&p["player"]["summonerId"]).as_ref() == Some(&own_id))
+            .collect();
+        if own.len() != 1 {
+            return unknown(at);
+        }
+        let Some(participant_id) = id(&own[0]["participantId"]) else {
+            return unknown(at);
+        };
+        if identities
+            .iter()
+            .filter(|p| id(&p["participantId"]).as_ref() == Some(&participant_id))
+            .count()
+            != 1
+        {
+            return unknown(at);
+        }
+        let participants: Vec<_> = entry["participants"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|p| id(&p["participantId"]).as_ref() == Some(&participant_id))
+            .collect();
+        if participants
+            .iter()
+            .any(|p| id(&p["summonerId"]).is_some_and(|found| found != own_id))
+        {
+            return unknown(at);
+        }
+        participants
+    } else {
+        entry["participants"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|p| id(&p["summonerId"]).as_ref() == Some(&own_id))
+            .collect()
+    };
+    if own.len() != 1 {
+        return unknown(at);
+    }
+    let stats_win = own[0]["stats"]["win"].as_bool();
+    let direct_win = own[0]["win"].as_bool();
+    if matches!((stats_win, direct_win), (Some(a), Some(b)) if a != b) {
+        return unknown(at);
+    }
+    match stats_win.or(direct_win) {
+        Some(win) => result_value(
+            if win { "win" } else { "loss" },
+            "lcu-history",
+            Some(game),
+            at,
+            json!({"currentSummonerMatched":true,"historyGameIdMatched":true,"participantWin":win}),
+        ),
+        None => unknown(at),
+    }
+}
+
+fn archive_owner_matches(session: &Value, summoner: &Value) -> bool {
+    let Some(current) = summoner.as_object().and_then(identity_of) else {
+        return false;
+    };
+    // Replaying another account's archive must not infer that account's perspective.
+    // Masked/short/absent names are insufficient to establish the archived owner.
+    if !current
+        .split_once('#')
+        .is_some_and(|(name, tag)| !name.is_empty() && !tag.is_empty())
+    {
+        return false;
+    }
+    match session["ownPlayerId"]
+        .as_str()
+        .filter(|own| !own.trim().is_empty())
+    {
+        Some(own) => own.trim().eq_ignore_ascii_case(&current),
+        None => session["liveData"]["activePlayer"]
+            .as_object()
+            .and_then(identity_of)
+            .is_some_and(|own| own == current),
+    }
+}
+
+fn recovery_payload(
+    session: &Value,
+    eog: &Value,
+    history: &Value,
+    summoner: &Value,
+    at: &str,
+    mut warnings: Vec<String>,
+) -> Value {
+    let game = id(&session["matchId"]);
+    let mut augment_sources = Vec::new();
+    let mut evidence = Value::Null;
+    let mut evidence_source = "none";
+    let mut result = unknown(at);
+    if let Some(game) = game.as_deref() {
+        let own = if archive_owner_matches(session, summoner) {
+            summoner
+        } else {
+            &Value::Null
+        };
+        for (value, source) in [(&session["endOfGame"], "stored"), (eog, "lcu-eog")] {
+            if value.is_null() {
+                continue;
+            }
+            if game_id(value).as_deref() != Some(game) {
+                warnings.push(format!(
+                    "Postgame {source} withheld: missing or mismatched game ID"
+                ));
+                continue;
+            }
+            augment_sources.push(postgame_augments(value, &Value::Null, None));
+            evidence = value.clone();
+            evidence_source = source;
+            let candidate = outcome(&Value::Null, &json!({"gameId":game}), value, own, at);
+            let candidate = if candidate["status"] == "unknown" {
+                history_outcome(value, game, own, at)
+            } else {
+                candidate
+            };
+            if candidate["status"] != "unknown" {
+                result = candidate;
+            }
+        }
+        if let Some(entry) = matching_history(history, game) {
+            augment_sources.push(postgame_augments(&Value::Null, entry, Some(game)));
+            if evidence.is_null() {
+                evidence = entry.clone();
+                evidence_source = "lcu-match-history";
+            }
+            if result["status"] == "unknown" {
+                result = history_outcome(entry, game, own, at);
+            }
+        } else if !history.is_null() {
+            warnings.push("Postgame history withheld: target game missing or ambiguous".into());
+        }
+        if !evidence.is_null() && own.is_null() {
+            warnings.push(
+                "Postgame result withheld: archived owner not matched to current summoner".into(),
+            );
+        }
+    }
+    // Group all sources together: a conflict in the first two must not disappear
+    // into null and let a third source resurrect the rejected player's evidence.
+    let merged = merge_postgame_sources(&augment_sources.iter().collect::<Vec<_>>());
+    json!({"gameId":game,"players":merged["players"].as_array().cloned().unwrap_or_default(),
+        "fields":merged["fields"].as_array().cloned().unwrap_or_default(),
+        "endOfGame":evidence,"evidenceSource":evidence_source,"result":result,"observedAt":at,"warnings":warnings})
+}
+
 // EOG 自己能不能给出挂到人身上的海克斯；拿不到就去比赛历史补。
 fn has_identified_augments(eog: &Value) -> bool {
     !postgame_augments(eog, &Value::Null, None).is_null()
+}
+
+fn should_fetch_history(phase: &str, game: Option<&str>, eog: &Value) -> bool {
+    let capture_phase =
+        end_phase(phase) || matches!(phase, "Lobby" | "None" | "Matchmaking" | "ReadyCheck");
+    capture_phase
+        && game.is_some()
+        && (game_id(eog).as_deref() != game || !has_identified_augments(eog))
 }
 
 fn scan_augments(
@@ -696,21 +1169,38 @@ fn scan_augments(
     path: &str,
     parent: Whereabouts,
     fields: &mut BTreeSet<String>,
-    players: &mut BTreeMap<String, PlayerEvidence>,
+    players: &mut BTreeMap<(String, String), PlayerEvidence>,
 ) {
     match node {
         Value::Object(map) => {
-            let champion = champion_of(map).or(parent.champion.clone());
+            let explicit_identity = identity_of(map);
+            let explicit_champion = champion_of(map);
+            let champion = explicit_champion.clone().or(parent.champion.clone());
             let team = team_of(map).or(parent.team.clone());
-            let identity = identity_of(map)
+            let identity = explicit_identity
+                .clone()
                 .or(parent.identity.clone())
                 // 身份被遮蔽时用记录自身的路径当临时键：同一条记录的嵌套字段仍归到
                 // 一起，不同玩家不会互相串号，前端再按「英雄 + 阵营」唯一匹配认回去。
                 .or_else(|| champion.as_ref().map(|_| format!("path:{path}")));
+            let new_record = parent.record_path.is_none()
+                || explicit_identity
+                    .as_ref()
+                    .is_some_and(|id| parent.identity.as_ref() != Some(id))
+                || (explicit_champion.is_some() && parent.champion.is_none());
+            let record_path = if new_record {
+                path.to_string()
+            } else {
+                parent
+                    .record_path
+                    .clone()
+                    .unwrap_or_else(|| path.to_string())
+            };
             let here = Whereabouts {
                 identity: identity.clone(),
                 champion: champion.clone(),
                 team: team.clone(),
+                record_path: Some(record_path.clone()),
             };
             for (key, value) in map {
                 if !key.to_ascii_lowercase().contains("augment") {
@@ -723,7 +1213,10 @@ fn scan_augments(
                 }
                 fields.insert(format!("{path}/{key}"));
                 let who = identity.clone().unwrap_or_else(|| "unknown".to_string());
-                let slot = players.entry(who).or_default();
+                let slot = players.entry((who, record_path.clone())).or_default();
+                slot.conflicted |=
+                    conflicting_metadata(slot.champion.as_deref(), champion.as_deref())
+                        || conflicting_metadata(slot.team.as_deref(), team.as_deref());
                 slot.augments.extend(found);
                 if slot.champion.is_none() {
                     slot.champion = champion.clone();
@@ -767,22 +1260,31 @@ fn identity_of(map: &JsonObject<String, Value>) -> Option<String> {
             .filter(|value| value.chars().any(|c| c.is_alphanumeric()))
             .map(str::to_string)
     };
-    if let Some(name) = text("summonerName") {
-        return Some(name.to_ascii_lowercase());
-    }
-    if let Some(riot) = text("riotId") {
+    // Riot ID 的 gameName 可以重名，完整 gameName#tagLine 才是强身份。
+    // 不让同名 summonerName 把不同玩家的赛后海克斯并到同一个集合。
+    let riot = text("riotId");
+    let complete_riot = riot.as_deref().filter(|value| {
+        value
+            .split_once('#')
+            .is_some_and(|(game, tag)| !game.is_empty() && !tag.is_empty())
+    });
+    if let Some(riot) = complete_riot {
         return Some(riot.to_ascii_lowercase());
     }
     let game = text("riotIdGameName").or_else(|| text("gameName"));
     let tag = text("riotIdTagLine").or_else(|| text("tagLine"));
     match (game, tag) {
         (Some(game), Some(tag)) => Some(format!("{game}#{tag}").to_ascii_lowercase()),
-        (Some(game), None) => Some(game.to_ascii_lowercase()),
-        (None, _) => text("playerName").map(|name| name.to_ascii_lowercase()),
+        (game, _) => riot
+            .or_else(|| text("summonerName"))
+            .or(game)
+            .or_else(|| text("playerName"))
+            .map(|name| name.to_ascii_lowercase()),
     }
 }
 
-// 英雄名：EOG / 历史给的是 championName，实时接口同名；认不出的数字 id 不猜。
+// Names use the same English labels as Live API. Numeric history IDs are resolved
+// only against the bundled official catalogue, never guessed from player order.
 fn champion_of(map: &JsonObject<String, Value>) -> Option<String> {
     ["championName", "champion"]
         .into_iter()
@@ -791,6 +1293,28 @@ fn champion_of(map: &JsonObject<String, Value>) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+        .or_else(|| {
+            let key = id(map.get("championId")?)?;
+            static CHAMPIONS: OnceLock<BTreeMap<String, String>> = OnceLock::new();
+            CHAMPIONS
+                .get_or_init(|| {
+                    let data: Value = serde_json::from_str(include_str!("../data/champions.json"))
+                        .unwrap_or(Value::Null);
+                    data["champions"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|champion| {
+                            Some((
+                                id(&champion["key"])?,
+                                champion["name"].as_str()?.to_string(),
+                            ))
+                        })
+                        .collect()
+                })
+                .get(&key)
+                .cloned()
+        })
 }
 
 // 阵营：EOG 用 100/200，实时接口用 ORDER/CHAOS；两种写法都归一到 ORDER/CHAOS。
@@ -1007,6 +1531,17 @@ pub(crate) fn append_log(
         .append(true)
         .open(path)?
         .write_all(&bytes)
+}
+
+/// Low-volume diagnostics from other modules share the collector's rotation lock.
+pub(crate) fn log_event(app: &AppHandle, level: &str, event: &str, message: &str) {
+    let Ok((_, logs)) = directories(app) else {
+        return;
+    };
+    let Ok(_guard) = state().lock() else {
+        return;
+    };
+    let _ = append_log(&logs, level, event, message);
 }
 
 const OCR_STATS_FILE: &str = "ocr-stats.json";
@@ -1264,25 +1799,15 @@ pub async fn collector_snapshot(
             {
                 Ok(value) => eog = value,
                 // 客户端不在赛后窗口时 404 属正常，不算错误。
-                Err(_) if quiet => {}
+                Err(ApiError::Http(404)) if quiet => {}
                 Err(error) => warnings.push(format!("LCU end-of-game: {error}")),
             }
-            if !eog.is_null() {
-                match get_json(
-                    &client,
-                    Some(c),
-                    "/lol-summoner/v1/current-summoner",
-                    deadline,
-                )
-                .await
-                {
-                    Ok(value) => summoner = value,
-                    Err(_) if quiet => {}
-                    Err(error) => warnings.push(format!("LCU current summoner: {error}")),
-                }
-            }
             // 赛后补录：EOG 里读不到挂到人身上的海克斯时，改从客户端比赛历史取本局的。
-            if (end_phase(phase) || !eog.is_null()) && !has_identified_augments(&eog) {
+            // Lobby recovery must not depend on EOG still existing. An explicit
+            // target ID is required; the frontend separately retries older archives.
+            let target = game_id(&session).or_else(|| game_id(&eog));
+            let matching_eog = target.is_some() && game_id(&eog) == target;
+            if should_fetch_history(phase, target.as_deref(), &eog) {
                 match get_json(
                     &client,
                     Some(c),
@@ -1292,8 +1817,24 @@ pub async fn collector_snapshot(
                 .await
                 {
                     Ok(value) => history = value,
-                    Err(_) if quiet => {}
                     Err(error) => warnings.push(format!("LCU match history: {error}")),
+                }
+            }
+            if matching_eog
+                || target
+                    .as_deref()
+                    .is_some_and(|game| matching_history(&history, game).is_some())
+            {
+                match get_json(
+                    &client,
+                    Some(c),
+                    "/lol-summoner/v1/current-summoner",
+                    deadline,
+                )
+                .await
+                {
+                    Ok(value) => summoner = value,
+                    Err(error) => warnings.push(format!("LCU current summoner: {error}")),
                 }
             }
         }
@@ -1330,9 +1871,23 @@ pub async fn collector_snapshot(
         (false, false) => "disconnected",
     };
     let observed_at = now();
-    let result = outcome(&live, &session, &eog, &summoner, &observed_at);
+    let mut result = outcome(&live, &session, &eog, &summoner, &observed_at);
+    let matched_history = game
+        .as_deref()
+        .and_then(|game| matching_history(&history, game));
+    if result["status"] == "unknown" {
+        if let (Some(game), Some(history)) = (game.as_deref(), matched_history) {
+            result = history_outcome(history, game, &summoner, &observed_at);
+        }
+    }
     // 结束阶段自动补上一局：把 EOG / 比赛历史读到的海克斯按身份归到玩家名下。
     let post_game = postgame_augments(&eog, &history, game.as_deref());
+    // Preserve history-only evidence too, so local rescans remain useful offline.
+    if eog.is_null() {
+        if let Some(history) = matched_history {
+            eog = history.clone();
+        }
+    }
     if !post_game.is_null() {
         log_postgame_scan(&app, &post_game);
     }
@@ -1444,6 +1999,143 @@ mod tests {
         assert!(merge_postgame_entries(&Value::Null, &Value::Null).is_null());
     }
 
+    #[test]
+    fn rescan_unions_equal_shorter_and_superset_evidence_for_trusted_players() {
+        for key in ["Player#AA", "unique-weak-name", "path:/teams[0]/players[0]"] {
+            let stored = json!({"players":[{"key":key,"champion":"Ahri","team":"ORDER","augments":["A","B"]}]});
+            for observed in [json!(["A", "C"]), json!(["C"]), json!(["A", "B", "C", "C"])] {
+                let fresh = json!({"players":[{"key":key,"champion":"Ahri","team":"ORDER","augments":observed}]});
+                let merged = merge_postgame_entries(&stored, &fresh);
+                assert_eq!(merged["players"].as_array().unwrap().len(), 1);
+                assert_eq!(merged["players"][0]["augments"], json!(["A", "B", "C"]));
+                assert_eq!(merge_postgame_entries(&fresh, &stored), merged);
+            }
+        }
+        // A complete Riot ID remains a reliable anchor when metadata is missing.
+        let stored = json!({"players":[{"key":"Player#AA","augments":["A","B"]}]});
+        let fresh = json!({"players":[{"key":"Player#AA","augments":["C"]}]});
+        assert_eq!(
+            merge_postgame_entries(&stored, &fresh)["players"][0]["augments"],
+            json!(["A", "B", "C"])
+        );
+    }
+
+    #[test]
+    fn rescan_withholds_identity_metadata_conflicts_and_unanchored_weak_unions() {
+        for key in ["Player#AA", "duplicate", "path:/teams[0]/players[0]"] {
+            let stored =
+                json!({"players":[{"key":key,"champion":"Ahri","team":"ORDER","augments":["A"]}]});
+            for (champion, team) in [("Jinx", "ORDER"), ("Ahri", "CHAOS")] {
+                let conflicting = json!({"players":[{"key":key,"champion":champion,"team":team,"augments":["B"]}]});
+                assert!(merge_postgame_entries(&stored, &conflicting).is_null());
+                assert!(merge_postgame_entries(&conflicting, &stored).is_null());
+            }
+        }
+        let stored = json!({"players":[{"key":"duplicate","augments":["A","B"]}]});
+        let fresh = json!({"players":[{"key":"duplicate","augments":["A","C"]}]});
+        assert!(merge_postgame_entries(&stored, &fresh).is_null());
+        // Rejecting an unsafe identity does not drop a different safe player.
+        let fresh = json!({"players":[{"key":"duplicate","augments":["C"]},{"key":"Other#AA","augments":["D"]}]});
+        let merged = merge_postgame_entries(&stored, &fresh);
+        assert_eq!(
+            merged["players"],
+            json!([{"key":"Other#AA","augments":["D"]}])
+        );
+    }
+
+    #[test]
+    fn rescan_paths_require_independent_complete_unique_metadata_in_every_source() {
+        let key = "path:/teams[0]/players[0]";
+        let stored =
+            json!({"players":[{"key":key,"champion":"Ahri","team":"ORDER","augments":["A"]}]});
+        for partial in [
+            json!({"key":key,"champion":"Ahri","augments":["A","B"]}),
+            json!({"key":key,"team":"ORDER","augments":["A","B"]}),
+            json!({"key":key,"champion":"Ahri","team":"","augments":["A","B"]}),
+        ] {
+            let fresh = json!({"players":[partial]});
+            assert!(merge_postgame_entries(&stored, &fresh).is_null());
+            assert!(merge_postgame_entries(&fresh, &stored).is_null());
+        }
+        // Even matching metadata cannot make a path unique among twins in its
+        // source. Preserve the independent sibling, but reject the merged path.
+        let twins = json!({"players":[
+            {"key":key,"champion":"Ahri","team":"ORDER","augments":["B"]},
+            {"key":"path:/teams[0]/players[1]","champion":"Ahri","team":"ORDER","augments":["C"]}
+        ]});
+        let merged = merge_postgame_entries(&stored, &twins);
+        assert_eq!(merged["players"].as_array().unwrap().len(), 1);
+        assert_eq!(merged["players"][0]["key"], "path:/teams[0]/players[1]");
+        assert_eq!(merge_postgame_entries(&twins, &stored), merged);
+
+        // Exercise the raw scanner too: no team in the second response may not
+        // inherit the first response's ORDER through the same array position.
+        let eog = json!({"gameId":222,"teams":[{"teamId":100,"players":[
+            {"summonerName":"#","championName":"Ahri","augments":[1001]}
+        ]}]});
+        let history = json!({"gameId":222,"teams":[{"players":[
+            {"summonerName":"#","championName":"Ahri","augments":[1001,1002]}
+        ]}]});
+        assert!(postgame_augments(&eog, &history, Some("222")).is_null());
+    }
+
+    #[test]
+    fn rescan_weak_supersets_never_borrow_metadata_from_another_record() {
+        let stored = json!({"players":[{"key":"duplicate","champion":"Ahri","team":"ORDER","augments":["A"]}]});
+        let fresh = json!({"players":[{"key":"duplicate","champion":"Ahri","augments":["A","B"]}]});
+        let merged = merge_postgame_entries(&stored, &fresh);
+        assert_eq!(merged["players"], fresh["players"]);
+        assert!(merged["players"][0].get("team").is_none());
+        assert_eq!(merge_postgame_entries(&fresh, &stored), merged);
+        let equal = json!({"players":[{"key":"duplicate","champion":"Ahri","augments":["A"]}]});
+        assert!(merge_postgame_entries(&stored, &equal).is_null());
+        assert!(merge_postgame_entries(&equal, &stored).is_null());
+    }
+
+    #[test]
+    fn rescan_groups_all_sources_before_union_or_conflict_rejection() {
+        let first = json!({"players":[{"key":"Player#AA","champion":"Ahri","team":"ORDER","augments":["A"]}]});
+        let second = json!({"players":[{"key":"Player#AA","champion":"Ahri","team":"ORDER","augments":["B"]}]});
+        let third = json!({"players":[{"key":"Player#AA","champion":"Ahri","team":"ORDER","augments":["C"]}]});
+        let conflict = json!({"players":[{"key":"Player#AA","champion":"Jinx","team":"CHAOS","augments":["B"]}]});
+        for sources in [
+            [&first, &second, &third],
+            [&third, &first, &second],
+            [&second, &third, &first],
+        ] {
+            assert_eq!(
+                merge_postgame_sources(&sources)["players"][0]["augments"],
+                json!(["A", "B", "C"])
+            );
+        }
+        for sources in [
+            [&first, &conflict, &third],
+            [&third, &first, &conflict],
+            [&conflict, &third, &first],
+        ] {
+            assert!(merge_postgame_sources(&sources).is_null());
+        }
+
+        let mut session = recovery_session();
+        session["endOfGame"] = json!({"gameId":222,"players":[
+            {"riotId":"Tester#AA","championName":"Ahri","teamId":100,"augments":[1001]}
+        ]});
+        let eog = json!({"gameId":222,"players":[
+            {"riotId":"Tester#AA","championName":"Jinx","teamId":200,"augments":[1002]}
+        ]});
+        // The matching history is a third source for Tester#AA. It must not
+        // resurrect the identity rejected by the stored/fresh EOG conflict.
+        let recovered = recovery_payload(
+            &session,
+            &eog,
+            &history_fixture(),
+            &own_summoner(),
+            "now",
+            vec![],
+        );
+        assert!(recovered["players"].as_array().unwrap().is_empty());
+    }
+
     struct TempLogs(PathBuf);
     impl TempLogs {
         fn new() -> Self {
@@ -1462,6 +2154,150 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn postgame_identity_prefers_complete_riot_ids_to_weak_names() {
+        for (record, expected) in [
+            (
+                json!({"riotId":"Same#A","summonerName":"Same","riotIdGameName":"Other","riotIdTagLine":"B"}),
+                "same#a",
+            ),
+            (
+                json!({"riotId":"Same","summonerName":"Same","riotIdGameName":"Same","riotIdTagLine":"B"}),
+                "same#b",
+            ),
+            (
+                json!({"riotId":"#","summonerName":"Same","gameName":"Same","tagLine":"C"}),
+                "same#c",
+            ),
+            (json!({"summonerName":"Unique"}), "unique"),
+        ] {
+            assert_eq!(
+                identity_of(record.as_object().unwrap()).as_deref(),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn postgame_scan_keeps_same_names_with_distinct_riot_ids_separate() {
+        let eog = json!({"teams":[
+            {"teamId":100,"players":[{"summonerName":"Same","riotId":"Same#A","championName":"Ahri","augments":[1001]}]},
+            {"teamId":200,"players":[{"summonerName":"Same","riotIdGameName":"Same","riotIdTagLine":"B","championName":"Ahri","augments":[1002]}]}
+        ]});
+        let original = eog.clone();
+        let post = postgame_augments(&eog, &Value::Null, None);
+        let players = post["players"].as_array().unwrap();
+        assert_eq!(players.len(), 2);
+        let own = players
+            .iter()
+            .find(|entry| entry["key"] == "same#a")
+            .unwrap();
+        let enemy = players
+            .iter()
+            .find(|entry| entry["key"] == "same#b")
+            .unwrap();
+        assert_eq!(own["augments"], json!(["泰坦的坚决"]));
+        assert_eq!(own["team"], "ORDER");
+        assert_eq!(enemy["augments"], json!(["尖端发明家"]));
+        assert_eq!(enemy["team"], "CHAOS");
+        assert_eq!(eog, original);
+    }
+
+    #[test]
+    fn postgame_duplicate_weak_names_remain_separate_for_masked_player_attribution() {
+        let eog = json!({"teams":[
+            {"teamId":100,"players":[{"summonerName":"Duplicate","championName":"Ahri","stats":{"PLAYER_AUGMENT_1":1001}}]},
+            {"teamId":200,"players":[{"summonerName":"Duplicate","championName":"Jinx","stats":{"PLAYER_AUGMENT_1":1002}}]}
+        ]});
+        let post = postgame_augments(&eog, &Value::Null, None);
+        let players = post["players"].as_array().unwrap();
+        assert_eq!(players.len(), 2);
+        let own = players
+            .iter()
+            .find(|entry| entry["team"] == "ORDER")
+            .unwrap();
+        let enemy = players
+            .iter()
+            .find(|entry| entry["team"] == "CHAOS")
+            .unwrap();
+        assert_eq!(own["key"], "path:/teams[0]/players[0]");
+        assert_eq!(own["champion"], "Ahri");
+        assert_eq!(own["augments"], json!(["泰坦的坚决"]));
+        assert_eq!(enemy["key"], "path:/teams[1]/players[0]");
+        assert_eq!(enemy["champion"], "Jinx");
+        assert_eq!(enemy["augments"], json!(["尖端发明家"]));
+        assert!(!players.iter().any(|entry| entry["key"] == "duplicate"));
+        // Even identical metadata cannot justify collapsing distinct weak records:
+        // the frontend must reject non-unique champion/team attribution instead.
+        let mut twins = eog.clone();
+        twins["teams"][1]["teamId"] = json!(100);
+        twins["teams"][1]["players"][0]["championName"] = json!("Ahri");
+        let post = postgame_augments(&twins, &Value::Null, None);
+        assert_eq!(post["players"].as_array().unwrap().len(), 2);
+        assert!(post["players"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|entry| entry["augments"].as_array().unwrap().len() == 1));
+    }
+
+    #[test]
+    fn postgame_nested_fields_keep_the_same_record_and_strong_conflicts_are_withheld() {
+        let eog = json!({"players":[{"summonerName":"Unique","championName":"Ahri","teamId":100,
+            "augments":[1001],"stats":{"summonerName":"Unique","augments":[1002]}}]});
+        let post = postgame_augments(&eog, &Value::Null, None);
+        assert_eq!(post["players"].as_array().unwrap().len(), 1);
+        assert_eq!(post["players"][0]["key"], "unique");
+        assert_eq!(post["players"][0]["augments"].as_array().unwrap().len(), 2);
+        for (champion, team) in [("Jinx", 100), ("Ahri", 200)] {
+            let conflict = json!({"players":[
+                {"riotId":"Player#AA","championName":"Ahri","teamId":100,"augments":[1001]},
+                {"riotId":"Player#AA","championName":champion,"teamId":team,"augments":[1002]}
+            ]});
+            assert!(postgame_augments(&conflict, &Value::Null, None).is_null());
+        }
+        // Conflicting nested metadata must not be hidden by keeping the first value.
+        let conflict = json!({"riotId":"Player#AA","championName":"Ahri","teamId":100,
+            "augments":[1001],"stats":{"championName":"Jinx","augments":[1002]}});
+        assert!(postgame_augments(&conflict, &Value::Null, None).is_null());
+    }
+
+    #[test]
+    fn postgame_cross_source_array_positions_never_establish_player_identity() {
+        let eog = json!({"gameId":222,"teams":[
+            {"teamId":100,"players":[{"summonerName":"#","championName":"Ahri","augments":[1001]}]},
+            {"teamId":200,"players":[{"summonerName":"#","championName":"Jinx","augments":[1002]}]}
+        ]});
+        let history = json!({"gameId":222,"teams":[
+            {"teamId":200,"players":[{"summonerName":"#","championName":"Jinx","augments":[1067]}]},
+            {"teamId":100,"players":[{"summonerName":"#","championName":"Ahri","augments":[1002]}]}
+        ]});
+        // Same temporary paths now mean different players. Withhold rather than
+        // union their evidence under the first response's champion/team.
+        assert!(postgame_augments(&eog, &history, Some("222")).is_null());
+        let mut identified_eog = eog;
+        identified_eog["teams"][0]["players"][0]["riotId"] = json!("First#AA");
+        identified_eog["teams"][1]["players"][0]["riotId"] = json!("Second#AA");
+        let mut identified_history = history;
+        identified_history["teams"][0]["players"][0]["riotId"] = json!("Second#AA");
+        identified_history["teams"][1]["players"][0]["riotId"] = json!("First#AA");
+        let post = postgame_augments(&identified_eog, &identified_history, Some("222"));
+        let players = post["players"].as_array().unwrap();
+        assert_eq!(players.len(), 2);
+        let first = players
+            .iter()
+            .find(|entry| entry["key"] == "first#aa")
+            .unwrap();
+        let second = players
+            .iter()
+            .find(|entry| entry["key"] == "second#aa")
+            .unwrap();
+        assert_eq!(first["champion"], "Ahri");
+        assert_eq!(first["augments"], json!(["尖端发明家", "泰坦的坚决"]));
+        assert_eq!(second["champion"], "Jinx");
+        assert_eq!(second["augments"], json!(["尖端发明家", "活力焕发"]));
     }
 
     #[test]
@@ -1582,7 +2418,7 @@ mod tests {
 
     #[test]
     fn archived_sessions_rescan_their_own_stored_evidence() {
-        let session = json!({"matchId":"1","endOfGame":{"teams":[{"teamId":100,"players":[
+        let session = json!({"matchId":"1","endOfGame":{"gameId":1,"teams":[{"teamId":100,"players":[
             {"summonerName":"#","championName":"Ahri","augments":[1001]}
         ]}]}});
         let entries = postgame_entries(session);
@@ -1596,6 +2432,345 @@ mod tests {
             postgame_entries(json!({"matchId":"1","endOfGame":null})),
             Value::Null
         );
+    }
+
+    fn history_fixture() -> Value {
+        json!({"gameId":222,
+            "participantIdentities":[{"participantId":1,"player":{"summonerId":42,"gameName":"Tester","tagLine":"AA"}}],
+            "participants":[{"participantId":1,"championId":103,"teamId":100,
+                "stats":{"win":true,"playerAugment1":1001,"playerAugment2":1002}}]})
+    }
+
+    fn recovery_session() -> Value {
+        json!({"matchId":"222","ownPlayerId":"Tester#AA"})
+    }
+
+    fn own_summoner() -> Value {
+        json!({"summonerId":42,"gameName":"Tester","tagLine":"AA"})
+    }
+
+    #[test]
+    fn direct_history_root_joins_unique_participants_and_resolves_official_champion_id() {
+        let history = history_fixture();
+        let payload = recovery_payload(
+            &recovery_session(),
+            &Value::Null,
+            &history,
+            &own_summoner(),
+            "now",
+            vec![],
+        );
+        assert_eq!(payload["gameId"], "222");
+        assert_eq!(payload["endOfGame"], history);
+        assert_eq!(payload["evidenceSource"], "lcu-match-history");
+        assert_eq!(payload["result"]["status"], "win");
+        assert_eq!(payload["result"]["source"], "lcu-history");
+        assert_eq!(payload["players"][0]["key"], "tester#aa");
+        assert_eq!(payload["players"][0]["champion"], "Ahri");
+        assert_eq!(payload["players"][0]["team"], "ORDER");
+        assert_eq!(
+            payload["players"][0]["augments"].as_array().unwrap().len(),
+            2
+        );
+        // Saving the original history also supports an offline rescan.
+        let mut session = recovery_session();
+        session["endOfGame"] = payload["endOfGame"].clone();
+        assert_eq!(postgame_entries(session)["players"], payload["players"]);
+    }
+
+    #[test]
+    fn malformed_success_responses_are_not_evidence_or_panics() {
+        for malformed in [
+            Value::Null,
+            json!("unavailable"),
+            json!(false),
+            json!(42),
+            json!([]),
+            json!({"participants":"invalid"}),
+        ] {
+            assert_eq!(history_participants(&malformed), malformed);
+            assert!(postgame_augments(&malformed, &Value::Null, None).is_null());
+            let payload = recovery_payload(
+                &recovery_session(),
+                &malformed,
+                &malformed,
+                &Value::Null,
+                "now",
+                vec![],
+            );
+            assert!(payload["endOfGame"].is_null());
+            assert_eq!(payload["players"], json!([]));
+        }
+    }
+
+    #[test]
+    fn recovery_rejects_new_game_eog_and_stored_mismatch_while_using_old_game_history() {
+        let mut wrong = json!({"gameId":333,"teams":[{"players":[{"summonerName":"Wrong","augments":[1003]}]}]});
+        let mut session = recovery_session();
+        session["endOfGame"] = wrong.clone();
+        let payload = recovery_payload(
+            &session,
+            &wrong,
+            &history_fixture(),
+            &own_summoner(),
+            "now",
+            vec![],
+        );
+        assert_eq!(payload["endOfGame"]["gameId"], 222);
+        assert_eq!(payload["players"].as_array().unwrap().len(), 1);
+        assert_eq!(payload["players"][0]["key"], "tester#aa");
+        assert_eq!(payload["warnings"].as_array().unwrap().len(), 2);
+        assert!(postgame_entries(session).is_null());
+        wrong.as_object_mut().unwrap().remove("gameId");
+        assert!(postgame_entries(json!({"matchId":"222","endOfGame":wrong})).is_null());
+    }
+
+    #[test]
+    fn recovery_never_trusts_missing_invalid_or_conflicting_history_ids() {
+        let history = history_fixture();
+        let mut conflict = history.clone();
+        conflict["participants"][0]["stats"]["win"] = json!(false);
+        for value in [
+            json!({"games":[history.clone(),conflict]}),
+            json!({"gameId":333,"nested":history.clone()}),
+            json!({"participants":history["participants"]}),
+        ] {
+            let payload = recovery_payload(
+                &recovery_session(),
+                &Value::Null,
+                &value,
+                &own_summoner(),
+                "now",
+                vec![],
+            );
+            assert!(payload["endOfGame"].is_null());
+            assert_eq!(payload["players"], json!([]));
+            assert_eq!(payload["result"]["status"], "unknown");
+        }
+        let payload = recovery_payload(
+            &json!({"matchId":"../../other"}),
+            &history,
+            &history,
+            &own_summoner(),
+            "now",
+            vec![],
+        );
+        assert!(payload["gameId"].is_null());
+        assert_eq!(payload["players"], json!([]));
+    }
+
+    #[test]
+    fn recovery_rejects_explicit_conflicting_or_invalid_game_id_fields() {
+        for nested_id in [json!(333), json!(null), json!(0), json!("invalid")] {
+            let mut evidence = history_fixture();
+            evidence["gameData"] = json!({"gameId":nested_id});
+            assert!(game_id(&evidence).is_none());
+            assert!(matching_history(&evidence, "222").is_none());
+            let session = json!({"matchId":"222","ownPlayerId":"Tester#AA","endOfGame":evidence});
+            assert!(postgame_entries(session.clone()).is_null());
+            let payload = recovery_payload(
+                &session,
+                &evidence,
+                &evidence,
+                &own_summoner(),
+                "now",
+                vec![],
+            );
+            assert!(payload["endOfGame"].is_null());
+            assert_eq!(payload["players"], json!([]));
+            assert_eq!(payload["result"]["status"], "unknown");
+        }
+        // A nested otherwise-valid game must not escape an invalid outer ID.
+        let wrapper = json!({"gameId":"invalid","gameData":history_fixture()});
+        assert!(matching_history(&wrapper, "222").is_none());
+        assert_eq!(
+            game_id(&json!({"gameId":"222","gameData":{"gameId":222}})).as_deref(),
+            Some("222")
+        );
+    }
+
+    #[test]
+    fn history_result_requires_unique_identity_and_explicit_nonconflicting_boolean() {
+        let original = history_fixture();
+        assert_eq!(
+            history_outcome(&original, "222", &own_summoner(), "now")["status"],
+            "win"
+        );
+        let mut variants = Vec::new();
+        let mut value = original.clone();
+        value["participantIdentities"]
+            .as_array_mut()
+            .unwrap()
+            .push(original["participantIdentities"][0].clone());
+        variants.push(value);
+        let mut value = original.clone();
+        value["participants"]
+            .as_array_mut()
+            .unwrap()
+            .push(original["participants"][0].clone());
+        variants.push(value);
+        let mut value = original.clone();
+        value["participants"][0]["summonerId"] = json!(999);
+        variants.push(value);
+        let mut value = original.clone();
+        value["participants"][0]["win"] = json!(false);
+        variants.push(value);
+        let mut value = original.clone();
+        value["participants"][0]["stats"]["win"] = json!("Win");
+        variants.push(value);
+        let mut value = original.clone();
+        value["participantIdentities"][0]["player"]["summonerId"] = json!(999);
+        variants.push(value);
+        for value in variants {
+            assert_eq!(
+                history_outcome(&value, "222", &own_summoner(), "now")["status"],
+                "unknown"
+            );
+        }
+        assert_eq!(
+            history_outcome(&original, "333", &own_summoner(), "now")["status"],
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn archive_result_is_unknown_after_account_change_or_with_masked_owner() {
+        for own in ["Different#AA", "masked:ORDER:0", "#", "Tester"] {
+            let mut session = recovery_session();
+            session["ownPlayerId"] = json!(own);
+            // Even a visible activePlayer may not override an explicit archived owner.
+            session["liveData"] = json!({"activePlayer":{"riotId":"Tester#AA"}});
+            let payload = recovery_payload(
+                &session,
+                &Value::Null,
+                &history_fixture(),
+                &own_summoner(),
+                "now",
+                vec![],
+            );
+            assert_eq!(payload["result"]["status"], "unknown");
+            assert_eq!(payload["players"].as_array().unwrap().len(), 1);
+        }
+    }
+
+    #[test]
+    fn lobby_history_recovery_does_not_depend_on_eog_being_available() {
+        assert!(should_fetch_history("Lobby", Some("222"), &Value::Null));
+        assert!(should_fetch_history("EndOfGame", Some("222"), &Value::Null));
+        assert!(!should_fetch_history("Lobby", None, &Value::Null));
+        assert!(!should_fetch_history(
+            "InProgress",
+            Some("222"),
+            &Value::Null
+        ));
+        let eog = json!({"gameId":333,"players":[{"summonerName":"Other","augments":[1001]}]});
+        assert!(should_fetch_history("Lobby", Some("222"), &eog));
+        assert!(!should_fetch_history("Lobby", Some("333"), &eog));
+    }
+
+    #[test]
+    fn recovery_endpoint_failures_keep_safe_statuses_and_retry_via_history_once() {
+        let mut responses = VecDeque::from([
+            Err(ApiError::Http(404)),
+            Err(ApiError::Http(500)),
+            Err(ApiError::Http(503)),
+        ]);
+        let mut paths = Vec::new();
+        let fetched = tauri::async_runtime::block_on(fetch_recovery("222", &Value::Null, |path| {
+            paths.push(path);
+            std::future::ready(responses.pop_front().unwrap())
+        }));
+        assert_eq!(paths.len(), 3);
+        assert!(paths[1].ends_with("/games/222"));
+        assert!(paths[2].contains("current-summoner/matches"));
+        assert_eq!(
+            fetched.3,
+            vec![
+                "LCU end-of-game: http-status-404",
+                "LCU match history direct: http-status-500",
+                "LCU match history recent: http-status-503"
+            ]
+        );
+        let payload = recovery_payload(
+            &recovery_session(),
+            &fetched.0,
+            &fetched.1,
+            &fetched.2,
+            "now",
+            fetched.3,
+        );
+        assert_eq!(payload["players"], json!([]));
+        assert_eq!(payload["warnings"].as_array().unwrap().len(), 3);
+        assert_eq!(payload["result"]["status"], "unknown");
+    }
+
+    #[test]
+    fn recovery_direct_history_success_skips_recent_window_and_recovers_result() {
+        let mut responses = VecDeque::from([
+            Err(ApiError::Http(404)),
+            Ok(history_fixture()),
+            Ok(own_summoner()),
+        ]);
+        let mut paths = Vec::new();
+        let fetched = tauri::async_runtime::block_on(fetch_recovery("222", &Value::Null, |path| {
+            paths.push(path);
+            std::future::ready(responses.pop_front().unwrap())
+        }));
+        assert_eq!(paths.len(), 3);
+        assert!(paths[2].ends_with("/current-summoner"));
+        let payload = recovery_payload(
+            &recovery_session(),
+            &fetched.0,
+            &fetched.1,
+            &fetched.2,
+            "now",
+            fetched.3,
+        );
+        assert_eq!(payload["result"]["status"], "win");
+    }
+
+    #[test]
+    fn recovery_uses_recent_history_when_direct_endpoint_is_unavailable() {
+        let mut responses = VecDeque::from([
+            Err(ApiError::Http(404)),
+            Err(ApiError::Http(404)),
+            Ok(json!({"games":{"games":[{"gameId":999},history_fixture()]}})),
+            Ok(own_summoner()),
+        ]);
+        let mut count = 0;
+        let fetched = tauri::async_runtime::block_on(fetch_recovery("222", &Value::Null, |_| {
+            count += 1;
+            std::future::ready(responses.pop_front().unwrap())
+        }));
+        assert_eq!(count, 4);
+        let payload = recovery_payload(
+            &recovery_session(),
+            &fetched.0,
+            &fetched.1,
+            &fetched.2,
+            "now",
+            fetched.3,
+        );
+        assert_eq!(payload["result"]["status"], "win");
+    }
+
+    #[test]
+    fn recovery_does_not_retry_authorization_rate_limit_or_exhausted_budget() {
+        for error in [
+            ApiError::Http(401),
+            ApiError::Http(403),
+            ApiError::Http(429),
+            ApiError::Budget,
+        ] {
+            let mut count = 0;
+            let fetched =
+                tauri::async_runtime::block_on(fetch_recovery("222", &Value::Null, |_| {
+                    count += 1;
+                    std::future::ready(Err(error))
+                }));
+            assert_eq!(count, 1);
+            assert_eq!(fetched.3, vec![format!("LCU end-of-game: {error}")]);
+        }
     }
 
     #[test]
@@ -1839,6 +3014,131 @@ mod tests {
     }
     fn eog() -> Value {
         json!({"gameId":123,"teams":[{"isWinningTeam":true,"players":[{"summonerId":7}]}]})
+    }
+    #[test]
+    fn correlated_live_game_end_retains_the_canonical_session_id() {
+        let session = json!({"gameData":{"gameId":123}});
+        for phase in ["InProgress", "EndOfGame"] {
+            let mut live = live("Win");
+            let mut eog = Value::Null;
+            let mut warnings = Vec::new();
+            assert_eq!(
+                correlate_payloads(phase, true, &session, &mut live, &mut eog, &mut warnings)
+                    .as_deref(),
+                Some("123")
+            );
+            let result = outcome(&live, &session, &eog, &Value::Null, "now");
+            assert_eq!(result["status"], "win");
+            assert_eq!(result["gameId"], "123");
+        }
+        let mut wrong = live("Win");
+        wrong["gameData"] = json!({"gameId":999});
+        assert_eq!(
+            outcome(&wrong, &session, &Value::Null, &Value::Null, "now")["status"],
+            "unknown"
+        );
+        let mut eog = Value::Null;
+        correlate_payloads(
+            "EndOfGame",
+            true,
+            &session,
+            &mut wrong,
+            &mut eog,
+            &mut Vec::new(),
+        );
+        assert!(wrong.is_null());
+        assert_eq!(
+            outcome(&wrong, &session, &eog, &Value::Null, "now")["status"],
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn live_result_does_not_borrow_an_unrelated_or_absent_game_id() {
+        let session = json!({"gameId":123});
+        let mut stale = live("Win");
+        let mut eog = Value::Null;
+        correlate_payloads(
+            "Lobby",
+            true,
+            &session,
+            &mut stale,
+            &mut eog,
+            &mut Vec::new(),
+        );
+        assert!(stale.is_null());
+        assert_eq!(
+            outcome(&stale, &session, &eog, &Value::Null, "now")["status"],
+            "unknown"
+        );
+        let unassociated = outcome(
+            &live("Win"),
+            &Value::Null,
+            &Value::Null,
+            &Value::Null,
+            "now",
+        );
+        assert_eq!(unassociated["status"], "win");
+        assert!(unassociated.get("gameId").is_none());
+        // Old-archive recovery supplies no live payload and must not invent a result.
+        assert_eq!(
+            outcome(&Value::Null, &session, &Value::Null, &Value::Null, "now")["status"],
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn explicit_invalid_ids_cannot_be_treated_as_missing_live_or_session_ids() {
+        for invalid in [
+            json!({"gameId":123,"gameData":{"gameId":999}}),
+            json!({"gameId":123,"gameData":{"gameId":null}}),
+            json!({"gameId":"invalid"}),
+        ] {
+            let session = json!({"gameId":123});
+            let mut invalid_live = live("Win");
+            invalid_live
+                .as_object_mut()
+                .unwrap()
+                .extend(invalid.as_object().unwrap().clone());
+            assert_eq!(
+                outcome(&invalid_live, &session, &Value::Null, &Value::Null, "now")["status"],
+                "unknown"
+            );
+            let mut eog = Value::Null;
+            correlate_payloads(
+                "EndOfGame",
+                true,
+                &session,
+                &mut invalid_live,
+                &mut eog,
+                &mut Vec::new(),
+            );
+            assert!(invalid_live.is_null());
+
+            let mut valid_live_without_id = live("Win");
+            assert_eq!(
+                outcome(
+                    &valid_live_without_id,
+                    &invalid,
+                    &Value::Null,
+                    &Value::Null,
+                    "now"
+                )["status"],
+                "unknown"
+            );
+            let mut eog = json!({"gameId":123});
+            assert!(correlate_payloads(
+                "EndOfGame",
+                true,
+                &invalid,
+                &mut valid_live_without_id,
+                &mut eog,
+                &mut Vec::new()
+            )
+            .is_none());
+            assert!(valid_live_without_id.is_null());
+            assert!(eog.is_null());
+        }
     }
     #[test]
     fn live_results_require_exact_unique_active_identity() {

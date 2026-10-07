@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// Run with node (pnpm data:fetch).
 /**
  * 抓取英雄基础属性与海克斯数据，生成 src-tauri/data/*.json。
  *
@@ -14,6 +14,8 @@
  * 刻意不抓取也不写入：胜率、选取率、T 层级、HexScore。
  * Riot 开发者政策禁止展示海克斯胜率聚合数据。
  */
+import {deriveTags} from './data-tags.mjs';
+import {withChampionMechanics} from './mechanics-data.mjs';
 import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -112,16 +114,16 @@ const comparable = (text) =>
 
 // ---------------------------------------------------------------- 英雄基础属性
 
-async function fetchChampions() {
-  const versions = JSON.parse(await cached('https://ddragon.leagueoflegends.com/api/versions.json'));
+export async function fetchChampions(loadText = cached) {
+  const versions = JSON.parse(await loadText('https://ddragon.leagueoflegends.com/api/versions.json'));
   const patch = versions[0];
   const load = async (locale) =>
-    JSON.parse(await cached(`https://ddragon.leagueoflegends.com/cdn/${patch}/data/${locale}/champion.json`));
+    JSON.parse(await loadText(`https://ddragon.leagueoflegends.com/cdn/${patch}/data/${locale}/champion.json`));
   const zh = await load('zh_CN');
   const en = await load('en_US');
   const champions = Object.values(en.data).map((champ) => {
     const local = zh.data[champ.id] || {};
-    return {
+    return withChampionMechanics({
       key: champ.key,
       id: champ.id,
       name: champ.name,
@@ -133,7 +135,7 @@ async function fetchChampions() {
       partype: local.partype || champ.partype,
       info: champ.info,
       stats: champ.stats,
-    };
+    }, patch);
   });
   champions.sort((a, b) => a.name.localeCompare(b.name));
   return {
@@ -255,44 +257,6 @@ async function fetchHexdataDetails(urls) {
 }
 
 // ---------------------------------------------------------------- 标签推导
-
-const TAG_RULES = [
-  ['ad', /(攻击力|额外攻击|物理伤害|穿甲|护甲穿透|自适应之力.*攻击)/],
-  ['ap', /(法术强度|魔法伤害|法术穿透)/],
-  ['as', /(攻击速度|每秒攻击)/],
-  ['crit', /(暴击)/],
-  ['onhit', /(攻击特效|普攻|下一次攻击|攻击时|命中效果)/],
-  ['haste', /(技能急速|冷却时间|冷却缩减|终极技能急速)/],
-  ['hp', /(最大生命|生命值|额外生命)/],
-  ['sustain', /(生命偷取|吸血|治疗效果|回复|全能吸血|护盾)/],
-  ['tank', /(护甲|魔法抗性|减伤|伤害减免|体型)/],
-  ['mobility', /(移动速度|位移|冲刺|突进|雪球|闪现|施法距离)/],
-  ['cc', /(击飞|眩晕|减速|嘲讽|禁锢|恐惧|定身|沉默|缴械)/],
-  ['summoner', /(召唤师技能|雪球|闪现|屏障|治疗术|点燃|虚弱)/],
-  ['ultimate', /(终极技能|你的大招|施放你的终极)/],
-  ['economy', /(金币|金币数量|商店|出售|装备格|经验值|升级)/],
-  ['mana', /(法力|法力值|法力消耗)/],
-  ['stack', /(叠加|层数|永久获得|每层)/],
-  ['range', /(攻击距离|射程)/],
-];
-
-const CATEGORY_RULES = [
-  ['damage', /(伤害|暴击|穿甲|法术强度|攻击力|攻击速度|处决|飞弹)/],
-  ['defense', /(生命值|护甲|魔法抗性|减伤|治疗|护盾|回复|韧性|体型)/],
-  ['utility', /(移动速度|技能急速|冷却|召唤师技能|控制|视野|刷新|距离)/],
-  ['economy', /(金币|商店|装备格|经验)/],
-];
-
-function deriveTags(effect) {
-  const text = effect || '';
-  const tags = TAG_RULES.filter(([, pattern]) => pattern.test(text)).map(([tag]) => tag);
-  const scored = CATEGORY_RULES.map(([category, pattern]) => [
-    category,
-    [...text.matchAll(new RegExp(pattern.source, 'g'))].length,
-  ]).sort((a, b) => b[1] - a[1]);
-  const category = scored[0]?.[1] > 0 ? scored[0][0] : 'utility';
-  return {category, tags};
-}
 
 // ---------------------------------------------------------------- 合并
 
@@ -454,4 +418,4 @@ async function main() {
   }
 }
 
-await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

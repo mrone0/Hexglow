@@ -1,5 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { mechanicsSeedFor } from "./build-knowledge.mjs";
 
 const CACHE = resolve(".local-data", "hexdata");
 const SEED = resolve("knowledge-seed");
@@ -167,6 +169,7 @@ ${augmentTable}
 `;
 }
 
+async function main() {
 const [heroes, augments, heroesDetail, augmentsDetail] = await Promise.all([
   json("heroes"),
   json("augments"),
@@ -203,13 +206,14 @@ const augmentFileById = new Map();
 for (const record of augments.records) {
   const occurrence = (slugSeen.get(record.slug) || 0) + 1;
   slugSeen.set(record.slug, occurrence);
-  const augmentId = slugCounts.get(record.slug) > 1 && occurrence < slugCounts.get(record.slug)
+  const mechanismDoc = mechanicsSeedFor("augments", record.id);
+  const augmentId = mechanismDoc ? String(record.id) : slugCounts.get(record.slug) > 1 && occurrence < slugCounts.get(record.slug)
     ? `${record.slug}-${record.id}`
     : record.slug;
   augmentFileById.set(record.id, `${augmentId}.md`);
   await writeFile(
     resolve(SEED, "augments", `${augmentId}.md`),
-    augmentDoc(record, augments, augmentId, augmentDetailById.get(record.id) ?? null, heroSlugSet),
+    mechanismDoc || augmentDoc(record, augments, augmentId, augmentDetailById.get(record.id) ?? null, heroSlugSet),
     "utf8",
   );
 }
@@ -234,7 +238,7 @@ if (heroesDetail) {
 for (const record of heroes.records) {
   await writeFile(
     resolve(SEED, "champions", `${record.slug}.md`),
-    championDoc(record, heroes, heroDetailById.get(record.id) ?? null, augmentFileById, otherNamesBySlug.get(record.slug) ?? []),
+    mechanicsSeedFor("champions", record.slug) || championDoc(record, heroes, heroDetailById.get(record.id) ?? null, augmentFileById, otherNamesBySlug.get(record.slug) ?? []),
     "utf8",
   );
 }
@@ -277,3 +281,6 @@ await writeFile(
 console.log(`champions: ${heroes.records.length} (detail: ${heroDetailById.size})`);
 console.log(`augments: ${augments.records.length} (detail: ${augmentDetailById.size})`);
 console.log(`catalog entries: ${entries.length}`);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

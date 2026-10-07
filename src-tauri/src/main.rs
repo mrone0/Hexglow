@@ -1,10 +1,27 @@
 // Prevents an extra console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use tauri::Manager;
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            lol_augment_assistant_lib::desktop::show_main(app);
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                lol_augment_assistant_lib::app_icon::apply(&window)?;
+            }
+            lol_augment_assistant_lib::desktop::setup(app)?;
+            lol_augment_assistant_lib::ocr::start_warmup(app.handle());
+            Ok(())
+        })
+        .on_window_event(lol_augment_assistant_lib::desktop::on_window_event)
         .invoke_handler(tauri::generate_handler![
+            lol_augment_assistant_lib::desktop::desktop_ready,
+            lol_augment_assistant_lib::desktop::desktop_request_exit,
+            lol_augment_assistant_lib::desktop::desktop_exit_ready,
             lol_augment_assistant_lib::backend::fetch_live,
             lol_augment_assistant_lib::backend::save_session,
             lol_augment_assistant_lib::backend::list_sessions,
@@ -35,6 +52,7 @@ fn main() {
             lol_augment_assistant_lib::collector::ocr_stats,
             lol_augment_assistant_lib::overlay::overlay_open,
             lol_augment_assistant_lib::overlay::overlay_ready,
+            lol_augment_assistant_lib::overlay::overlay_publish,
             lol_augment_assistant_lib::overlay::overlay_close,
             lol_augment_assistant_lib::overlay::overlay_set_collapsed,
             lol_augment_assistant_lib::ocr::ocr_scan,

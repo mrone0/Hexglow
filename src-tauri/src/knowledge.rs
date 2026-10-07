@@ -6,7 +6,7 @@ use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, OnceLock},
 };
 use tauri::{AppHandle, Manager};
 
@@ -32,6 +32,11 @@ const SEEDS: &[(&str, &str)] = &[
     ),
 ];
 const REGISTRY: &str = include_str!("../../knowledge-seed/champion-registry.json");
+fn registry() -> &'static Value {
+    static REGISTRY_CACHE: OnceLock<Value> = OnceLock::new();
+    REGISTRY_CACHE
+        .get_or_init(|| serde_json::from_str(REGISTRY).expect("bundled champion registry"))
+}
 type ResultV = Result<Value, String>;
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -231,10 +236,70 @@ fn root_at(data: &Path) -> Result<PathBuf, String> {
             indexes(&root)?;
         }
     }
+    // 仅修复与旧版生成种子完全一致的文档，用户修改过的条目保持原样。
+    // v2 包含否定/防御条件误判修复及关联搭配；v1 安装也必须执行这次精确匹配修复。
+    repair_generated_seeds(
+        &root,
+        data,
+        ".knowledge-tag-repair-v2",
+        include_str!("../data/seed-repair-hashes.json"),
+    )?;
+    // 独立于已发布的 v2 标记，已升级过标签的安装也能收到这次机制资料修正。
+    repair_generated_seeds(
+        &root,
+        data,
+        ".knowledge-mechanics-repair-v1",
+        include_str!("../data/seed-mechanics-repair-hashes.json"),
+    )?;
     if seed || !root.join("index.md").exists() {
         indexes(&root)?;
     }
     Ok(root)
+}
+
+fn repair_generated_seeds(
+    root: &Path,
+    data: &Path,
+    marker: &str,
+    manifest: &str,
+) -> Result<(), String> {
+    let repair_marker = data.join(marker);
+    no_link(&repair_marker)?;
+    if !repair_marker.exists() {
+        let hashes: Value = serde_json::from_str(manifest).map_err(err)?;
+        let mut repaired = false;
+        for (path, expected) in hashes.as_object().ok_or("Invalid seed repair hashes")? {
+            let target = confined(root, path)?;
+            if !target.exists() {
+                continue;
+            }
+            let Ok(old) = read_bounded(&target) else {
+                continue;
+            };
+            let old_hash = hash(&old.replace("\r\n", "\n"));
+            let matches = expected.as_str() == Some(old_hash.as_str())
+                || expected.as_array().is_some_and(|values| {
+                    values.iter().any(|v| v.as_str() == Some(old_hash.as_str()))
+                });
+            if !matches {
+                continue;
+            }
+            if let Some((_, replacement)) = crate::seed_generated::AUGMENT_SEEDS
+                .iter()
+                .chain(crate::seed_generated::CHAMPION_SEEDS.iter())
+                .find(|(p, _)| *p == path)
+            {
+                backup(root, path, &old)?;
+                atomic(&target, replacement)?;
+                repaired = true;
+            }
+        }
+        if repaired {
+            indexes(root)?;
+        }
+        atomic(&repair_marker, "exact generated seed repair attempted\n")?;
+    }
+    Ok(())
 }
 fn root(app: &AppHandle) -> Result<PathBuf, String> {
     root_at(&app.path().app_data_dir().map_err(err)?)
@@ -274,7 +339,7 @@ fn id_key(kind: &str) -> &'static str {
     }
 }
 fn known_champion(id: &str) -> bool {
-    serde_json::from_str::<Value>(REGISTRY).unwrap()["champions"]
+    registry()["champions"]
         .as_array()
         .unwrap()
         .iter()
@@ -409,7 +474,7 @@ impl Doc {
             names.insert(n.to_string());
         }
         if self.kind() == "Champion" {
-            let r: Value = serde_json::from_str(REGISTRY).unwrap();
+            let r = registry();
             for c in r["champions"].as_array().unwrap() {
                 if c["id"] == norm(h["champion_id"].as_str().unwrap_or("")) {
                     for k in ["id", "name", "game_id"] {
@@ -427,7 +492,18 @@ impl Doc {
         names
     }
 }
+struct ScanCache {
+    root: PathBuf,
+    stamps: Vec<(String, String)>,
+    docs: Vec<Doc>,
+    warnings: Vec<String>,
+}
+// 每次有界读取内容，缓存 YAML 解析；同长度、保留 mtime 的外部编辑也必须及时生效。
+static SCAN_CACHE: Mutex<Option<ScanCache>> = Mutex::new(None);
 fn scan(root: &Path) -> Result<Vec<Doc>, String> {
+    scan_with_warnings(root).map(|(docs, _)| docs)
+}
+fn scan_with_warnings(root: &Path) -> Result<(Vec<Doc>, Vec<String>), String> {
     let mut paths = Vec::new();
     for dir in ["champions", "augments"] {
         no_link(&root.join(dir))?;
@@ -447,9 +523,57 @@ fn scan(root: &Path) -> Result<Vec<Doc>, String> {
         }
     }
     paths.sort();
+    let mut contents = Vec::new();
+    let mut warnings = Vec::new();
+    for path in &paths {
+        // 目录/链接保护仍为硬错误；单份文档损坏不影响其余可用资料。
+        let target = confined(root, path)?;
+        match read_bounded(&target) {
+            Ok(content) => contents.push((path.clone(), hash(&content), Some(content))),
+            Err(error) => {
+                warnings.push(format!("Invalid document excluded: {path}: {error}"));
+                contents.push((path.clone(), format!("unreadable:{}", hash(&error)), None));
+            }
+        }
+    }
+    let stamps: Vec<_> = contents
+        .iter()
+        .map(|(path, hash, _)| (path.clone(), hash.clone()))
+        .collect();
+    let previous;
+    {
+        let cache = SCAN_CACHE.lock().map_err(err)?;
+        if let Some(cached) = cache
+            .as_ref()
+            .filter(|c| c.root == root && c.stamps == stamps)
+        {
+            return Ok((cached.docs.clone(), cached.warnings.clone()));
+        }
+        previous = cache
+            .as_ref()
+            .filter(|c| c.root == root)
+            .map(|c| {
+                let stamps: BTreeMap<_, _> =
+                    c.stamps.iter().map(|(path, hash)| (path, hash)).collect();
+                c.docs
+                    .iter()
+                    .filter_map(|doc| {
+                        Some((
+                            doc.path.clone(),
+                            ((*stamps.get(&doc.path)?).clone(), doc.clone()),
+                        ))
+                    })
+                    .collect::<BTreeMap<_, _>>()
+            })
+            .unwrap_or_default();
+    }
     let mut docs = Vec::new();
-    for path in paths {
-        let content = read_bounded(&confined(root, &path)?)?;
+    for (path, stamp, content) in contents {
+        let Some(content) = content else { continue };
+        if let Some((_, doc)) = previous.get(&path).filter(|(hash, _)| hash == &stamp) {
+            docs.push(doc.clone());
+            continue;
+        }
         if let Ok((meta, _)) = metadata(&content) {
             let kind = meta["type"].as_str().unwrap_or("");
             // Only registered profile documents, not unrelated Markdown, enter the index.
@@ -471,9 +595,19 @@ fn scan(root: &Path) -> Result<Vec<Doc>, String> {
                     content,
                 });
             }
+        } else {
+            warnings.push(format!(
+                "Invalid document excluded: {path}: invalid YAML frontmatter"
+            ));
         }
     }
-    Ok(docs)
+    *SCAN_CACHE.lock().map_err(err)? = Some(ScanCache {
+        root: root.to_path_buf(),
+        stamps,
+        docs: docs.clone(),
+        warnings: warnings.clone(),
+    });
+    Ok((docs, warnings))
 }
 fn indexes(root: &Path) -> Result<(), String> {
     let docs = scan(root)?;
@@ -585,19 +719,20 @@ fn save_at(root: &Path, kind: &str, path: &str, content: &str) -> ResultV {
     indexes(root)?;
     Ok(json!({"path":path,"valid":true,"warnings":warnings}))
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn knowledge_validate(kind: String, path: String, content: String) -> Value {
     validate(&kind, &path, &content)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn knowledge_list(app: AppHandle, kind: String) -> ResultV {
     let _guard = LOCK.lock().map_err(err)?;
     folder(&kind)?;
     let root = root(&app)?;
-    let documents: Vec<_> = scan(&root)?.iter().filter(|d| d.kind() == kind).map(|d| json!({"path":d.path,"title":d.title(),"kind":d.kind(),"status":d.meta["status"],"patch":d.meta["hexglow"]["patch"]})).collect();
-    Ok(json!({"documents":documents,"root":root.to_string_lossy()}))
+    let (docs, warnings) = scan_with_warnings(&root)?;
+    let documents: Vec<_> = docs.iter().filter(|d| d.kind() == kind).map(|d| json!({"path":d.path,"title":d.title(),"kind":d.kind(),"status":d.meta["status"],"patch":d.meta["hexglow"]["patch"]})).collect();
+    Ok(json!({"documents":documents,"root":root.to_string_lossy(),"warnings":warnings}))
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn knowledge_read(app: AppHandle, path: String) -> ResultV {
     let _guard = LOCK.lock().map_err(err)?;
     let root = root(&app)?;
@@ -606,7 +741,7 @@ pub fn knowledge_read(app: AppHandle, path: String) -> ResultV {
     }
     Ok(json!({"path":path,"content":read_bounded(&confined(&root,&path)?)?}))
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn knowledge_save(app: AppHandle, kind: String, path: String, content: String) -> ResultV {
     let _guard = LOCK.lock().map_err(err)?;
     save_at(&root(&app)?, &kind, &path, &content)
@@ -630,7 +765,7 @@ fn delete_at(root: &Path, path: &str) -> ResultV {
     indexes(root)?;
     Ok(json!({"deleted":true,"warnings":references}))
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn knowledge_delete(app: AppHandle, path: String) -> ResultV {
     let _guard = LOCK.lock().map_err(err)?;
     delete_at(&root(&app)?, &path)
@@ -761,7 +896,16 @@ fn trim_doc(content: &str, kind: &str, budget: usize) -> Option<(String, Vec<Str
     Some((text, kept_titles))
 }
 fn retrieve_at(root: &Path, context: &Value) -> ResultV {
-    let docs = scan(root)?;
+    let observed = [
+        context["patch"].as_str(),
+        context["liveData"]["gameData"]["gameVersion"].as_str(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(str::trim)
+    .find(|p| !p.is_empty() && !p.eq_ignore_ascii_case("unknown"));
+    let patch = observed.unwrap_or(crate::scoring::data_patch());
+    let (docs, excluded) = scan_with_warnings(root)?;
     let mut requests: Vec<(&str, Value, bool)> = Vec::new();
     let own = context
         .get("ownChampion")
@@ -820,7 +964,13 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
     }
     let mut selected: Vec<String> = Vec::new();
     let mut mandatory = BTreeSet::new();
-    let mut warnings = BTreeSet::new();
+    let mut warnings: BTreeSet<_> = excluded.into_iter().collect();
+    if observed.is_none() {
+        warnings.insert(format!(
+            "当前游戏版本未知；知识检索暂按打包版本 {} 检查，不代表已确认适用",
+            crate::scoring::data_patch()
+        ));
+    }
     // Mandatory requests are collected first, opponents are optional.
     for (kind, value, required) in requests {
         let names = query_names(&value, kind == "Champion");
@@ -904,10 +1054,9 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
         for w in report["warnings"].as_array().unwrap() {
             warnings.insert(format!("{p}: {}", w.as_str().unwrap_or("")));
         }
-        if let Some(patch) = context["patch"].as_str() {
-            if d.meta["hexglow"]["patch"] != patch {
-                warnings.insert(format!("{p}: patch does not match requested {patch}"));
-            }
+        let family = |v: &str| v.split('.').take(2).collect::<Vec<_>>().join(".");
+        if family(d.meta["hexglow"]["patch"].as_str().unwrap_or("unknown")) != family(patch) {
+            warnings.insert(format!("{p}: patch does not match requested {patch}"));
         }
         if !sections.is_empty() {
             warnings.insert(format!(
@@ -934,7 +1083,7 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
         json!({"documents":documents,"missing":missing,"warnings":warnings,"fingerprint":fingerprint}),
     )
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn knowledge_retrieve(app: AppHandle, context: Value) -> ResultV {
     let _guard = LOCK.lock().map_err(err)?;
     retrieve_at(&root(&app)?, &context)
@@ -959,6 +1108,272 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+    #[test]
+    fn tag_repair_only_updates_untouched_old_generated_documents() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let target = root.join("augments/1084.md");
+        let current = read_bounded(&target).unwrap();
+        let fixtures: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/seed-repair-before-v2.json"))
+                .unwrap();
+        let hashes: Value =
+            serde_json::from_str(include_str!("../data/seed-repair-hashes.json")).unwrap();
+        // 已完成 v1 的安装仍执行 v2；两个已发布的 1084 内容版本均可准确识别。
+        atomic(&temp.0.join(".knowledge-tag-repair-v1"), "completed v1\n").unwrap();
+        for old in fixtures["augments/1084.md"].as_array().unwrap() {
+            let old = old.as_str().unwrap();
+            assert!(hashes["augments/1084.md"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(hash(old))));
+            atomic(&target, &old.replace('\n', "\r\n")).unwrap();
+            fs::remove_file(temp.0.join(".knowledge-tag-repair-v2")).unwrap();
+            temp.root();
+            assert_eq!(read_bounded(&target).unwrap(), current);
+        }
+        let edited = format!(
+            "{}\n用户核验补充\n",
+            fixtures["augments/1084.md"][0].as_str().unwrap()
+        );
+        atomic(&target, &edited).unwrap();
+        fs::remove_file(temp.0.join(".knowledge-tag-repair-v2")).unwrap();
+        temp.root();
+        assert_eq!(read_bounded(&target).unwrap(), edited);
+    }
+
+    #[test]
+    fn tag_repair_updates_related_augments_and_champions_without_restoring_deletions() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let fixtures: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/seed-repair-before-v2.json"))
+                .unwrap();
+        let hashes: Value =
+            serde_json::from_str(include_str!("../data/seed-repair-hashes.json")).unwrap();
+        let mut current = BTreeMap::new();
+        for path in ["augments/1004.md", "champions/nocturne.md"] {
+            current.insert(path, read_bounded(&root.join(path)).unwrap());
+            let old = fixtures[path][0].as_str().unwrap();
+            assert!(hashes[path].as_array().unwrap().contains(&json!(hash(old))));
+            atomic(&root.join(path), old).unwrap();
+        }
+        let deleted = root.join("augments/1005.md");
+        fs::remove_file(&deleted).unwrap();
+        let edited = root.join("augments/1011.md");
+        atomic(&edited, "用户编辑：待核验\n").unwrap();
+        atomic(&temp.0.join(".knowledge-tag-repair-v1"), "completed v1\n").unwrap();
+        fs::remove_file(temp.0.join(".knowledge-tag-repair-v2")).unwrap();
+        temp.root();
+        for (path, expected) in current {
+            assert_eq!(read_bounded(&root.join(path)).unwrap(), expected);
+        }
+        assert!(!deleted.exists());
+        assert_eq!(read_bounded(&edited).unwrap(), "用户编辑：待核验\n");
+        assert!(temp.0.join(".knowledge-tag-repair-v2").exists());
+    }
+
+    #[test]
+    fn mechanics_repair_upgrades_exact_seeds_after_v2_and_keeps_backups() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let fixtures: Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/seed-repair-before-mechanics.json"
+        ))
+        .unwrap();
+        let hashes: Value =
+            serde_json::from_str(include_str!("../data/seed-mechanics-repair-hashes.json"))
+                .unwrap();
+        let mut expected = BTreeMap::new();
+        for (path, fixture) in fixtures.as_object().unwrap() {
+            expected.insert(path, read_bounded(&root.join(path)).unwrap());
+            let old = fixture["raw"].as_str().unwrap();
+            assert_eq!(hashes[path], hash(&old.replace("\r\n", "\n")));
+            assert_ne!(
+                old.replace("\r\n", "\n"),
+                expected[path].replace("\r\n", "\n")
+            );
+            atomic(&root.join(path), old).unwrap();
+        }
+        assert!(temp.0.join(".knowledge-tag-repair-v2").exists());
+        fs::remove_file(temp.0.join(".knowledge-mechanics-repair-v1")).unwrap();
+        temp.root();
+        for (path, current) in expected {
+            assert_eq!(read_bounded(&root.join(path)).unwrap(), current);
+            let backup = root
+                .join(".backups")
+                .join(format!("{}.1", path.replace('/', "--")));
+            assert_eq!(
+                read_bounded(&backup).unwrap(),
+                fixtures[path]["raw"].as_str().unwrap()
+            );
+        }
+        // Completed migration is not replayed on ordinary reads.
+        let backup_count = fs::read_dir(root.join(".backups")).unwrap().count();
+        temp.root();
+        assert_eq!(
+            fs::read_dir(root.join(".backups")).unwrap().count(),
+            backup_count
+        );
+    }
+
+    #[test]
+    fn mechanics_repair_preserves_user_edits_deletions_and_accepts_lf() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let fixtures: Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/seed-repair-before-mechanics.json"
+        ))
+        .unwrap();
+        let edited_path = root.join("augments/1029.md");
+        let edited = format!(
+            "{}\n用户自行核验的备注\n",
+            fixtures["augments/1029.md"]["raw"].as_str().unwrap()
+        );
+        atomic(&edited_path, &edited).unwrap();
+        let deleted = root.join("augments/1180.md");
+        fs::remove_file(&deleted).unwrap();
+        let ekko = root.join("champions/ekko.md");
+        let expected = read_bounded(&ekko).unwrap();
+        atomic(
+            &ekko,
+            &fixtures["champions/ekko.md"]["raw"]
+                .as_str()
+                .unwrap()
+                .replace("\r\n", "\n"),
+        )
+        .unwrap();
+        fs::remove_file(temp.0.join(".knowledge-mechanics-repair-v1")).unwrap();
+        temp.root();
+        assert_eq!(read_bounded(&edited_path).unwrap(), edited);
+        assert!(!deleted.exists());
+        assert_eq!(read_bounded(&ekko).unwrap(), expected);
+        assert!(temp.0.join(".knowledge-mechanics-repair-v1").exists());
+    }
+
+    #[test]
+    fn cached_documents_refresh_on_external_edits_and_deletion() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let target = root.join("augments/1084.md");
+        let original = read_bounded(&target).unwrap();
+        assert!(scan(&root)
+            .unwrap()
+            .iter()
+            .any(|d| d.path == "augments/1084.md"));
+        let changed = format!("{original}\n外部编辑后的交互观察\n");
+        atomic(&target, &changed).unwrap();
+        let docs = scan(&root).unwrap();
+        assert_eq!(
+            docs.iter()
+                .find(|d| d.path == "augments/1084.md")
+                .unwrap()
+                .content,
+            changed
+        );
+        fs::remove_file(&target).unwrap();
+        assert!(!scan(&root)
+            .unwrap()
+            .iter()
+            .any(|d| d.path == "augments/1084.md"));
+    }
+    #[test]
+    fn cache_detects_same_length_external_edits_with_preserved_mtime() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let target = root.join("augments/1084.md");
+        let original = read_bounded(&target).unwrap();
+        let modified = fs::metadata(&target).unwrap().modified().unwrap();
+        scan(&root).unwrap();
+        let changed = original.replace("18%", "28%");
+        assert_ne!(changed, original);
+        assert_eq!(changed.len(), original.len());
+        fs::write(&target, &changed).unwrap();
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&target)
+            .unwrap()
+            .set_times(fs::FileTimes::new().set_modified(modified))
+            .unwrap();
+        assert_eq!(fs::metadata(&target).unwrap().modified().unwrap(), modified);
+        let docs = scan(&root).unwrap();
+        assert_eq!(
+            docs.iter()
+                .find(|d| d.path == "augments/1084.md")
+                .unwrap()
+                .content,
+            changed
+        );
+    }
+    #[test]
+    fn unreadable_documents_are_reported_without_blocking_valid_knowledge() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let bad = root.join("augments/custom-example.md");
+        fs::write(&bad, [0xff, 0xfe]).unwrap();
+        for _ in 0..2 {
+            let result = retrieve_at(
+                &root,
+                &json!({"champion":"Ahri","candidates":["custom-example"]}),
+            )
+            .unwrap();
+            assert_eq!(result["documents"].as_array().unwrap().len(), 1);
+            assert!(result["warnings"].as_array().unwrap().iter().any(|w| w
+                .as_str()
+                .unwrap()
+                .contains("Invalid document excluded: augments/custom-example.md")));
+            assert!(result["missing"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|w| w.as_str().unwrap().contains("custom-example")));
+        }
+        fs::write(&bad, "x".repeat(MAX_FILE + 1)).unwrap();
+        assert!(scan(&root)
+            .unwrap()
+            .iter()
+            .any(|d| d.path == "champions/ahri.md"));
+        fs::write(&bad, SEEDS[2].1).unwrap();
+        let restored = retrieve_at(
+            &root,
+            &json!({"champion":"Ahri","candidates":["custom-example"]}),
+        )
+        .unwrap();
+        assert_eq!(restored["documents"].as_array().unwrap().len(), 2);
+        assert!(!restored["warnings"].as_array().unwrap().iter().any(|w| w
+            .as_str()
+            .unwrap()
+            .contains("Invalid document excluded: augments/custom-example.md")));
+    }
+
+    #[test]
+    fn retrieval_fingerprint_includes_unknown_version_warning_and_live_fallback() {
+        let temp = Temp::new();
+        let root = temp.root();
+        let unknown = retrieve_at(&root, &json!({"champion":"Ahri"})).unwrap();
+        let known = retrieve_at(
+            &root,
+            &json!({"champion":"Ahri","patch":crate::scoring::data_patch()}),
+        )
+        .unwrap();
+        assert_eq!(unknown["documents"], known["documents"]);
+        assert_eq!(unknown["missing"], known["missing"]);
+        assert_ne!(unknown["warnings"], known["warnings"]);
+        assert_ne!(unknown["fingerprint"], known["fingerprint"]);
+        let fallback = retrieve_at(&root, &json!({"champion":"Ahri","patch":"unknown","liveData":{"gameData":{"gameVersion":crate::scoring::data_patch()}}})).unwrap();
+        assert_eq!(fallback["fingerprint"], known["fingerprint"]);
+        for result in [unknown, known, fallback] {
+            let hashes: BTreeMap<_, _> = result["documents"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|d| (d["path"].as_str().unwrap(), d["hash"].as_str().unwrap()))
+                .collect();
+            let expected = hash(&json!({"documents":hashes,"missing":result["missing"],"warnings":result["warnings"]}).to_string());
+            assert_eq!(result["fingerprint"], expected);
+        }
+        assert!(retrieve_at(&root, &Value::Null).is_ok());
     }
     #[test]
     fn seeds_validate() {
@@ -1336,7 +1751,9 @@ mod tests {
             .iter()
             .find(|d| d["path"] == json!(SEEDS[2].0))
             .unwrap();
-        assert!(trimmed["sections"].as_array().is_some_and(|s| !s.is_empty()));
+        assert!(trimmed["sections"]
+            .as_array()
+            .is_some_and(|s| !s.is_empty()));
         assert!(trimmed["content"].as_str().unwrap().len() < huge.len());
         assert!(r["warnings"]
             .as_array()
@@ -1360,12 +1777,7 @@ mod tests {
         let (text, kept) = trim_doc(doc, "Champion", doc.len()).unwrap();
         assert_eq!(text, doc);
         assert_eq!(kept, vec!["标题", "注意事项", "海克斯搭配"]);
-        let syn = all
-            .iter()
-            .find(|(h, _)| h == "海克斯搭配")
-            .unwrap()
-            .1
-            .len();
+        let syn = all.iter().find(|(h, _)| h == "海克斯搭配").unwrap().1.len();
         let (text, kept) = trim_doc(doc, "Champion", preamble + syn).unwrap();
         assert_eq!(kept, vec!["海克斯搭配"]);
         assert!(text.starts_with("---"));

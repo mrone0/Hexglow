@@ -1,0 +1,17 @@
+{
+  "augments/1029.md": {
+    "raw": "---\r\ntitle: \"虚幻武器\"\r\ndescription: \"你的技能可施加攻击特效。每个目标有1秒冷却时间。\"\r\ntags: [\"augment\", \"onhit\", \"haste\"]\r\nstatus: draft\r\ntype: Augment\r\nhexglow:\r\n  schema_version: 1\r\n  mode: hextech-aram\r\n  patch: \"16.19.1\"\r\n  augment_id: \"1029\"\r\n  game_id: 1029\r\n  aliases: [\"Ethereal Weapon\"]\r\n  name_en: \"Ethereal Weapon\"\r\n  rarity: \"gold\"\r\n  category: \"utility\"\r\n  tags: [\"onhit\", \"haste\"]\r\n  synergy_tags: [\"onhit\", \"haste\"]\r\n  role_fit: [\"Marksman\", \"Flexible\"]\r\n  scaling: \"flat\"\r\n  verified: false\r\n---\r\n# 虚幻武器\r\n\r\n> `verified: false` · `status: draft`。效果文本未经游戏内核验，以游戏内描述为准。禁用胜率类字段。\r\n\r\n## 完整效果\r\n\r\n你的技能可施加攻击特效。每个目标有1秒冷却时间。\r\n\r\n\r\n\r\n\r\n## 触发条件\r\n\r\n- 效果文本中未出现单独触发条件，按常驻效果处理（由文本切分，未经人工核验）。\r\n\r\n## 限制与例外\r\n\r\n- 效果文本中未发现明确限制；以游戏内描述为准（未经人工核验）。\r\n\r\n## 相关交互\r\n\r\n- 标签：onhit、haste；类别：utility；稀有度：gold。\r\n- 文本未提到其他【实体】。\r\n- 共享标签的其他海克斯（节选）：仁慈打击、双刀流、双发快射、台风、暴击律动、注魔\r\n- 冲突字段：无。\r\n",
+    "hash": "fnv1a64:69d49d4ce593bb64",
+    "lfHash": "fnv1a64:ceb7faab821721fb"
+  },
+  "augments/1180.md": {
+    "raw": "---\r\ntitle: \"超强大脑\"\r\ndescription: \"每拥有1法术强度就会获得3护盾值。阵亡时或耗尽后70秒重置。\"\r\ntags: [\"augment\", \"ap\", \"sustain\"]\r\nstatus: draft\r\ntype: Augment\r\nhexglow:\r\n  schema_version: 1\r\n  mode: hextech-aram\r\n  patch: \"16.19.1\"\r\n  augment_id: \"1180\"\r\n  game_id: 1180\r\n  aliases: [\"Big Brain\"]\r\n  name_en: \"Big Brain\"\r\n  rarity: \"gold\"\r\n  category: \"damage\"\r\n  tags: [\"ap\", \"sustain\"]\r\n  synergy_tags: [\"ap\", \"sustain\"]\r\n  role_fit: [\"Mage\", \"Fighter\"]\r\n  scaling: \"stat-scaling\"\r\n  verified: false\r\n---\r\n# 超强大脑\r\n\r\n> `verified: false` · `status: draft`。效果文本未经游戏内核验，以游戏内描述为准。禁用胜率类字段。\r\n\r\n## 完整效果\r\n\r\n每拥有1法术强度就会获得3护盾值。阵亡时或耗尽后70秒重置。\r\n\r\n\r\n\r\n\r\n## 触发条件\r\n\r\n- 阵亡时或耗尽后70秒重置。\r\n\r\n## 限制与例外\r\n\r\n- 效果文本中未发现明确限制；以游戏内描述为准（未经人工核验）。\r\n\r\n## 相关交互\r\n\r\n- 标签：ap、sustain；类别：damage；稀有度：gold。\r\n- 文本未提到其他【实体】。\r\n- 共享标签的其他海克斯（节选）：下雪天、不祥契约、仁慈打击、侵蚀、信念者的强化、双生火焰\r\n- 冲突字段：无。\r\n",
+    "hash": "fnv1a64:70b88442fe2023f3",
+    "lfHash": "fnv1a64:6956cd407084b230"
+  },
+  "champions/ekko.md": {
+    "raw": "---\r\ntitle: \"时间刺客 · 艾克\"\r\ndescription: \"Assassin、Mage · 近战 · 打包数据推导，未核验\"\r\ntags: [\"champion\", \"Assassin\", \"Mage\"]\r\nstatus: draft\r\ntype: Champion\r\nhexglow:\r\n  schema_version: 1\r\n  mode: hextech-aram\r\n  patch: \"16.19.1\"\r\n  champion_id: \"ekko\"\r\n  game_id: \"245\"\r\n  aliases: [\"Ekko\", \"the Boy Who Shattered Time\", \"艾克\"]\r\n  role_fit: [\"Assassin\", \"Mage\"]\r\n  verified: false\r\n---\r\n# 时间刺客 · 艾克\r\n\r\n> `verified: false` · `status: draft`。以下全部来自打包数据，未人工核验；不含胜率、选取率与强度分级。\r\n\r\n## 基础机制\r\n\r\n- 定位标签：Assassin、Mage；近战（攻击距离 125）。\r\n- 属性评分：攻击 5 · 防御 3 · 法术 7 · 难度 8（1-10 客户端评分）。\r\n- 生命 655（每级 +99）· 护甲 32 · 魔抗 32 · 移速 340。\r\n- 攻击力 58 · 攻速 0.688 · 资源类型：法力。\r\n- 伤害倾向：法术（由属性评分推导，非官方分类）。\r\n\r\n## 常见打法\r\n\r\n- 由标签推导（未核验）：Assassin、Mage定位，只说明角色分类，不含技能连招与出装顺序。\r\n- 近战：需要接近目标才能普攻（由攻击距离 125 推导）。\r\n- 具体打法、符文与出装未收录，以游戏内实际情况为准。\r\n\r\n## 海克斯搭配\r\n\r\n- 按标签匹配的候选（启发式、未核验）：不祥契约、残忍、吃过路兵、大地苏醒、大招工具人、电涌力场、夺金、飞升仪式\r\n- 完整效果与限制见 `augments/` 目录下的对应文件；排序依据是本地规则，不是胜率。\r\n\r\n## 注意事项\r\n\r\n- 本文件由脚本按打包数据生成，未经人工核验，不要当作官方机制说明。\r\n- 不包含胜率、选取率、强度分级；缺失项一律标为未知，不推断。\r\n",
+    "hash": "fnv1a64:b99ff6fba40c7e01",
+    "lfHash": "fnv1a64:fd887de5f611e660"
+  }
+}

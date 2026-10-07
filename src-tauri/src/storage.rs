@@ -13,7 +13,8 @@ use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 const MAX_SESSION: usize = 8 * 1024 * 1024;
 const MIB: u64 = 1024 * 1024;
-const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY,data TEXT NOT NULL,updated_at TEXT NOT NULL)";
+const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY,data TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS sessions_updated_idx ON sessions(updated_at DESC,id DESC)";
 fn dir(app: &AppHandle) -> Result<PathBuf, String> {
     let p = app.path().app_data_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&p).map_err(|e| e.to_string())?;
@@ -186,19 +187,24 @@ fn stats(c: &Connection, b: u64, d: u64) -> Result<Value, String> {
         .query_map([], |r| r.get::<_, String>(0))
         .map_err(|e| e.to_string())?;
     let mut samples = 0;
+    let mut unreadable = 0;
     for r in rows {
-        samples += sample_count(&parse(&r.map_err(|e| e.to_string())?)?);
+        let raw = r.map_err(|e| e.to_string())?;
+        match parse(&raw) {
+            Ok(v) if v.is_object() => samples += sample_count(&v),
+            _ => unreadable += 1,
+        }
     }
     Ok(
-        json!({"databaseBytes":db_bytes(c)?,"sessionCount":count,"sampleCount":samples,"budgetMb":b,"retentionDays":d}),
+        json!({"databaseBytes":db_bytes(c)?,"sessionCount":count,"sampleCount":samples,"unreadableSessions":unreadable,"budgetMb":b,"retentionDays":d}),
     )
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn storage_stats(app: AppHandle) -> Result<Value, String> {
     let (b, d) = settings(&app)?;
     stats(&db(&app)?, b, d)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_session(app: AppHandle, id: String) -> Result<(), String> {
     let mut c = db(&app)?;
     let tx = c
@@ -216,7 +222,7 @@ fn remove_analysis(v: &mut Value, at: &str) {
         o.insert("review".into(), Value::Null);
     }
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_analysis(app: AppHandle, session_id: String, at: String) -> Result<Value, String> {
     let mut c = db(&app)?;
     let tx = c
@@ -260,7 +266,10 @@ fn maintain(c: &mut Connection, budget: u64, days: u64) -> Result<u64, String> {
                 r.get(0)
             })
             .map_err(|e| e.to_string())?;
-        let mut v = parse(&raw)?;
+        let Ok(mut v) = parse(&raw) else { continue };
+        if !v.is_object() {
+            continue;
+        }
         let before = sample_count(&v);
         prune_samples(&mut v, cutoff, timestamp(&json!(updated)), false);
         sanitize(&mut v);
@@ -272,8 +281,9 @@ fn maintain(c: &mut Connection, budget: u64, days: u64) -> Result<u64, String> {
         }
     }
     // Finite oldest-record-first pass. No core decision/review deletion, ever.
+    let mut logical = logical_bytes(&tx)?;
     for (id, _, updated) in &rows {
-        if logical_bytes(&tx)? + 16384 <= budget {
+        if logical.saturating_add(16384) <= budget {
             break;
         }
         let raw: String = tx
@@ -281,7 +291,10 @@ fn maintain(c: &mut Connection, budget: u64, days: u64) -> Result<u64, String> {
                 r.get(0)
             })
             .map_err(|e| e.to_string())?;
-        let mut v = parse(&raw)?;
+        let Ok(mut v) = parse(&raw) else { continue };
+        if !v.is_object() {
+            continue;
+        }
         let before = sample_count(&v);
         prune_samples(&mut v, cutoff, None, true);
         removed += before.saturating_sub(sample_count(&v));
@@ -298,23 +311,32 @@ fn maintain(c: &mut Connection, budget: u64, days: u64) -> Result<u64, String> {
                 }
             }
         }
-        let next=v.to_string();
+        let next = v.to_string();
         if next != raw {
             tx.execute("UPDATE sessions SET data=?1 WHERE id=?2", params![next, id])
                 .map_err(|e| e.to_string())?;
+            logical = logical
+                .saturating_sub(raw.len() as u64)
+                .saturating_add(next.len() as u64);
         }
     }
     tx.commit().map_err(|e| e.to_string())?;
     // Do not rewrite the whole database on every maintenance tick.
-    let pages: u64 = c.query_row("PRAGMA page_count", [], |r| r.get(0)).map_err(|e| e.to_string())?;
-    let free: u64 = c.query_row("PRAGMA freelist_count", [], |r| r.get(0)).map_err(|e| e.to_string())?;
-    let page_size: u64 = c.query_row("PRAGMA page_size", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let pages: u64 = c
+        .query_row("PRAGMA page_count", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let free: u64 = c
+        .query_row("PRAGMA freelist_count", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let page_size: u64 = c
+        .query_row("PRAGMA page_size", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
     if free * page_size >= 4 * MIB && free * 4 >= pages {
         c.execute_batch("VACUUM").map_err(|e| e.to_string())?;
     }
     Ok(removed)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn maintain_storage(
     app: AppHandle,
     budget_mb: u64,
@@ -331,6 +353,7 @@ pub fn maintain_storage(
     out["removedSamples"] = json!(removed);
     Ok(out)
 }
+#[cfg(test)]
 fn light(mut v: Value) -> Value {
     let count = sample_count(&v);
     if let Some(o) = v.as_object_mut() {
@@ -350,26 +373,50 @@ fn light(mut v: Value) -> Value {
 }
 // 档案页只列有内容的记录：对局结束重新排队时出现的空壳（无玩家、无分析、也没有任何
 // 手动补充）以及存量的同类空行都不进列表；它们仍留在库里，等待被复用。
-const ARCHIVE_CONTENT: &str = "CASE WHEN json_valid(data) THEN \
+const ARCHIVE_CONTENT: &str = "CASE WHEN json_valid(data) THEN json_type(data)='object' AND (\
  CASE json_type(data,'$.players') WHEN 'array' THEN json_array_length(data,'$.players') ELSE 0 END>0 \
  OR CASE json_type(data,'$.decisions') WHEN 'array' THEN json_array_length(data,'$.decisions') ELSE 0 END>0 \
  OR COALESCE(json_extract(data,'$.notes'),'')<>'' \
  OR COALESCE(json_extract(data,'$.outcome'),'')<>'' \
  OR json_extract(data,'$.review') IS NOT NULL \
  OR (json_extract(data,'$.result.status') IS NOT NULL AND json_extract(data,'$.result.status')<>'unknown') \
- ELSE 1 END";
+ ) ELSE 0 END";
+// 在 SQLite 内裁掉采样及决策的原始上下文，避免把数 MiB 的整局记录搬进 Rust。
+// json_each 的字符串 value 是裸 SQL 文本；只投影对象，防止旧记录的混合数组击穿 JSON 查询。
+fn compact_projection(archive: bool) -> String {
+    let decision = if archive {
+        "json_object('at',json_extract(value,'$.at'),'chosenId',json_extract(value,'$.chosenId'))"
+    } else {
+        "json_object('at',json_extract(value,'$.at'),'chosenId',json_extract(value,'$.chosenId'),
+         'context',json_object('candidates',json_extract(value,'$.context.candidates')))"
+    };
+    format!("CASE WHEN json_valid(data) THEN json_set(
+        json_remove(data,'$.liveData','$.samples','$.lcuSession','$.endOfGame'),
+        '$.sampleCount',CASE WHEN json_type(data,'$.samples')='array' THEN json_array_length(data,'$.samples') ELSE COALESCE(json_extract(data,'$.sampleCount'),0) END,
+        '$.decisions',json((SELECT COALESCE(json_group_array({decision}),'[]')
+          FROM json_each(CASE WHEN json_type(data,'$.decisions')='array' THEN json_extract(data,'$.decisions') ELSE '[]' END)
+          WHERE type='object'))
+        ) ELSE data END")
+}
 fn light_page(c: &Connection, offset: i64) -> Result<Vec<Value>, String> {
     let mut q = c
         .prepare(&format!(
-            "SELECT data FROM sessions WHERE {ARCHIVE_CONTENT} ORDER BY updated_at DESC,id DESC LIMIT 50 OFFSET ?1"
+            "SELECT {} FROM sessions WHERE {ARCHIVE_CONTENT} ORDER BY updated_at DESC,id DESC LIMIT 50 OFFSET ?1", compact_projection(true)
         ))
         .map_err(|e| e.to_string())?;
     let rows = q
         .query_map(params![offset], |r| r.get::<_, String>(0))
         .map_err(|e| e.to_string())?;
-    rows.map(|r| parse(&r.map_err(|e| e.to_string())?).map(light)).collect()
+    let mut sessions = Vec::new();
+    for row in rows {
+        let raw = row.map_err(|e| e.to_string())?;
+        if let Ok(v) = parse(&raw) {
+            sessions.push(v);
+        }
+    }
+    Ok(sessions)
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_sessions_light(app: AppHandle, offset: Option<u64>) -> Result<Vec<Value>, String> {
     light_page(&db(&app)?, offset.unwrap_or(0).min(i64::MAX as u64) as i64)
 }
@@ -441,7 +488,9 @@ fn chosen_names(s: &Value) -> Vec<String> {
     ds.iter()
         .filter_map(|d| {
             let id = d["chosenId"].as_str()?;
-            let name = candidates
+            let name = d["context"]["candidates"]
+                .as_array()
+                .or(candidates)
                 .and_then(|cs| {
                     cs.iter()
                         .find(|c| c["id"].as_str() == Some(id))
@@ -563,8 +612,9 @@ pub fn similar_sessions(
     {
         let mut q = c
             .prepare(&format!(
-                "SELECT data FROM sessions WHERE {ARCHIVE_CONTENT} AND id<>?1 \
-                 ORDER BY updated_at DESC,id DESC LIMIT ?2"
+                "SELECT {} FROM sessions WHERE {ARCHIVE_CONTENT} AND id<>?1 \
+                 ORDER BY updated_at DESC,id DESC LIMIT ?2",
+                compact_projection(false)
             ))
             .map_err(|e| e.to_string())?;
         let mapped = q
@@ -603,10 +653,7 @@ pub fn similar_sessions(
     }
     scored.sort_by(|a, b| {
         b.0.cmp(&a.0)
-            .then(
-                b.1.partial_cmp(&a.1)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-            )
+            .then(b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
             .then(b.2.cmp(&a.2))
     });
     Ok(scored
@@ -615,7 +662,7 @@ pub fn similar_sessions(
         .map(|(_, _, _, e)| e)
         .collect())
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn history_similarity(
     app: AppHandle,
     session: Value,
@@ -627,7 +674,7 @@ pub fn history_similarity(
         limit.unwrap_or(SIM_LIMIT).min(20) as usize
     )?))
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_session(app: AppHandle, id: String) -> Result<Value, String> {
     let raw: String = db(&app)?
         .query_row("SELECT data FROM sessions WHERE id=?1", params![id], |r| {
@@ -640,7 +687,7 @@ fn by_match(c: &Connection, id: &str) -> Result<Option<Value>, String> {
     let raw:Option<String>=c.query_row("SELECT data FROM sessions WHERE CASE WHEN json_valid(data) THEN CAST(json_extract(data,'$.matchId') AS TEXT)=?1 OR CAST(json_extract(data,'$.match.id') AS TEXT)=?1 ELSE 0 END ORDER BY updated_at DESC LIMIT 1",params![id],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
     raw.map(|s| parse(&s)).transpose()
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_session_by_match(app: AppHandle, match_id: String) -> Result<Option<Value>, String> {
     let out = by_match(&db(&app)?, &match_id);
     out
@@ -668,7 +715,7 @@ fn export_file_name(prefix: &str, id: &str) -> String {
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
     format!("{prefix}-{stem}-{stamp}.json")
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn export_session(app: AppHandle, session: Value) -> Result<String, String> {
     let id = session
         .get("matchId")
@@ -681,32 +728,41 @@ pub fn export_session(app: AppHandle, session: Value) -> Result<String, String> 
     fs::write(&path, text).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }
-#[tauri::command]
-pub fn export_history(app: AppHandle) -> Result<Value, String> {
-    let c = db(&app)?;
+fn history_export_payload(c: &Connection, exported_at: &str) -> Result<Value, String> {
     let mut q = c
-        .prepare("SELECT data FROM sessions ORDER BY updated_at DESC,id DESC")
+        .prepare("SELECT id,data,updated_at FROM sessions ORDER BY updated_at DESC,id DESC")
         .map_err(|e| e.to_string())?;
     let rows = q
-        .query_map([], |r| r.get::<_, String>(0))
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })
         .map_err(|e| e.to_string())?;
     let mut sessions: Vec<Value> = Vec::new();
-    let mut unreadable = 0usize;
+    let mut unreadable = Vec::new();
     for row in rows {
-        match serde_json::from_str::<Value>(&row.map_err(|e| e.to_string())?) {
-            Ok(v) => sessions.push(v),
-            Err(_) => unreadable += 1,
+        let (id, raw, updated_at) = row.map_err(|e| e.to_string())?;
+        match parse(&raw) {
+            Ok(v) if v.is_object() => sessions.push(v),
+            _ => unreadable.push(json!({"id":id,"updatedAt":updated_at,"raw":raw})),
         }
     }
-    let exported_at = chrono::Local::now().to_rfc3339();
-    let payload = json!({
+    Ok(json!({
         "app": "Hexglow",
         "schema": 1,
         "exportedAt": exported_at,
         "sessionCount": sessions.len(),
-        "unreadable": unreadable,
-        "sessions": sessions
-    });
+        "unreadable": unreadable.len(),
+        "sessions": sessions,
+        "unreadableRecords": unreadable
+    }))
+}
+#[tauri::command(async)]
+pub fn export_history(app: AppHandle) -> Result<Value, String> {
+    let payload = history_export_payload(&db(&app)?, &chrono::Local::now().to_rfc3339())?;
     let stamp = chrono::Local::now().format("%Y%m%d");
     let path = export_dir(&app)?.join(export_file_name("全部对局", &stamp.to_string()));
     let text = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
@@ -714,9 +770,9 @@ pub fn export_history(app: AppHandle) -> Result<Value, String> {
     fs::write(&path, text).map_err(|e| e.to_string())?;
     Ok(json!({
         "path": path.to_string_lossy(),
-        "count": sessions.len(),
+            "count": payload["sessionCount"],
         "bytes": bytes,
-        "unreadable": unreadable
+            "unreadable": payload["unreadable"]
     }))
 }
 fn prepared(session: &Value) -> Result<(String, String), String> {
@@ -775,6 +831,183 @@ pub fn save(app: &AppHandle, session: &Value) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unreadable_records_do_not_block_listing_stats_or_cleanup() {
+        let mut c = memory();
+        let valid = json!({"id":"valid","ownPlayerId":"me","players":[{"id":"me","champion":"Ahri","augments":[]}],
+            "decisions":[{"at":"keep","chosenId":"1068"}],"result":{"status":"win"},
+            "samples":[{"at":"2000-01-01T00:00:00Z","data":"expired"}],"liveData":{"raw":"expired"}});
+        for (id, raw) in [
+            ("invalid", "{broken JSON".to_owned()),
+            ("array", "[1,2]".to_owned()),
+            ("valid", valid.to_string()),
+        ] {
+            c.execute(
+                "INSERT INTO sessions VALUES(?1,?2,'2000-01-01T00:00:00Z')",
+                params![id, raw],
+            )
+            .unwrap();
+        }
+        let page = light_page(&c, 0).unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0]["id"], "valid");
+        let before = stats(&c, 32, 7).unwrap();
+        assert_eq!(before["sessionCount"], 3);
+        assert_eq!(before["unreadableSessions"], 2);
+        assert_eq!(before["sampleCount"], 1);
+        assert_eq!(maintain(&mut c, 0, 7).unwrap(), 1);
+        let raw: String = c
+            .query_row("SELECT data FROM sessions WHERE id='valid'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        let cleaned = parse(&raw).unwrap();
+        assert!(cleaned["liveData"].is_null());
+        assert_eq!(cleaned["decisions"], valid["decisions"]);
+        let bad: String = c
+            .query_row("SELECT data FROM sessions WHERE id='invalid'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(bad, "{broken JSON");
+        let current = json!({"id":"current","ownPlayerId":"me","players":[{"id":"me","champion":"Ahri","augments":[]}],"candidates":[{"id":"1068","name":"循环往复"}]});
+        let entries = similar_sessions(&c, &current, 5).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["id"], "valid");
+        let after = stats(&c, 32, 7).unwrap();
+        assert_eq!(after["sampleCount"], 0);
+        assert_eq!(after["unreadableSessions"], 2);
+        let exported = history_export_payload(&c, "2026-01-02T00:00:00Z").unwrap();
+        assert_eq!(exported["sessionCount"], 1);
+        assert_eq!(exported["unreadable"], 2);
+        let bad_records = exported["unreadableRecords"].as_array().unwrap();
+        assert_eq!(
+            bad_records.iter().find(|v| v["id"] == "invalid").unwrap()["raw"],
+            "{broken JSON"
+        );
+        assert_eq!(
+            bad_records.iter().find(|v| v["id"] == "array").unwrap()["raw"],
+            "[1,2]"
+        );
+    }
+    #[test]
+    fn pressure_cleanup_stops_after_utf8_bytes_fall_within_budget() {
+        let mut c = memory();
+        for (id, raw) in [("a", "中文".repeat(10000)), ("b", "x".repeat(20000))] {
+            let value =
+                json!({"id":id,"result":{"status":"win"},"liveData":{"raw":raw},"notes":"保留"});
+            c.execute(
+                "INSERT INTO sessions VALUES(?1,?2,'2000-01-01T00:00:00Z')",
+                params![id, value.to_string()],
+            )
+            .unwrap();
+        }
+        maintain(&mut c, 45000, 7).unwrap();
+        let raw: String = c
+            .query_row("SELECT data FROM sessions WHERE id='b'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            parse(&raw).unwrap()["liveData"]["raw"]
+                .as_str()
+                .unwrap()
+                .len(),
+            20000
+        );
+        assert!(logical_bytes(&c).unwrap() + 16384 <= 45000);
+    }
+    #[test]
+    fn compact_queries_ignore_non_object_decisions_and_keep_valid_choices() {
+        let c = memory();
+        let past = json!({"id":"past","ownPlayerId":"me","players":[{"id":"me","champion":"Ahri","augments":[]}],
+            "candidates":[{"id":"1","name":"万用瞄准镜"}],
+            "decisions":["not JSON",123,1.5,true,false,null,["array"],
+                {"at":"first","chosenId":"1","context":{"candidates":[{"id":"1","name":"循环往复"}]}},
+                {"at":"unknown","chosenId":null,"context":{"candidates":"not-an-array"}}],
+            "samples":"not-an-array","sampleCount":4});
+        let raw = past.to_string();
+        c.execute(
+            "INSERT INTO sessions VALUES('past',?1,'2026-01-01T00:00:00Z')",
+            params![raw],
+        )
+        .unwrap();
+        let page = light_page(&c, 0).unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0]["sampleCount"], 4);
+        assert_eq!(
+            page[0]["decisions"],
+            json!([
+                {"at":"first","chosenId":"1"},
+                {"at":"unknown","chosenId":null}
+            ])
+        );
+        let current = json!({"id":"current","ownPlayerId":"me","players":[{"id":"me","champion":"Ahri","augments":[]}],
+            "candidates":[{"id":"1068","name":"循环往复"}]});
+        let entries = similar_sessions(&c, &current, 5).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["chosen"], "循环往复");
+        assert_eq!(entries[0]["similarity"], 1.0);
+        let stored: String = c
+            .query_row("SELECT data FROM sessions WHERE id='past'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(stored, raw); // 查询容错不改写原始证据。
+    }
+
+    #[test]
+    fn compact_queries_treat_non_array_decisions_as_empty() {
+        let c = memory();
+        for (i, decisions) in [
+            json!("not JSON"),
+            json!(7),
+            json!(false),
+            Value::Null,
+            json!({"chosenId":"1"}),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let past = json!({"id":format!("past-{i}"),"ownPlayerId":"me",
+                "players":[{"id":"me","champion":"Ahri","augments":[]}],"decisions":decisions});
+            c.execute(
+                "INSERT INTO sessions VALUES(?1,?2,'2026-01-01T00:00:00Z')",
+                params![past["id"].as_str().unwrap(), past.to_string()],
+            )
+            .unwrap();
+        }
+        let page = light_page(&c, 0).unwrap();
+        assert_eq!(page.len(), 5);
+        assert!(page.iter().all(|row| row["decisions"] == json!([])));
+        let current = json!({"id":"current","ownPlayerId":"me","players":[{"id":"me","champion":"Ahri","augments":[]}]});
+        let entries = similar_sessions(&c, &current, 5).unwrap();
+        assert_eq!(entries.len(), 5);
+        assert!(entries.iter().all(|entry| entry["chosen"].is_null()));
+    }
+
+    #[test]
+    fn compact_queries_preserve_selection_rounds_without_loading_raw_snapshots() {
+        let mut c = memory();
+        let past = json!({"id":"past","ownPlayerId":"me","players":[{"id":"me","champion":"Ahri","augments":[]}],
+            "candidates":[{"id":"1","name":"万用瞄准镜"}],
+            "decisions":[{"at":"first","chosenId":"1","context":{"candidates":[{"id":"1","name":"循环往复"}],"liveData":{"large":"x".repeat(100000)}}}],
+            "samples":[{"data":"x".repeat(100000)}],"liveData":{"large":"x".repeat(100000)}});
+        write_session(&mut c, &past, 2 * MIB).unwrap();
+        let page = light_page(&c, 0).unwrap();
+        assert_eq!(page[0]["sampleCount"], 1);
+        assert!(page[0]["liveData"].is_null());
+        assert!(page[0]["decisions"][0]["context"].is_null());
+        assert!(page[0].to_string().len() < 2000);
+        let current = json!({"id":"current","ownPlayerId":"me","players":[{"id":"me","champion":"Ahri","augments":[]}],"candidates":[{"id":"1068","name":"循环往复"}]});
+        let entries = similar_sessions(&c, &current, 5).unwrap();
+        assert_eq!(entries[0]["chosen"], "循环往复");
+        assert_eq!(entries[0]["similarity"], 1.0);
+        let stored: String = c
+            .query_row("SELECT data FROM sessions WHERE id='past'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert!(stored.len() > 300000); // 查询投影没有改写证据。
+    }
     fn memory() -> Connection {
         let c = Connection::open_in_memory().unwrap();
         c.execute_batch(SCHEMA).unwrap();
@@ -834,10 +1067,30 @@ mod tests {
                 "review": {"summary":"先手装更稳","lessons":["早做前排"],"caveats":[]}
             })
         };
-        write_session(&mut c, &mk("a", "阿狸", "1001", "1001", "2026-01-03T00:00:00Z"), MIB).unwrap();
-        write_session(&mut c, &mk("b", "阿狸", "", "1002", "2026-01-02T00:00:00Z"), MIB).unwrap();
-        write_session(&mut c, &mk("c", "盖伦", "1001", "1001", "2026-01-01T00:00:00Z"), MIB).unwrap();
-        write_session(&mut c, &mk("cur", "阿狸", "", "", "2026-01-04T00:00:00Z"), MIB).unwrap();
+        write_session(
+            &mut c,
+            &mk("a", "阿狸", "1001", "1001", "2026-01-03T00:00:00Z"),
+            MIB,
+        )
+        .unwrap();
+        write_session(
+            &mut c,
+            &mk("b", "阿狸", "", "1002", "2026-01-02T00:00:00Z"),
+            MIB,
+        )
+        .unwrap();
+        write_session(
+            &mut c,
+            &mk("c", "盖伦", "1001", "1001", "2026-01-01T00:00:00Z"),
+            MIB,
+        )
+        .unwrap();
+        write_session(
+            &mut c,
+            &mk("cur", "阿狸", "", "", "2026-01-04T00:00:00Z"),
+            MIB,
+        )
+        .unwrap();
         // 异英雄 + 无重叠 + 没复盘：不构成参考，不进结果
         write_session(
             &mut c,
@@ -916,25 +1169,44 @@ mod tests {
     fn archive_listing_hides_empty_shells_but_keeps_them_stored() {
         let c = memory();
         let rows = [
-            ("real", json!({"id":"real","matchId":"100","players":[{"id":"me","champion":"Ahri"}],"decisions":[],"notes":"","outcome":"","result":{"status":"win"}})),
-            ("shell", json!({"id":"shell","matchId":"100","players":[],"decisions":[],"notes":"","outcome":"","result":{"status":"unknown"}})),
-            ("notes", json!({"id":"notes","matchId":"","players":[],"decisions":[],"notes":"思路","outcome":"","result":{"status":"unknown"}})),
-            ("decision", json!({"id":"decision","matchId":"","players":[],"decisions":[{"at":"x"}],"notes":"","outcome":"","result":{"status":"unknown"}})),
-            ("review", json!({"id":"review","matchId":"","players":[],"decisions":[],"notes":"","outcome":"","review":{"summary":"复盘"},"result":{"status":"unknown"}})),
-            ("odd", json!({"id":"odd","matchId":"1","players":"not-an-array","decisions":[],"notes":"","outcome":"","result":{"status":"unknown"}})),
+            (
+                "real",
+                json!({"id":"real","matchId":"100","players":[{"id":"me","champion":"Ahri"}],"decisions":[],"notes":"","outcome":"","result":{"status":"win"}}),
+            ),
+            (
+                "shell",
+                json!({"id":"shell","matchId":"100","players":[],"decisions":[],"notes":"","outcome":"","result":{"status":"unknown"}}),
+            ),
+            (
+                "notes",
+                json!({"id":"notes","matchId":"","players":[],"decisions":[],"notes":"思路","outcome":"","result":{"status":"unknown"}}),
+            ),
+            (
+                "decision",
+                json!({"id":"decision","matchId":"","players":[],"decisions":[{"at":"x"}],"notes":"","outcome":"","result":{"status":"unknown"}}),
+            ),
+            (
+                "review",
+                json!({"id":"review","matchId":"","players":[],"decisions":[],"notes":"","outcome":"","review":{"summary":"复盘"},"result":{"status":"unknown"}}),
+            ),
+            (
+                "odd",
+                json!({"id":"odd","matchId":"1","players":"not-an-array","decisions":[],"notes":"","outcome":"","result":{"status":"unknown"}}),
+            ),
         ];
         for (index, (id, value)) in rows.iter().enumerate() {
             c.execute(
                 "INSERT INTO sessions VALUES(?1,?2,?3)",
-                params![id, value.to_string(), format!("2026-01-01T00:{index:02}:00Z")],
+                params![
+                    id,
+                    value.to_string(),
+                    format!("2026-01-01T00:{index:02}:00Z")
+                ],
             )
             .unwrap();
         }
         let page = light_page(&c, 0).unwrap();
-        let listed: Vec<&str> = page
-            .iter()
-            .map(|row| row["id"].as_str().unwrap())
-            .collect();
+        let listed: Vec<&str> = page.iter().map(|row| row["id"].as_str().unwrap()).collect();
         // players 不是数组的畸形行不会让整页查询报错，只会被当成没有内容。
         assert_eq!(listed, vec!["review", "decision", "notes", "real"]);
         // 空壳只是不进列表，仍留在库里等待被下一条快照复用。

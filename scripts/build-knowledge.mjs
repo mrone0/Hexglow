@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// Run with node (pnpm data:knowledge).
 // 由 src-tauri/data/*.json 生成 OKF 种子：
 //   knowledge-seed/augments/<id>.md    海克斯 211 份
 //   knowledge-seed/champions/<id>.md   英雄 171 份（ahri/garen 为人工种子，跳过）
@@ -19,10 +19,13 @@ const augments = JSON.parse(fs.readFileSync(augmentInput, 'utf8'));
 const championData = JSON.parse(fs.readFileSync(championInput, 'utf8'));
 const rows = augments.augments;
 const champions = championData.champions;
+const mechanics = JSON.parse(fs.readFileSync(path.join(root, 'src-tauri/data/scoring-mechanics.json'), 'utf8'));
 const patch = augments.meta?.patch || championData.meta?.patch || 'unknown';
 
 // 人工维护的英雄种子：由 knowledge.rs 内嵌，不由本脚本生成或覆盖。
 const CURATED_CHAMPIONS = new Set(['ahri', 'garen']);
+const MECHANICS_AUGMENT_SEEDS = new Set(['1029', '1180']);
+const MECHANICS_CHAMPION_SEEDS = new Set(['ekko']);
 
 const yamlStr = (value) =>
   `"${String(value).replace(/\s+/g, ' ').trim().replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
@@ -77,8 +80,10 @@ const pickClauses = (texts, pattern) => {
   return hits;
 };
 
-const renderAugment = (row) => {
+export const renderAugment = (row) => {
   const effect = row.effect || '';
+  const known = MECHANICS_AUGMENT_SEEDS.has(String(row.id)) ? mechanics.augments[String(row.id)] : null;
+  const reviewed = mechanics.patch === patch && known?.evidence === effect ? known : null;
   const alt = row.effectAlt || '';
   const aliases = unique([row.nameEn, ...(row.aliases || [])].filter((name) => name !== row.name));
   const related = unique((row.tags || []).flatMap((tag) => namesByTag.get(tag) || []))
@@ -104,14 +109,14 @@ const renderAugment = (row) => {
     `  category: ${yamlStr(row.category)}`,
     `  tags: [${(row.tags || []).map(yamlStr).join(', ')}]`,
     `  synergy_tags: [${(row.tags || []).map(yamlStr).join(', ')}]`,
-    `  role_fit: [${roleFit(row.tags || []).map(yamlStr).join(', ')}]`,
+    `  role_fit: [${(reviewed?.grants.includes('spell-on-hit') ? ['Flexible'] : roleFit(row.tags || [])).map(yamlStr).join(', ')}]`,
     `  scaling: ${yamlStr(scalingOf(row.tags || []))}`,
     '  verified: false',
     '---',
   ];
 
-  const triggers = pickClauses([effect], TRIGGER);
-  const limits = pickClauses([effect], LIMIT);
+  const triggers = reviewed?.grants.includes('spell-on-hit') ? ['技能命中时施加可生效的攻击特效，具体触发范围以游戏内描述为准。'] : pickClauses([effect], TRIGGER);
+  const limits = unique([...pickClauses([effect], LIMIT), ...(reviewed?.limitations || [])]);
   const entitiesFromText = unique([...effect.matchAll(ENTITY)].map((m) => m[1]));
 
   const body = [
@@ -141,6 +146,9 @@ const renderAugment = (row) => {
     '## 相关交互',
     '',
     `- 标签：${(row.tags || []).join('、') || '（无）'}；类别：${row.category}；稀有度：${row.rarity}。`,
+    ...(reviewed ? ['- 本地机制评分读取当前装备和已选海克斯；职业标签不代替具体触发证据，未知交互不加分。'] : []),
+    ...(reviewed?.grants.includes('spell-on-hit') ? ['- 只有明确攻击特效来源才提供相应协同；施法后强化下次攻击类效果保留触发条件，不固定任意英雄搭配为最高分。'] : []),
+    ...(reviewed?.scalesWith?.includes('ap') && reviewed.grants.includes('shield') ? ['- 装备基础法术强度不等于当前面板 AP；被动乘区、层数、符文和模式修正未计入，不估算最终护盾量。'] : []),
     entitiesFromText.length
       ? `- 文本提到的实体：${entitiesFromText.slice(0, 8).map((name) => `【${name}】`).join('、')}`
       : '- 文本未提到其他【实体】。',
@@ -155,11 +163,14 @@ const renderAugment = (row) => {
 };
 
 // 英雄：只写打包数据里的属性事实 + 由标签推导的定位，不编造技能机制与打法细节。
-const renderChampion = (row) => {
+export const renderChampion = (row) => {
   const stem = row.id.toLowerCase();
   const stats = row.stats || {};
   const info = row.info || {};
   const roles = row.tags || [];
+  const hasAbilities = !!row.abilitySource && !!row.passive?.description && row.spells?.length === 4;
+  const hasMechanics = hasAbilities && row.mechanics?.traits?.length > 0;
+  const plain = (value) => String(value || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   const ranged = (stats.attackrange ?? 0) >= 500;
   const damage =
     (info.attack ?? 0) >= (info.magic ?? 0) + 2 ? '物理' : (info.magic ?? 0) >= (info.attack ?? 0) + 2 ? '法术' : '混合';
@@ -179,7 +190,7 @@ const renderChampion = (row) => {
   const frontmatter = [
     '---',
     `title: ${yamlStr(display)}`,
-    `description: ${yamlStr(`${roles.join('、') || '未分类'} · ${ranged ? '远程' : '近战'} · 打包数据推导，未核验`)}`,
+    `description: ${yamlStr(`${roles.join('、') || '未分类'} · ${ranged ? '远程' : '近战'} · ${hasAbilities ? '已补官方技能资料，海克斯特殊联动仍待核实' : '打包数据推导，未核验'}`)}`,
     `tags: [${unique(['champion', ...roles]).map(yamlStr).join(', ')}]`,
     'status: draft',
     'type: Champion',
@@ -198,7 +209,7 @@ const renderChampion = (row) => {
   const body = [
     `# ${display}`,
     '',
-    '> `verified: false` · `status: draft`。以下全部来自打包数据，未人工核验；不含胜率、选取率与强度分级。',
+    hasAbilities ? `> \`verified: false\` · \`status: draft\`。技能描述来源为 Riot 官方 Data Dragon ${row.abilityPatch}；海克斯特殊联动未经游戏内核验，不含胜率、选取率与强度分级。` : '> `verified: false` · `status: draft`。以下全部来自打包数据，未人工核验；不含胜率、选取率与强度分级。',
     '',
     '## 基础机制',
     '',
@@ -207,6 +218,7 @@ const renderChampion = (row) => {
     `- 生命 ${stats.hp ?? '?'}（每级 +${stats.hpperlevel ?? '?'}）· 护甲 ${stats.armor ?? '?'} · 魔抗 ${stats.spellblock ?? '?'} · 移速 ${stats.movespeed ?? '?'}。`,
     `- 攻击力 ${stats.attackdamage ?? '?'} · 攻速 ${stats.attackspeed ?? '?'} · 资源类型：${row.partype || '未知'}。`,
     `- 伤害倾向：${damage}（由属性评分推导，非官方分类）。`,
+    ...(hasAbilities ? ['', '## 技能与被动', '', `- 被动 ${row.passive.name}：${plain(row.passive.description)}`, ...row.spells.map((spell, index) => `- ${['Q', 'W', 'E', 'R'][index]} ${spell.name}：${plain(spell.description)}`), `- 官方来源：[Data Dragon ${row.abilityPatch}](${row.abilitySource})。`, ...(row.mechanics?.limitations || []).map(limit => `- ${limit}`)] : []),
     '',
     '## 常见打法',
     '',
@@ -216,14 +228,14 @@ const renderChampion = (row) => {
     '',
     '## 海克斯搭配',
     '',
-    fitted.length
+    hasMechanics ? '- 本地评分参考已收录技能机制、当前装备和已选海克斯；未收录机制的候选回退到低精度职业标签，不提供固定搭配榜。' : fitted.length
       ? `- 按标签匹配的候选（启发式、未核验）：${fitted.map((augment) => augment.name).join('、')}`
       : '- 打包数据中没有与该标签匹配的海克斯候选。',
     '- 完整效果与限制见 `augments/` 目录下的对应文件；排序依据是本地规则，不是胜率。',
     '',
     '## 注意事项',
     '',
-    '- 本文件由脚本按打包数据生成，未经人工核验，不要当作官方机制说明。',
+    hasAbilities ? '- 技能说明可追溯到官方资料；本地规则权重及海克斯联动只是受证据约束的启发式，不等同于官方结论。' : '- 本文件由脚本按打包数据生成，未经人工核验，不要当作官方机制说明。',
     '- 不包含胜率、选取率、强度分级；缺失项一律标为未知，不推断。',
     '',
   ].join('\n');
@@ -231,6 +243,20 @@ const renderChampion = (row) => {
   return `${frontmatter.join('\n')}\n${body}`;
 };
 
+// 有定向审核来源的机制文档不能被第三方统计导入覆盖；从结构化来源重建。
+export function mechanicsSeedFor(kind, id) {
+  if (kind === 'augments' && MECHANICS_AUGMENT_SEEDS.has(String(id))) {
+    const row = rows.find(row => String(row.id) === String(id));
+    return row ? renderAugment(row) : null;
+  }
+  if (kind === 'champions' && MECHANICS_CHAMPION_SEEDS.has(String(id).toLowerCase())) {
+    const row = champions.find(row => row.id.toLowerCase() === String(id).toLowerCase());
+    return row ? renderChampion(row) : null;
+  }
+  return null;
+}
+
+export function buildKnowledge() {
 fs.mkdirSync(augmentDir, {recursive: true});
 fs.mkdirSync(championDir, {recursive: true});
 
@@ -302,3 +328,6 @@ fs.writeFileSync(path.join(augmentDir, 'generated.json'), `${JSON.stringify(meta
 console.log(
   `已生成 ${augmentCount} 份海克斯、${championCount} 份英雄 OKF 种子（registry ${champions.length}） → src-tauri/src/seed_generated.rs`,
 );
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) buildKnowledge();

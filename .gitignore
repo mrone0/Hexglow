@@ -1,6 +1,11 @@
 node_modules/
 dist/
 src-tauri/target/
+src-tauri/target-*/
+src-tauri/resources/ocr/*.onnx
+src-tauri/resources/ocr/ppocrv6_dict.txt
+.local-backups/
+release/
 *.tsbuildinfo
 .DS_Store
 .env

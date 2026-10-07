@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Hexglow",
   "mainBinaryName": "Hexglow",
-  "version": "0.0.5",
+  "version": "0.0.1",
   "identifier": "ai.hexglow.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -11,7 +11,6 @@
     "beforeBuildCommand": "pnpm build"
   },
   "app": {
-    "macOSPrivateApi": true,
     "windows": [{
       "title": "海萤 · Hexglow",
       "width": 1280,
@@ -29,8 +28,9 @@
     "publisher": "Hexglow",
     "copyright": "© 2026 Hexglow contributors",
     "shortDescription": "本地优先的海克斯大乱斗对局助手",
-    "longDescription": "Hexglow 在本机识别对局、整理双方海克斯档案，并用本地知识库与你配置的模型给出带依据的契合度分析。对局数据只存在本机，不提供胜率预测。",
+    "longDescription": "Hexglow 在本机识别对局、整理海克斯档案，并用本地知识库给出契合度分析。档案保存在本机；仅在你授权并发起模型分析时向配置的服务发送上下文。不提供胜率预测。",
     "icon": ["icons/icon.png", "icons/icon.ico"],
+    "resources": {"resources/ocr/": "resources/ocr/"},
     "windows": {
       "nsis": {
         "installMode": "currentUser"

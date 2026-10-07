@@ -1,0 +1,507 @@
+{
+  "augments/1001.md": [
+    "fnv1a64:d28ffb8fde9fc367"
+  ],
+  "augments/1004.md": [
+    "fnv1a64:1b11e81418361f86"
+  ],
+  "augments/1005.md": [
+    "fnv1a64:16d9b29ada40330a"
+  ],
+  "augments/1007.md": [
+    "fnv1a64:2fd611a4f99dd5c7"
+  ],
+  "augments/1011.md": [
+    "fnv1a64:e2afa495311c5cac"
+  ],
+  "augments/1013.md": [
+    "fnv1a64:8cc20a958c31e24a"
+  ],
+  "augments/1015.md": [
+    "fnv1a64:c226b413f276007d"
+  ],
+  "augments/1020.md": [
+    "fnv1a64:f565377a6e3be24a"
+  ],
+  "augments/1026.md": [
+    "fnv1a64:065f254dbc2132b2"
+  ],
+  "augments/1027.md": [
+    "fnv1a64:4f61ef66fb6fe832"
+  ],
+  "augments/1028.md": [
+    "fnv1a64:81170fe7bc28473e"
+  ],
+  "augments/1030.md": [
+    "fnv1a64:2c5d49857414d1cb"
+  ],
+  "augments/1041.md": [
+    "fnv1a64:c97fc5b08d156104"
+  ],
+  "augments/1044.md": [
+    "fnv1a64:1ce7e42d2d6625ef"
+  ],
+  "augments/1045.md": [
+    "fnv1a64:93014f3c47466843"
+  ],
+  "augments/1051.md": [
+    "fnv1a64:4b23abdc303f3892"
+  ],
+  "augments/1054.md": [
+    "fnv1a64:9eb2f1658131cc5d"
+  ],
+  "augments/1056.md": [
+    "fnv1a64:5d60a56d8c6f662a"
+  ],
+  "augments/1060.md": [
+    "fnv1a64:4fe93ff304ca2a0f"
+  ],
+  "augments/1063.md": [
+    "fnv1a64:17e36be187884eb0"
+  ],
+  "augments/1067.md": [
+    "fnv1a64:941754143b150e36"
+  ],
+  "augments/1072.md": [
+    "fnv1a64:4839e2b741fea94c"
+  ],
+  "augments/1073.md": [
+    "fnv1a64:3d5e581ba65a7803"
+  ],
+  "augments/1077.md": [
+    "fnv1a64:2c4e5d06ba371e55"
+  ],
+  "augments/1084.md": [
+    "fnv1a64:fff933a04ef92de6",
+    "fnv1a64:372f1ced29d4c816"
+  ],
+  "augments/1097.md": [
+    "fnv1a64:6d82b7a113837f8a"
+  ],
+  "augments/1104.md": [
+    "fnv1a64:9bb9dd46b5849b1c"
+  ],
+  "augments/1105.md": [
+    "fnv1a64:cd019039d822bfe2"
+  ],
+  "augments/1113.md": [
+    "fnv1a64:2e0ad1cf2ec97887"
+  ],
+  "augments/1115.md": [
+    "fnv1a64:20590c55d405585e"
+  ],
+  "augments/1116.md": [
+    "fnv1a64:8b0a7660318a0f04"
+  ],
+  "augments/1129.md": [
+    "fnv1a64:38137e2feb276572"
+  ],
+  "augments/1133.md": [
+    "fnv1a64:cc74c9372239ab73"
+  ],
+  "augments/1134.md": [
+    "fnv1a64:588412ea9b49b009"
+  ],
+  "augments/1180.md": [
+    "fnv1a64:889a972923ee634d"
+  ],
+  "augments/1181.md": [
+    "fnv1a64:05530c33c0a79054"
+  ],
+  "augments/1187.md": [
+    "fnv1a64:a5f8a7a275d3712e"
+  ],
+  "augments/1194.md": [
+    "fnv1a64:d2cc15358235f77e"
+  ],
+  "augments/1195.md": [
+    "fnv1a64:cd1e3068adbeff25"
+  ],
+  "augments/1205.md": [
+    "fnv1a64:36359dda2c51cc7e"
+  ],
+  "augments/1206.md": [
+    "fnv1a64:2aef66a8e55aa632"
+  ],
+  "augments/1211.md": [
+    "fnv1a64:3469d339c0418930"
+  ],
+  "augments/1301.md": [
+    "fnv1a64:c23c4bcf9f3824ab"
+  ],
+  "augments/1305.md": [
+    "fnv1a64:bef36b64f1f78411"
+  ],
+  "augments/1308.md": [
+    "fnv1a64:429f20462797baeb"
+  ],
+  "augments/1323.md": [
+    "fnv1a64:cf43a2795a1dafc8"
+  ],
+  "augments/1325.md": [
+    "fnv1a64:7891af2c94fa7370"
+  ],
+  "augments/1326.md": [
+    "fnv1a64:14d8920cb3d9a9b7"
+  ],
+  "augments/1332.md": [
+    "fnv1a64:5c6ee040c7605f82"
+  ],
+  "augments/1333.md": [
+    "fnv1a64:e34a4677e144244b"
+  ],
+  "augments/1335.md": [
+    "fnv1a64:0b9b6a7e990588b6"
+  ],
+  "augments/1344.md": [
+    "fnv1a64:6ee5cd72d7a0f2f0"
+  ],
+  "augments/1345.md": [
+    "fnv1a64:cb781b22320a8adf"
+  ],
+  "augments/1353.md": [
+    "fnv1a64:5bc9bdc410c685d6"
+  ],
+  "augments/1356.md": [
+    "fnv1a64:918b0fceb3324132"
+  ],
+  "augments/1390.md": [
+    "fnv1a64:fad15547a10beea9"
+  ],
+  "augments/1392.md": [
+    "fnv1a64:db5f193598e6183f"
+  ],
+  "augments/1401.md": [
+    "fnv1a64:ea317c5b01321de9"
+  ],
+  "augments/1415.md": [
+    "fnv1a64:2e10e2af776bba4e"
+  ],
+  "augments/1421.md": [
+    "fnv1a64:10c86a06f3b62ac4"
+  ],
+  "augments/1996.md": [
+    "fnv1a64:a0f85b68b5b3b7ed"
+  ],
+  "augments/2004.md": [
+    "fnv1a64:2fae5aa8ab8ad707"
+  ],
+  "augments/2006.md": [
+    "fnv1a64:7094def6ae59d7bc"
+  ],
+  "augments/2009.md": [
+    "fnv1a64:7c4bef717ed9ab5a"
+  ],
+  "augments/2016.md": [
+    "fnv1a64:c067ca80aafb836a"
+  ],
+  "augments/2018.md": [
+    "fnv1a64:3ccc81d9a2a005a2"
+  ],
+  "augments/2026.md": [
+    "fnv1a64:2764468fd4c8701f"
+  ],
+  "augments/2034.md": [
+    "fnv1a64:aa939639facf4086"
+  ],
+  "augments/2043.md": [
+    "fnv1a64:cef87d591ebcaa9f"
+  ],
+  "augments/2064.md": [
+    "fnv1a64:600b13b2192b1ea8"
+  ],
+  "augments/2073.md": [
+    "fnv1a64:84b03e364e3a0259"
+  ],
+  "augments/2076.md": [
+    "fnv1a64:29c98eb1698b1583"
+  ],
+  "augments/2077.md": [
+    "fnv1a64:c9316ea2c8f52a8b"
+  ],
+  "augments/2080.md": [
+    "fnv1a64:c1d956921fee10d9"
+  ],
+  "augments/2083.md": [
+    "fnv1a64:42dea445c5f3ec84"
+  ],
+  "augments/2088.md": [
+    "fnv1a64:b63dd865b7de5d2d"
+  ],
+  "augments/2091.md": [
+    "fnv1a64:2604baa4b6f416d8"
+  ],
+  "augments/2096.md": [
+    "fnv1a64:d8307406d33ac9ea"
+  ],
+  "augments/2098.md": [
+    "fnv1a64:a556e79f3e89cbbb"
+  ],
+  "augments/2102.md": [
+    "fnv1a64:6ee50d3f883df115"
+  ],
+  "augments/2103.md": [
+    "fnv1a64:8d9a7632644bb53c"
+  ],
+  "augments/2104.md": [
+    "fnv1a64:e2a751a4427c490f"
+  ],
+  "augments/2125.md": [
+    "fnv1a64:8a9b1eaae137b294"
+  ],
+  "augments/2133.md": [
+    "fnv1a64:be09a1ac668b8181"
+  ],
+  "augments/2135.md": [
+    "fnv1a64:a03d83106a59df38"
+  ],
+  "augments/2138.md": [
+    "fnv1a64:4552d04fc1232391"
+  ],
+  "augments/2143.md": [
+    "fnv1a64:f8c4cc7550e8fdeb"
+  ],
+  "augments/2144.md": [
+    "fnv1a64:1c5b1fa076dfe9c4"
+  ],
+  "augments/2157.md": [
+    "fnv1a64:a13afcf4ec4cbc15"
+  ],
+  "champions/aatrox.md": [
+    "fnv1a64:50858eb34c5cfd66"
+  ],
+  "champions/alistar.md": [
+    "fnv1a64:d38a6b758dd7e040"
+  ],
+  "champions/ambessa.md": [
+    "fnv1a64:41e5629d376a5a40"
+  ],
+  "champions/amumu.md": [
+    "fnv1a64:1cfddbc73dcd12ec"
+  ],
+  "champions/belveth.md": [
+    "fnv1a64:78de1cf7560af76e"
+  ],
+  "champions/blitzcrank.md": [
+    "fnv1a64:c1373fa7664cabc7"
+  ],
+  "champions/braum.md": [
+    "fnv1a64:ec99e1b10a34b83f"
+  ],
+  "champions/briar.md": [
+    "fnv1a64:0e6fa4687b5c6866"
+  ],
+  "champions/camille.md": [
+    "fnv1a64:7f66841dea62b960"
+  ],
+  "champions/chogath.md": [
+    "fnv1a64:ccfd1cc2d7e78818"
+  ],
+  "champions/darius.md": [
+    "fnv1a64:99df98bb0895dc89"
+  ],
+  "champions/diana.md": [
+    "fnv1a64:7879fe5698b49882"
+  ],
+  "champions/drmundo.md": [
+    "fnv1a64:9dba8fd9aa083fef"
+  ],
+  "champions/fiora.md": [
+    "fnv1a64:e2fd20c47e0d2df3"
+  ],
+  "champions/fizz.md": [
+    "fnv1a64:3a6fb6532e1a458a"
+  ],
+  "champions/galio.md": [
+    "fnv1a64:eb8fe5bf3b6a1afe"
+  ],
+  "champions/gangplank.md": [
+    "fnv1a64:85a3084739edbb3d"
+  ],
+  "champions/gnar.md": [
+    "fnv1a64:928bbc1a84c660d4"
+  ],
+  "champions/gragas.md": [
+    "fnv1a64:6843e88f3611842c"
+  ],
+  "champions/gwen.md": [
+    "fnv1a64:685eaa2d3f542573"
+  ],
+  "champions/hecarim.md": [
+    "fnv1a64:a144a0858cbd9d2d"
+  ],
+  "champions/illaoi.md": [
+    "fnv1a64:df71f7984db016f3"
+  ],
+  "champions/irelia.md": [
+    "fnv1a64:2387c34c01af66fd"
+  ],
+  "champions/jarvaniv.md": [
+    "fnv1a64:5cfdca93340694ca"
+  ],
+  "champions/jax.md": [
+    "fnv1a64:a6a7a51c1f148d79"
+  ],
+  "champions/jayce.md": [
+    "fnv1a64:b485d89e858132e4"
+  ],
+  "champions/kayn.md": [
+    "fnv1a64:8eb0d07bc7c9b307"
+  ],
+  "champions/kled.md": [
+    "fnv1a64:6f21549fde57be44"
+  ],
+  "champions/ksante.md": [
+    "fnv1a64:de557248e85f03c5"
+  ],
+  "champions/leesin.md": [
+    "fnv1a64:b62bef0ebbd24b7e"
+  ],
+  "champions/leona.md": [
+    "fnv1a64:cb327ec8fa744af3"
+  ],
+  "champions/lillia.md": [
+    "fnv1a64:850b0fa6e41d5585"
+  ],
+  "champions/malphite.md": [
+    "fnv1a64:106f7d2b76f00924"
+  ],
+  "champions/maokai.md": [
+    "fnv1a64:beade80f4e97cdb5"
+  ],
+  "champions/masteryi.md": [
+    "fnv1a64:2c5ec1b25c64b2b1"
+  ],
+  "champions/monkeyking.md": [
+    "fnv1a64:c7a4a94babbd1a41"
+  ],
+  "champions/mordekaiser.md": [
+    "fnv1a64:e49e88435202bdd3"
+  ],
+  "champions/naafiri.md": [
+    "fnv1a64:07e689d8dae10138"
+  ],
+  "champions/nasus.md": [
+    "fnv1a64:eaff90be6d476f2b"
+  ],
+  "champions/nautilus.md": [
+    "fnv1a64:a0c9cb37e4e37ac5"
+  ],
+  "champions/nilah.md": [
+    "fnv1a64:8c167015c48a72ae"
+  ],
+  "champions/nocturne.md": [
+    "fnv1a64:f5399a2a28536306"
+  ],
+  "champions/nunu.md": [
+    "fnv1a64:ba9d37a024a56b71"
+  ],
+  "champions/olaf.md": [
+    "fnv1a64:07fb0e2b32b73899"
+  ],
+  "champions/ornn.md": [
+    "fnv1a64:7ed9e4e9fc0bc0ea"
+  ],
+  "champions/pantheon.md": [
+    "fnv1a64:328445ad9ff83e55"
+  ],
+  "champions/poppy.md": [
+    "fnv1a64:f464f906717a3f26"
+  ],
+  "champions/rammus.md": [
+    "fnv1a64:803ea509083c59ad"
+  ],
+  "champions/reksai.md": [
+    "fnv1a64:e1da6b1e01300159"
+  ],
+  "champions/rell.md": [
+    "fnv1a64:9328ceb1e2413d5f"
+  ],
+  "champions/renekton.md": [
+    "fnv1a64:0ff50703d070fad8"
+  ],
+  "champions/rengar.md": [
+    "fnv1a64:dfa35f5249819fd3"
+  ],
+  "champions/riven.md": [
+    "fnv1a64:f64b9578b11ce4e2"
+  ],
+  "champions/rumble.md": [
+    "fnv1a64:24f95866af5a9b8d"
+  ],
+  "champions/sejuani.md": [
+    "fnv1a64:032ecb45278edadd"
+  ],
+  "champions/sett.md": [
+    "fnv1a64:208a09ee723ec513"
+  ],
+  "champions/shen.md": [
+    "fnv1a64:905dd28b0e42f916"
+  ],
+  "champions/shyvana.md": [
+    "fnv1a64:ba8215cfd64a0435"
+  ],
+  "champions/singed.md": [
+    "fnv1a64:6566125ae2b8c346"
+  ],
+  "champions/sion.md": [
+    "fnv1a64:2f443fac6f1d9c58"
+  ],
+  "champions/skarner.md": [
+    "fnv1a64:491e87c74d1cb7eb"
+  ],
+  "champions/tahmkench.md": [
+    "fnv1a64:13c5f02cbf669cb5"
+  ],
+  "champions/taric.md": [
+    "fnv1a64:fd2e2b135d1e1f80"
+  ],
+  "champions/thresh.md": [
+    "fnv1a64:35e17e4fe40254fe"
+  ],
+  "champions/trundle.md": [
+    "fnv1a64:68adb53839f737b3"
+  ],
+  "champions/tryndamere.md": [
+    "fnv1a64:815fe54e4e4a160c"
+  ],
+  "champions/udyr.md": [
+    "fnv1a64:577cf6bcbe776462"
+  ],
+  "champions/urgot.md": [
+    "fnv1a64:533a59cc0dc865a0"
+  ],
+  "champions/vi.md": [
+    "fnv1a64:2f5bf6f4897397bc"
+  ],
+  "champions/viego.md": [
+    "fnv1a64:34b6b94c903250e5"
+  ],
+  "champions/vladimir.md": [
+    "fnv1a64:e023fde8934de9b7"
+  ],
+  "champions/volibear.md": [
+    "fnv1a64:375a70dac7f036e8"
+  ],
+  "champions/warwick.md": [
+    "fnv1a64:6d97f08c6fd53f17"
+  ],
+  "champions/xinzhao.md": [
+    "fnv1a64:592c76ae84007f6b"
+  ],
+  "champions/yasuo.md": [
+    "fnv1a64:4f565187e8dac07a"
+  ],
+  "champions/yone.md": [
+    "fnv1a64:6a60310577881c98"
+  ],
+  "champions/yorick.md": [
+    "fnv1a64:9460559f7e932148"
+  ],
+  "champions/zaahen.md": [
+    "fnv1a64:115bf26fcdc63017"
+  ],
+  "champions/zac.md": [
+    "fnv1a64:7801594584e0952b"
+  ]
+}

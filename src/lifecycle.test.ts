@@ -7,6 +7,67 @@ describe('automatic lifecycle',()=>{
  it('archives on exact new match id and clears old augments',()=>{const s=applySnapshot(newSession(),snapshot()).session;s.players[0].augments=['old'];const r=applySnapshot(s,snapshot({gameId:'101',liveData:live(20)}));expect(r.completed?.id).toBe(s.id);expect(r.session.id).not.toBe(s.id);expect(r.session.players[0].augments).toEqual([]);});
  it('never infers defeat from a disconnected API',()=>{const s=applySnapshot(newSession(),snapshot()).session;const r=applySnapshot(s,snapshot({connection:'disconnected',phase:'Unknown',gameId:null,liveData:null,lcuSession:null}));expect(r.session.result?.status).toBe('unknown');expect(r.session.endedAt).toBeUndefined();expect(r.session.matchId).toBe('100');});
  it('preserves automatic results through missing data and rejects mismatched results',()=>{let s=applySnapshot(newSession(),snapshot({result:{status:'win',source:'lcu-eog',gameId:'100',observedAt:'now'}})).session;s=applySnapshot(s,snapshot({result:{status:'loss',source:'lcu-eog',gameId:'999',observedAt:'later'}})).session;expect(s.result?.status).toBe('win');});
+ it('retains the first raw end-game payload through later empty or partial same-match polls',()=>{
+  const raw={gameId:100,teams:[{players:[{augments:['one','two','three']}]}]};
+  const first=applySnapshot(newSession(),snapshot({phase:'EndOfGame',liveData:null,endOfGame:raw})).session;
+  for(const endOfGame of [null,{gameId:100},{gameId:100,teams:[]},{gameData:{gameId:100},participants:[]}]){
+   const next=applySnapshot(first,snapshot({phase:'Lobby',liveData:null,endOfGame})).session;
+   expect(next.endOfGame).toBe(raw);
+   expect(first.endOfGame).toBe(raw);
+  }
+ });
+ it('validates the raw payload identity independently of its matching snapshot envelope',()=>{
+  for(const endOfGame of [{},{id:100},{gameId:101},{gameId:101,gameData:{gameId:100}},
+   {gameId:100,gameData:{gameId:101}},{gameId:0,gameData:{gameId:100}},{gameId:100,gameData:{gameId:null}}]){
+   const next=applySnapshot(newSession(),snapshot({phase:'EndOfGame',liveData:null,endOfGame})).session;
+   expect(next.matchId).toBe('100');
+   expect(next.endOfGame).toBeUndefined();
+  }
+  const raw={gameData:{gameId:100},teams:[]};
+  expect(applySnapshot(newSession(),snapshot({phase:'EndOfGame',liveData:null,endOfGame:raw})).session.endOfGame).toBe(raw);
+ });
+ it('never flips an automatic outcome to a conflicting later automatic/manual result in the same match',()=>{
+  const result={status:'win' as const,source:'lcu-eog' as const,gameId:'100',observedAt:'first'};
+  const first=applySnapshot(newSession(),snapshot({phase:'EndOfGame',liveData:null,result})).session;
+  for(const incoming of [
+   {status:'loss',source:'lcu-history',gameId:'100',observedAt:'later'},
+   {status:'loss',source:'live-game-end',gameId:'100',observedAt:'later'},
+   {status:'loss',source:'manual',gameId:'100',observedAt:'later'},
+   {status:'unknown',source:'unknown',gameId:'100',observedAt:'later'},
+  ] as NonNullable<CollectorSnapshot['result']>[]){
+   const next=applySnapshot(first,snapshot({phase:'Lobby',liveData:null,result:incoming})).session;
+   expect(next.result).toBe(result);
+   expect(next.endedAt).toBe(first.endedAt);
+  }
+ });
+ it('upgrades a manual or unknown outcome with explicit same-match official evidence without changing notes',()=>{
+  for(const source of ['manual','unknown'] as const){
+   const base=applySnapshot(newSession(),snapshot()).session;
+   base.result={status:source==='manual'?'loss':'unknown',source,observedAt:'first'};
+   base.notes='keep notes';base.outcome='keep observation';
+   const result={status:'win' as const,source:'lcu-history' as const,gameId:'100',observedAt:'later'};
+   const next=applySnapshot(base,snapshot({phase:'Lobby',liveData:null,result})).session;
+   expect(next.result).toBe(result);expect(next.notes).toBe(base.notes);expect(next.outcome).toBe(base.outcome);
+  }
+ });
+ it('does not let a previous match result or raw evidence block a separately identified new match',()=>{
+  const first=applySnapshot(newSession(),snapshot({endOfGame:{gameId:100,teams:[{}]},result:{status:'win',source:'lcu-eog',gameId:'100',observedAt:'first'}})).session;
+  const raw={gameData:{gameId:101},teams:[]};
+  const next=applySnapshot(first,snapshot({gameId:'101',liveData:live(10),endOfGame:raw,result:{status:'loss',source:'lcu-eog',gameId:'101',observedAt:'later'}}));
+  expect(next.completed?.result?.status).toBe('win');
+  expect(next.session.result?.status).toBe('loss');
+  expect(next.session.endOfGame).toBe(raw);
+  expect(next.session.id).not.toBe(first.id);
+ });
+ it('accepts an ID-less live-only result only while this session is also unidentified',()=>{
+  const result={status:'win' as const,source:'live-game-end' as const,observedAt:'now'};
+  const unidentified=snapshot({gameId:null,lcuSession:null,connection:'live-only',result});
+  expect(applySnapshot(newSession(),unidentified).session.result).toBe(result);
+  const known=applySnapshot(newSession(),snapshot()).session;
+  const next=applySnapshot(known,unidentified).session;
+  expect(next.matchId).toBe('100');expect(next.result?.status).toBe('unknown');expect(next.endedAt).toBeUndefined();
+  expect(applySnapshot(known,snapshot({result:{...result,gameId:'100'}})).session.result?.status).toBe('win');
+ });
  it('does not create a fresh game repeatedly from a live-only GameEnd event',()=>{const snap=snapshot({gameId:null,lcuSession:null,connection:'live-only',result:{status:'win',source:'live-game-end',observedAt:'now'}});const first=applySnapshot(newSession(),snap).session;const next=applySnapshot(first,snap);expect(next.completed).toBeUndefined();expect(next.session.id).toBe(first.id);});
  it('does not carry a completed result into an unidentified later game even when time increases',()=>{const a=applySnapshot(newSession(),snapshot({result:{status:'win',source:'lcu-eog',gameId:'100',observedAt:'now'}})).session;const r=applySnapshot(a,snapshot({gameId:null,lcuSession:null,connection:'live-only',liveData:live(200)}));expect(r.completed?.id).toBe(a.id);expect(r.session.matchId).toBe('');expect(r.session.result?.status).toBe('unknown');});
  it('bounds samples and deduplicates stages',()=>{let s=newSession();for(let i=0;i<245;i++)s=applySnapshot(s,snapshot({observedAt:new Date(i*15000).toISOString(),liveData:live(i*15)})).session;expect(s.samples).toHaveLength(30);expect(s.timeline).toHaveLength(1);});

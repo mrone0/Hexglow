@@ -1,17 +1,20 @@
 import {useEffect, useState} from 'react';
 import {invoke, isTauri} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
-import {AUGMENT_LEVELS} from './level';
-import type {OcrScan,ScoreResult} from './main';
+import {AUGMENT_LEVELS,augmentRoundLabel} from './level';
+import {assessmentLabel, localRankingPresentation, type ScoredCandidate, type ScoreResult} from './liveRecommendation';
 import './overlay.css';
 
-export type OverlayCandidate = {id: string; name: string; description: string; score?: number; reason?: string; risks?: string[]; rarity?: string; category?: string};
+export type OverlayCandidate = ScoredCandidate;
 export type OverlayState = {
   level: number | null;
   status: 'idle' | 'capturing' | 'ocr' | 'matched' | 'error';
   message: string;
   lines: string[];
   candidates: OverlayCandidate[];
+  rankingReliable?: boolean;
+  profile?: ScoreResult['profile'];
+  source?: ScoreResult['source'];
 };
 
 const RARITY_LABEL: Record<string, string> = {silver: '银', gold: '金', prismatic: '棱彩'};
@@ -23,7 +26,44 @@ const initial: OverlayState = {
   message: '等待识别结果',
   lines: [],
   candidates: [],
+  rankingReliable: false,
 };
+
+export type OverlayPayload = {sequence: number; level: number | null; reset?: boolean; ranking: ScoreResult};
+export type OverlayPublication = {sequence: number; state: OverlayState};
+
+export function reduceOverlayPublication(current: OverlayPublication, payload: OverlayPayload | null): OverlayPublication {
+  if (!payload || !Number.isSafeInteger(payload.sequence) || payload.sequence <= current.sequence) return current;
+  return {
+    sequence: payload.sequence,
+    state: payload.reset || payload.level === null
+      ? {...initial}
+      : {level: payload.level, status: 'matched', message: payload.ranking?.summary || '候选已识别', lines: [], candidates: payload.ranking?.ranking ?? [], rankingReliable: payload.ranking?.rankingReliable === true, profile: payload.ranking?.profile, source: payload.ranking?.source},
+  };
+}
+
+export function OverlayCandidates({result}: {result: ScoreResult}) {
+  const presentation = localRankingPresentation(result);
+  return <>{presentation.candidates.map(candidate => (
+    <article className={candidate.rank === 1 ? 'overlay-item top' : 'overlay-item'} key={candidate.id}>
+      <div className="overlay-item-head">
+        {candidate.rank !== null && <span className="overlay-rank">{candidate.tied ? '并列' : ''}第{candidate.rank}</span>}
+        <h3>{candidate.name}</h3>
+        {candidate.displayScore !== null && <b className="overlay-score" aria-label={`模型比较分 ${candidate.displayScore}，非胜率`}>{candidate.displayScore}</b>}
+      </div>
+      {candidate.displayScore !== null && <span className="overlay-meter" aria-hidden="true"><i style={{width: `${candidate.displayScore}%`}} /></span>}
+      <div className="overlay-chips">
+        {candidate.rarity && <span className={`chip rarity-${candidate.rarity}`}>{RARITY_LABEL[candidate.rarity] ?? candidate.rarity}</span>}
+        {candidate.category && <span className="chip">{CATEGORY_LABEL[candidate.category] ?? candidate.category}</span>}
+        <span className="chip">{candidate.alreadyOwned ? '已拥有 · 不作为新选择' : result.source === 'recognition' ? '待模型分析' : assessmentLabel(candidate.assessment)}</span>
+      </div>
+      <p className="overlay-effect">{candidate.description}</p>
+      {candidate.reason && <small className="overlay-reason">{candidate.reason}</small>}
+      {candidate.evidence.length > 0 && <ul className="overlay-evidence" aria-label="已知依据">{candidate.evidence.map((item, index) => <li key={index}>{item}</li>)}</ul>}
+      {!!candidate.risks?.length && <small className="overlay-risks">⚠ {candidate.risks.join('；')}</small>}
+    </article>
+  ))}</>;
+}
 
 export function OverlayApp() {
   const [state, setState] = useState<OverlayState>(initial);
@@ -31,78 +71,35 @@ export function OverlayApp() {
 
   useEffect(() => {
     if (!isTauri()) return;
-    void invoke('overlay_ready', {level: null}).catch(() => undefined);
     let active = true;
-    let stop: (() => void) | undefined;
-    let stopOcr: (() => void) | undefined;
-    void listen<{level: number}>('overlay:level', (event) => {
+    let publication: OverlayPublication = {sequence: -1, state: initial};
+    const stops: (() => void)[] = [];
+    const apply = (payload: OverlayPayload | null) => {
       if (!active) return;
-      const level = event.payload?.level ?? null;
-      setCollapsed(false); // Rust 侧主动弹出，前端跟随展开
-      setState((current) => ({...current, level, lines: [], status: 'capturing', message: '海克斯面板已出现，识别中…'}));
-    })
-      .then((unlisten) => (active ? (stop = unlisten) : unlisten()))
-      .catch(() => {
-        if (active) setState((current) => ({...current, status: 'error', message: '无法接收主窗口事件'}));
-      });
-    let stopCollapsed: (() => void) | undefined;
-    void listen<{collapsed: boolean; reason?: string}>('overlay:collapsed', (event) => {
-      if (!active) return;
-      if (event.payload?.collapsed) setCollapsed(true); // 无人交互自动收起
-    })
-      .then((unlisten) => (active ? (stopCollapsed = unlisten) : unlisten()))
-      .catch(() => undefined);
-    void listen<{level: number; scan?: OcrScan; error?: string}>('overlay:ocr', (event) => {
-      if (!active) return;
-      const {scan, error} = event.payload ?? {};
-      if (error) {
-        setState((current) => ({...current, status: 'error', message: error, lines: []}));
-        return;
-      }
-      const lines = scan?.lines ?? [];
-      const matched = scan?.candidates?.length ?? 0;
-      setState((current) => ({
-        ...current,
-        status: 'ocr',
-        message: matched
-          ? `识别到 ${matched} 个海克斯 · ${scan?.elapsedMs ?? 0}ms`
-          : `等待海克斯面板出现…（已扫描 ${lines.length} 行文本）`,
-        lines: lines.map((line) => line.text),
-      }));
-    })
-      .then((unlisten) => (active ? (stopOcr = unlisten) : unlisten()))
-      .catch(() => undefined);
-    let stopScored: (() => void) | undefined;
-    void listen<{level: number; ranking?: ScoreResult}>('overlay:scored', (event) => {
-      if (!active) return;
-      const ranking = event.payload?.ranking?.ranking ?? [];
-      if (!ranking.length) return;
-      setState((current) => ({
-        ...current,
-        status: 'matched',
-        message: event.payload?.ranking?.summary || '本地规则排序完成',
-        lines: [],
-        candidates: ranking.map((item) => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          score: item.score,
-          reason: item.reason,
-          risks: item.risks,
-          rarity: item.rarity,
-          category: item.category,
-        })),
-      }));
-    })
-      .then((unlisten) => (active ? (stopScored = unlisten) : unlisten()))
-      .catch(() => undefined);
-    return () => {
-      active = false;
-      stop?.();
-      stopOcr?.();
-      stopScored?.();
-      stopCollapsed?.();
+      const next = reduceOverlayPublication(publication, payload);
+      if (next === publication) return;
+      publication = next;
+      setState(next.state);
+      if (payload?.reset) setCollapsed(false);
     };
+    const subscribe = async <T,>(name: string, callback: (payload: T) => void) => {
+      const stop = await listen<T>(name, event => {if (active) callback(event.payload);});
+      if (active) stops.push(stop); else stop();
+    };
+    const register = async () => {
+      await Promise.all([
+        subscribe<OverlayPayload>('overlay:state', apply),
+        subscribe<{level: number}>('overlay:level', payload => {setCollapsed(false);setState(current => ({...current, level: payload.level}));}),
+        subscribe<{collapsed: boolean}>('overlay:collapsed', payload => setCollapsed(payload.collapsed)),
+      ]);
+      if (!active) return;
+      // 先注册监听，再读取缓存；序号阻止较晚返回的旧快照覆盖新事件。
+      apply(await invoke('overlay_ready', {level: null}));
+    };
+    void register().catch(error => {
+      if (active) setState(current => ({...current, status: 'error', message: String(error)}));
+    });
+    return () => {active = false;stops.forEach(stop => stop());};
   }, []);
 
   const close = () => {
@@ -116,6 +113,8 @@ export function OverlayApp() {
   };
 
   const band = state.level === null ? null : AUGMENT_LEVELS.includes(state.level as 1 | 7 | 11 | 15) ? state.level : null;
+  const result: ScoreResult = {ranking: state.candidates, summary: state.message, rankingReliable: state.rankingReliable, profile: state.profile, source: state.source};
+  const presentation = localRankingPresentation(result);
 
   if (collapsed) {
     return (
@@ -123,7 +122,7 @@ export function OverlayApp() {
         <button className="overlay-handle" onClick={toggleCollapse} aria-label="展开侧栏" title="展开海克斯侧栏">
           <span className="overlay-handle-mark">◇</span>
           <span className="overlay-handle-text">HEXGLOW</span>
-          {band !== null && <span className="overlay-handle-level">Lv.{band}</span>}
+          {band !== null && <span className="overlay-handle-level">{augmentRoundLabel(band)}</span>}
         </button>
       </div>
     );
@@ -135,12 +134,12 @@ export function OverlayApp() {
         <header className="overlay-head">
           <div>
             <span className="overlay-brand">HEXGLOW</span>
-            <strong>海克斯推荐</strong>
-            <span className="overlay-mode" title="局内侧栏只用打包的本地静态数据排序，不调用模型">
-              本地规则 · 非 AI
+            <strong>{result.source === 'model' ? '模型推荐' : '海克斯候选'}</strong>
+            <span className="overlay-mode" title="识别不评分；仅展示用户主动请求的模型比较，不自动调用模型">
+              {presentation.label}
             </span>
           </div>
-          <span className="overlay-level">{band ? `Lv.${band}` : '待识别'}</span>
+          <span className="overlay-level">{band ? augmentRoundLabel(band) : '待识别'}</span>
           <div className="overlay-actions">
             <button className="overlay-close" onClick={toggleCollapse} aria-label="折叠侧栏" title="折叠为竖条">
               –
@@ -152,31 +151,11 @@ export function OverlayApp() {
         </header>
         <p className="overlay-status" data-status={state.status}>
           <i />
-          {state.message}
+          {state.candidates.length ? presentation.summary : state.message}
         </p>
-        <div className="overlay-list">
+        <div className="overlay-list" tabIndex={0} aria-label="本轮海克斯候选，可滚动查看完整内容">
           {state.candidates.length ? (
-            state.candidates.map((candidate, index) => (
-              <article className={index === 0 ? 'overlay-item top' : 'overlay-item'} key={candidate.id}>
-                <div className="overlay-item-head">
-                  <span className="overlay-rank">{String(index + 1).padStart(2, '0')}</span>
-                  <h3>{candidate.name}</h3>
-                  {typeof candidate.score === 'number' && <b className="overlay-score">{candidate.score}</b>}
-                </div>
-                {typeof candidate.score === 'number' && (
-                  <span className="overlay-meter">
-                    <i style={{width: `${Math.max(6, Math.min(100, candidate.score))}%`}} />
-                  </span>
-                )}
-                <div className="overlay-chips">
-                  {candidate.rarity && <span className={`chip rarity-${candidate.rarity}`}>{RARITY_LABEL[candidate.rarity] ?? candidate.rarity}</span>}
-                  {candidate.category && <span className="chip">{CATEGORY_LABEL[candidate.category] ?? candidate.category}</span>}
-                </div>
-                <p className="overlay-effect">{candidate.description}</p>
-                {candidate.reason && <small className="overlay-reason">{candidate.reason}</small>}
-                {!!candidate.risks?.length && <small className="overlay-risks">⚠ {candidate.risks.join('；')}</small>}
-              </article>
-            ))
+            <OverlayCandidates result={result} />
           ) : state.lines.length ? (
             <div className="overlay-empty">
               <span>◇</span>
@@ -186,17 +165,17 @@ export function OverlayApp() {
                   <small key={`${index}-${line}`}>{line}</small>
                 ))}
               </div>
-              <small>下一步将按本地规则匹配候选。</small>
+              <small>匹配候选后，可在主窗口主动发起模型分析。</small>
             </div>
           ) : (
             <div className="overlay-empty">
               <span>◇</span>
-              <p>截屏识别后，候选海克斯会按本地规则排序显示在这里。</p>
+              <p>截屏识别后显示候选与效果；模型分析由你主动发起。</p>
               <small>不展示胜率 · 结果仅本机可见</small>
             </div>
           )}
         </div>
-        <footer className="overlay-foot">对局中自动识别 · 本地规则排序（非 AI）· 识别到 2 个候选以上才打开</footer>
+        <footer className="overlay-foot">{result.source === 'model' ? presentation.reliable ? '模型比较分，不代表胜率' : '模型依据不足，暂不排名或给分' : '仅识别，不评分或自动调用模型'} · 滚动查看完整内容</footer>
       </section>
     </div>
   );

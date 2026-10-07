@@ -1,5 +1,11 @@
 export const AUGMENT_LEVELS = [1, 7, 11, 15] as const;
 
+/** The first band starts at 1 internally; it is not the player's selection level. */
+export function augmentRoundLabel(band:number):string {
+  const index=AUGMENT_LEVELS.findIndex(value=>value===band);
+  return index<0?'未知轮次':`第${index+1}轮`;
+}
+
 /** 海克斯选择出现的等级（官方确认：开局、7、11、15）。 */
 export function augmentBand(level: number): number {
   return level >= 15 ? 15 : level >= 11 ? 11 : level >= 7 ? 7 : 1;

@@ -1,0 +1,15 @@
+PP-OCRv6 Small OCR models and character dictionary
+Copyright (c) 2016 PaddlePaddle Authors. All Rights Reserved.
+https://github.com/PaddlePaddle/PaddleOCR
+
+ONNX files and dictionary distributed by OAR OCR v0.7.0:
+https://github.com/GreatV/oar-ocr/releases/tag/v0.7.0
+OAR OCR: Copyright 2025 Wang Xin (GreatV)
+https://github.com/GreatV/oar-ocr
+
+These components are provided under the Apache License, Version 2.0.
+The complete license is included in LICENSE-APACHE-2.0.txt.
+Hexglow distributes the model files and dictionary without modification.
+The pinned sizes, SHA-256 hashes and upstream URLs are in manifest.json.
+Model downloads occur only during development/build preparation; the installed
+application loads its bundled models locally without downloading them.

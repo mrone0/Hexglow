@@ -6,7 +6,17 @@
     "icon": ["icons/icon.ico"],
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
-      "nsis": { "installMode": "currentUser", "languages": ["SimpChinese", "English"], "displayLanguageSelector": true, "startMenuFolder": "Hexglow", "compression": "lzma" }
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["SimpChinese", "English"],
+        "customLanguageFiles": {
+          "SimpChinese": "windows/nsis/SimpChinese.nsh",
+          "English": "windows/nsis/English.nsh"
+        },
+        "displayLanguageSelector": true,
+        "startMenuFolder": "Hexglow",
+        "compression": "lzma"
+      }
     }
   }
 }

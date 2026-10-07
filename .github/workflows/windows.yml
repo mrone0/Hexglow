@@ -53,13 +53,26 @@ jobs:
       - name: Run frontend tests
         run: pnpm test
 
+      - name: Prepare pinned offline OCR resources
+        run: pnpm prepare:ocr
+
+      - name: Verify release configuration and tag
+        shell: pwsh
+        run: |
+          $tag = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}' } else { '' }
+          & scripts/verify-release.ps1 -Tag $tag
+
       - name: Build frontend
         run: pnpm build
 
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
       - name: Build signed NSIS installer
+        if: github.event_name != 'pull_request'
         # bundle.createUpdaterArtifacts=true makes the build fail without a
         # signing key, so repository secrets must exist before the first run:
         #   TAURI_SIGNING_PRIVATE_KEY          (path or contents of the key)
@@ -67,14 +80,16 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build --bundles nsis
+        run: pnpm tauri build --bundles nsis -- --locked
 
       - name: Generate updater latest.json
+        if: github.event_name != 'pull_request'
         # Verifies the .sig exists and writes latest.json (UTF-8, no BOM) next
         # to the installer; version comes from package.json.
         run: powershell -ExecutionPolicy Bypass -File scripts\make-latest-json.ps1
 
       - name: Upload signed NSIS installer and updater signature
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: hexglow-windows-installer
@@ -83,6 +98,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.sig
             src-tauri/target/release/bundle/nsis/latest.json
+            src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
           retention-days: 14
 
   release:
@@ -118,12 +134,13 @@ jobs:
           $exe = @((Get-ChildItem -Recurse -Filter '*.exe' bundle).FullName)
           $sig = @((Get-ChildItem -Recurse -Filter '*.sig' bundle).FullName)
           $json = @((Get-ChildItem -Recurse -Filter 'latest.json' bundle).FullName)
-          if (-not $exe -or -not $sig -or -not $json) {
-            throw 'expected installer, .sig and latest.json in the artifact'
+          $hashes = @((Get-ChildItem -Recurse -Filter 'SHA256SUMS.txt' bundle).FullName)
+          if ($exe.Count -ne 1 -or $sig.Count -ne 1 -or $json.Count -ne 1 -or $hashes.Count -ne 1) {
+            throw 'expected exactly one installer, .sig, latest.json and SHA256SUMS.txt in the artifact'
           }
-          $assets = $exe + $sig + $json
+          $assets = $exe + $sig + $json + $hashes
           if (gh release view $tag --repo '${{ github.repository }}' 2>$null) {
-            gh release upload $tag @assets --repo '${{ github.repository }}' --clobber
-          } else {
-            gh release create $tag @assets --repo '${{ github.repository }}' --title $tag --generate-notes
+            throw "Release $tag already exists; published assets are immutable."
           }
+          gh release create $tag @assets --repo '${{ github.repository }}' --title "Hexglow $tag" --notes-file "docs/RELEASE_$($tag.TrimStart('v')).md" --verify-tag
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub release creation failed.' }

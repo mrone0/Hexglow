@@ -49,8 +49,12 @@ h3 { font-size:15.5px; }
 .nav-item.active { color: #6043a7; border-color: #ded3f3; background: linear-gradient(110deg, #e9e0fa, #f5f0ff); box-shadow: 0 3px 8px #7050a90a; }
 .rail-bottom { margin-top: auto; padding-top: 28px; text-align: center; font-size:12px; letter-spacing: 1.4px; color: #397b74; line-height: 2; }
 .rail-bottom small { font-size:11px; letter-spacing: 1px; color: #74828e; }
+.rail-bottom { width: 100%; }
+.rail-exit { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 40px; margin-top: 14px; padding: 8px 10px; font-size: 13px; letter-spacing: 0; line-height: 1.4; color: #667088; background: #ffffff80; }
+.rail-exit svg { flex-shrink: 0; }
 .rail-bottom i, .header-status i, .toolbar i, .engine i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #168f81; margin-right: 7px; flex-shrink: 0; }
 .workspace { margin-left: 178px; width: calc(100% - 178px); min-width: 0; padding: 0 32px; }
+.archive-page-back { margin-top: 16px; }
 header { min-height: 77px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #dfe3eb; }
 header strong { display: block; font-size: 17px; font-weight: 700; letter-spacing: 1px; }
 header strong span { color: #77738c; font-size:13px; font-weight: 550; letter-spacing: 2px; margin-left: 8px; }

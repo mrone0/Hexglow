@@ -1,6 +1,6 @@
 [package]
 name = "lol-augment-assistant"
-version = "0.0.5"
+version = "0.0.1"
 edition = "2021"
 license = "AGPL-3.0-only"
 build = "build.rs"
@@ -17,7 +17,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api"] }
+tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
@@ -29,14 +29,18 @@ r2d2 = "0.8"
 r2d2_sqlite = "0.25"
 rusqlite = { version = "0.32", features = ["bundled"] }
 url = "2"
-oar-ocr = { version = "0.9", features = ["auto-download"] }
+oar-ocr = "0.9"
 image = "0.25"
 tauri-plugin-updater = "2"
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_UI_HiDpi",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

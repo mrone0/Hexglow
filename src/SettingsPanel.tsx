@@ -1,12 +1,13 @@
 import {isTauri} from '@tauri-apps/api/core';
 import {Select} from './Select';
+import {modelServiceLabel} from './modelConsent';
 
 type ModelConfig={provider?:'jev'|'openai';baseUrl:string;name:string;jsonMode?:boolean;maxTokens?:number;allowThirdParty?:boolean};
 export const DEFAULT_JEV_URL='https://api.typesafe.ai/v1';
 export const DEFAULT_JEV_MODEL='jev-1.13.0';
 const DEFAULT_LOCAL_URL='http://127.0.0.1:11434/v1';
 const isOfficialJev=(url:string)=>{try{const u=new URL(url.trim());return u.hostname==='api.typesafe.ai'&&u.protocol==='https:';}catch{return false;}};
-type StorageStats={databaseBytes:number;sessionCount:number;sampleCount:number;budgetMb:number;retentionDays:number;budgetReached?:boolean};
+type StorageStats={databaseBytes:number;sessionCount:number;sampleCount:number;budgetMb:number;retentionDays:number;budgetReached?:boolean;unreadableSessions?:number};
 type Confirmation={title:string;detail:string;action:()=>Promise<void>};
 
 type Props={
@@ -63,13 +64,13 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
      <label>API Key <span className="field-note">本地服务通常留空 · 云服务按要求填写 · 仅保存在本次内存</span><input type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)}/></label>
       <label>输出 Token 上限<input type="number" min={256} max={4096} value={model.maxTokens||2200} onChange={e=>setModel({...model,maxTokens:Number(e.target.value)})}/></label>
       <label>每日分析上限 <span className="field-note">防重复扣费</span><input type="number" min={1} max={500} value={dailyLimit} onChange={e=>setDailyLimit(Math.max(1,Math.min(500,Number(e.target.value)||1)))}/></label>
-      <p className="hint">今日已分析 {dailyUsed} 次；连点与 8 秒内的重复分析会被拦截，达到上限后次日自动重置。应用只统计次数、耗时与上下文大小，不估算金额。</p>
+      <p className="hint">今日已发起 {dailyUsed} 次分析请求；失败或保存超时也计入。连点与 8 秒内的重复分析会被拦截，达到上限后次日自动重置。应用只统计次数、耗时与上下文大小，不估算金额。</p>
      <label className="settings-check"><input type="checkbox" checked={model.jsonMode!==false} onChange={e=>setModel({...model,jsonMode:e.target.checked})}/><span><strong>发送 JSON 模式参数</strong><small>服务不兼容时可关闭，响应仍会进行 JSON 校验。</small></span></label>
      <button className="accent settings-primary-action" disabled={!desktop} onClick={onTestModel}>测试连接并获取模型</button>
      <div className={modelStatus?'connection-status':'connection-status idle'}><i/>{modelStatus||'尚未测试连接'}</div>
     </div>
    </div>
-   <label className="settings-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span><strong>发送前确认</strong><small>允许将英雄、海克斯、文档片段和历史摘要发送给所配置服务商。原始账号标识不发送，但手填文字可能包含个人信息。</small></span></label>
+   <label className="settings-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span><strong>允许 {modelServiceLabel(model)} 分析本局数据</strong><small>点击分析时发送英雄、海克斯、文档片段和历史摘要。授权会记住；更换服务地址后需要重新勾选。原始账号标识不发送，但手填文字可能包含个人信息。</small></span></label>
    <details className="settings-details"><summary>协议、费用与隐私说明</summary><p>Jev 使用官方 System One 协议，默认地址为官方 api.typesafe.ai，改填第三方地址需先勾选「允许使用第三方地址」；普通模型使用统一判断问题的 JSON 适配。支持第三方 HTTPS 和本机 HTTP，不会自动切换服务商。模型费用由用户账号承担；API Key 在彻底退出应用后清空。</p></details>
   </section>
 
@@ -86,9 +87,10 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
     <section className="settings-subsection">
      <div className="settings-subsection-head"><span>存储</span><h3>对局记忆与空间</h3></div>
      <div className="storage-meter"><div><strong>{((storage?.databaseBytes||0)/1024/1024).toFixed(1)} MB</strong><small>{budget} MB 预算</small></div><progress max={budget} value={(storage?.databaseBytes||0)/1024/1024}/><p>{storage?.sessionCount||0} 场对局 · {storage?.sampleCount||0} 份采样</p></div>
+     {!!storage?.unreadableSessions&&<p className="notice">有 {storage.unreadableSessions} 条记录格式异常，已隔离显示；原文保留，可通过“导出全部历史”备份检查。</p>}
      <div className="settings-inline-fields"><label>SQLite 预算（MB）<input type="number" min={32} max={2048} value={budget} onChange={e=>setBudget(Number(e.target.value))}/></label><label>采样保留（天）<input type="number" min={1} max={365} value={days} onChange={e=>setDays(Number(e.target.value))}/></label></div>
      <button disabled={busy||!desktop} onClick={()=>onConfirm({title:'应用预算并清理原始采样？',detail:'清理过期或超预算的原始快照并回收数据库空间；不自动删除核心决策与复盘。原始快照删除后不可恢复。',action:onMaintenance})}>应用预算并清理空间</button>
-     <details className="settings-details compact"><summary>查看保留与检索策略</summary><p>启动及每 30 分钟维护。内存只保留近期 30 份采样与 50 条历史摘要；推荐优先检索同英雄的最多 5 份复盘。超预算且无法清理时会拒绝新增保存，不会默默删除核心记录。</p></details>
+     <details className="settings-details compact"><summary>查看保留与检索策略</summary><p>空闲时每 30 分钟维护，也可手动清理。内存只保留近期 30 份采样与 50 条历史摘要；推荐优先检索同英雄的最多 5 份复盘。超预算且无法清理时会拒绝新增保存，不会默默删除核心记录。</p></details>
     </section>
    </div>
   </section>
@@ -96,6 +98,7 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
   <section className="panel settings-trust-card">
    <div><div className="eyebrow">TRUST & POLICY</div><h2><b>03</b> 边界与后台运行</h2></div>
    <div className="settings-trust-grid"><p><strong>本地优先</strong>LCU 不保证稳定；运行在本地不等于自动符合平台政策。发布前仍需核对官方规则与产品注册要求。</p><p><strong>退出语义</strong>隐藏到系统托盘期间仍会自动跟踪；从托盘选择“退出 Hexglow”后才停止采集。不安装开机自启或系统服务。</p></div>
+   <p className="hint">Hexglow 是独立项目，未经 Riot Games 背书，不代表 Riot Games 或其工作人员的观点。Riot Games 及相关游戏、商标与资产归各自权利人所有。</p>
   </section>
  </div>;
 }

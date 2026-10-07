@@ -1,11 +1,19 @@
 import {describe, expect, it} from 'vitest';
-import {augmentBand, nextTriggers, ownLevel, type TriggerState} from './level';
+import {augmentBand, augmentRoundLabel, nextTriggers, ownLevel, type TriggerState} from './level';
 
 const empty: TriggerState = {matchId: '', fired: []};
 
 describe('augmentBand', () => {
   it('maps levels to the official augment levels', () => {
     expect([1, 6, 7, 10, 11, 14, 15, 18].map(augmentBand)).toEqual([1, 1, 7, 7, 11, 11, 15, 15]);
+  });
+});
+
+describe('augmentRoundLabel',()=>{
+  it('labels selection rounds instead of displaying an internal band as the player level',()=>{
+    expect([1,7,11,15].map(augmentRoundLabel)).toEqual(['第1轮','第2轮','第3轮','第4轮']);
+    expect(augmentRoundLabel(augmentBand(3))).toBe('第1轮');
+    expect(augmentRoundLabel(3)).toBe('未知轮次');
   });
 });
 
