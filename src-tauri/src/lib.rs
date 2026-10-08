@@ -1,6 +1,7 @@
 pub mod app_icon;
 pub mod capture;
 pub mod collector;
+pub mod credentials;
 pub mod decision;
 pub mod desktop;
 pub mod knowledge;

@@ -32,13 +32,14 @@ const deferred = () => {
 };
 async function flush() { for (let n = 0; n < 30; n++) await Promise.resolve(); }
 
-function harness({archive = false} = {}) {
+function harness({archive = false, keyGate = null} = {}) {
   const writes = [], history = [], acks = [], exits = [], errors = [], heldReplies = new Map();
   let nativePending = null;
   const context = vm.createContext({
     exports: {}, setTimeout, clearTimeout, structuredClone, Date, Promise,
     exitPending: {current: null}, lastExitRequest: {current: 0}, busyRef: {current: false}, knowledgeLeaveGuard: {current: null},
     collectionPaused: {current: false}, epoch: {current: 0}, debounce: {current: null},
+    modelKeys: {current: {flush: () => keyGate ? keyGate.promise : Promise.resolve()}},
     current: {current: {id: 'synthetic-session', notes: 'test snapshot'}},
     writeQueue: {current: Promise.resolve()}, lastSaved: {current: 0}, config: {current: {view: archive ? 'archive' : 'live'}},
     hasContent: () => true, setSaved: () => {}, setBusy: () => {}, setError: error => errors.push(error),
@@ -85,6 +86,20 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
 
 describe('application save-before-exit handlers', () => {
+  it('waits for pending credential storage before acknowledging exit', async () => {
+    const keyGate = deferred(), h = harness({keyGate});
+    h.begin(1); await flush(); h.writes[0].resolve(); await flush();
+    expect(h.exits).toEqual([]);expect(h.acks).toEqual([]);
+    keyGate.resolve();await flush();expect(h.exits).toEqual([1]);
+  });
+
+  it('keeps the application open when the pending key could not be saved', async () => {
+    const keyGate = deferred(), h = harness({keyGate});
+    h.begin(1); await flush(); h.writes[0].resolve(); await flush();
+    keyGate.reject(new Error('密钥尚未保存成功'));await flush();
+    expect(h.exits).toEqual([]);expect(h.acks[0].error).toContain('密钥尚未保存成功');
+    expect(h.state().busy).toBe(false);
+  });
   it('keeps the app open when the knowledge editor refuses to discard an edit or is still saving', async () => {
     const h = harness();
     h.context.knowledgeLeaveGuard.current = () => false;

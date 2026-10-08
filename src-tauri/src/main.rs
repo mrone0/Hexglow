@@ -29,6 +29,8 @@ fn main() {
             lol_augment_assistant_lib::backend::test_model,
             lol_augment_assistant_lib::decision::analyze_structured,
             lol_augment_assistant_lib::decision::test_provider,
+            lol_augment_assistant_lib::credentials::model_key_load,
+            lol_augment_assistant_lib::credentials::model_key_save,
             lol_augment_assistant_lib::knowledge::knowledge_list,
             lol_augment_assistant_lib::knowledge::knowledge_read,
             lol_augment_assistant_lib::knowledge::knowledge_validate,

@@ -21,6 +21,16 @@ afterEach(cleanup);
 beforeEach(()=>{vi.clearAllMocks();vi.mocked(isTauri).mockReturnValue(true);});
 
 describe('explicit automatic model recommendation consent',()=>{
+ it('shows key persistence state and can retry or clear only the current key',()=>{
+  const setApiKey=vi.fn();
+  const screen=render(<SettingsPanel {...props} apiKey="synthetic-only-key" keyStatus="密钥已保存" setApiKey={setApiKey}/>);
+  expect(screen.getByRole('status',{name:'密钥保存状态'}).textContent).toContain('密钥已保存');
+  expect(screen.container.textContent).not.toContain('synthetic-only-key');
+  fireEvent.click(screen.getByRole('button',{name:'保存密钥'}));
+  expect(setApiKey).toHaveBeenLastCalledWith('synthetic-only-key');
+  fireEvent.change(screen.getByDisplayValue('synthetic-only-key'),{target:{value:''}});
+  expect(setApiKey).toHaveBeenLastCalledWith('');
+ });
  it('defaults off independently of data consent and explains fees and limits',()=>{
   const onChange=vi.fn();
   const screen=render(<SettingsPanel {...props} setAutoRecommend={onChange}/>);

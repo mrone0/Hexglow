@@ -59,7 +59,7 @@ function harness({session=playing(),saveGate=null,retrievalGate=null,publication
     current:{current:session},session,snapshotRef:{current:{connection:'connected',phase:'InProgress',gameId:session.matchId,liveData:session.liveData}},
     config:{current:{historical:false,view:'live',auto:true}},historical:false,epoch:{current:0},busyRef:{current:false},collectionPaused:{current:false},
     analysisTarget:{current:null},activeSession:{current:null},knowledgeRevision:{current:0},lastRun:{current:0},COOLDOWN_MS:8000,dailyLimit,
-    consent,autoRecommend,model,apiKey:'not-a-real-key',analysisSettings,
+    consent,autoRecommend,model,apiKey:'not-a-real-key',analysisSettings,modelKeys:{current:null},
     autoRecommendationGate:{current:new AutoRecommendationGate()},lastAutoScan:{current:null},runRef:{current:null},maybeAutoRecommendRef:{current:null},
     scanning:{current:false},seenMatch:{current:session.id},seenIds:{current:''},candidateRevision:{current:0},panelMisses:{current:0},
     debounce:{current:null},writeQueue:{current:Promise.resolve()},lastSaved:{current:0},
@@ -98,6 +98,18 @@ beforeEach(()=>{vi.useFakeTimers();vi.setSystemTime(new Date('2026-10-07T12:00:0
 afterEach(()=>{vi.clearAllTimers();vi.useRealTimers();});
 
 describe('actual application model recommendation flow',()=>{
+  it('waits for credential restoration before sending manual analysis',async()=>{
+    const h=harness();h.context.modelKeys.current={isLoading:()=>true};
+    await h.context.run('recommend');expect(h.analyses).toHaveLength(0);
+    expect(h.context.bumpUsage).not.toHaveBeenCalled();expect(h.errors.at(-1)).toContain('正在恢复');
+  });
+
+  it('does not send automatic analysis while saved credentials are loading',async()=>{
+    const h=harness({autoRecommend:true});h.context.modelKeys.current={isLoading:()=>true};
+    await h.scan();h.advance(1200);await h.scan();
+    expect(h.analyses).toHaveLength(0);expect(h.context.bumpUsage).not.toHaveBeenCalled();
+    expect(h.context.setAutoRecommendStatus).toHaveBeenLastCalledWith(expect.stringContaining('正在恢复'));
+  });
   it('OCR and restored candidates never invoke local scoring or a paid model',async()=>{
     for(const route of ['ocr','restored']){
       const h=harness();

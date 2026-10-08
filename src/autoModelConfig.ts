@@ -14,6 +14,6 @@ export function automaticModelIssue(model:AutomaticModel,apiKey:string):string {
   const local=/^127\.0\.0\.\d+$/.test(url.hostname)||url.hostname==='[::1]';
   if(url.protocol!=='https:'&&!(url.protocol==='http:'&&local))return '自动推荐仅支持 HTTPS 或本机 HTTP 回环地址。';
   if(model.provider==='jev'&&!(url.protocol==='https:'&&url.hostname==='api.typesafe.ai')&&!model.allowThirdParty)return '请先明确允许此第三方 Jev 地址。';
-  if(!local&&!apiKey.trim())return '请先填写当前服务的 API Key；Key 不会跨启动保存。';
+  if(!local&&!apiKey.trim())return '请先填写并保存当前服务的 API Key。';
   return '';
 }

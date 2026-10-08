@@ -15,6 +15,7 @@ type Props={
  setModel:(model:ModelConfig)=>void;
  apiKey:string;
  setApiKey:(value:string)=>void;
+ keyStatus?:string;
  consent:boolean;
  setConsent:(value:boolean)=>void;
  autoRecommend?:boolean;
@@ -46,7 +47,7 @@ const presets=[
  ['自定义本地','http://127.0.0.1:8080/v1']
 ] as const;
 
-export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsent,autoRecommend=false,setAutoRecommend,autoRecommendStatus,models,clearModels,modelStatus,onTestModel,lockfile,setLockfile,busy,onResumeLive,storage,budget,setBudget,days,setDays,dailyLimit,setDailyLimit,dailyUsed,onConfirm,onMaintenance}:Props){
+export function SettingsPanel({model,setModel,apiKey,setApiKey,keyStatus,consent,setConsent,autoRecommend=false,setAutoRecommend,autoRecommendStatus,models,clearModels,modelStatus,onTestModel,lockfile,setLockfile,busy,onResumeLive,storage,budget,setBudget,days,setDays,dailyLimit,setDailyLimit,dailyUsed,onConfirm,onMaintenance}:Props){
  const desktop=isTauri();
  const canEnableAutoRecommend=desktop&&consent&&!!model.name.trim()&&!!setAutoRecommend;
  return <div className="settings-page">
@@ -65,7 +66,9 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
     </div>
     <div className="settings-group">
      <h3>请求选项</h3>
-     <label>API Key <span className="field-note">本地服务通常留空 · 云服务按要求填写 · 仅保存在本次内存</span><input type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)}/></label>
+     <label>API Key <span className="field-note">本地服务通常留空 · 按服务自动保存，重启与升级后恢复</span><input type="password" autoComplete="off" disabled={busy} value={apiKey} onChange={e=>setApiKey(e.target.value)}/></label>
+     <p className="hint" role="status" aria-label="密钥保存状态">{keyStatus||'Windows 桌面端将密钥保存在当前用户的凭据管理器中。'} 清空输入框会删除此服务保存的密钥。</p>
+     <button disabled={!desktop||busy} onClick={()=>setApiKey(apiKey)}>保存密钥</button>
       <label>输出 Token 上限<input type="number" min={256} max={4096} value={model.maxTokens||2200} onChange={e=>setModel({...model,maxTokens:Number(e.target.value)})}/></label>
       <label>每日分析上限 <span className="field-note">防重复扣费</span><input type="number" min={1} max={500} value={dailyLimit} onChange={e=>setDailyLimit(Math.max(1,Math.min(500,Number(e.target.value)||1)))}/></label>
       <p className="hint">今日已发起 {dailyUsed} 次分析请求；失败或保存超时也计入。连点与 8 秒内的重复分析会被拦截，达到上限后次日自动重置。应用只统计次数、耗时与上下文大小，不估算金额。</p>
@@ -78,7 +81,7 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
    <label className="settings-consent"><input type="checkbox" aria-label="自动模型推荐（可能产生费用）" checked={autoRecommend} disabled={!setAutoRecommend||(!autoRecommend&&!canEnableAutoRecommend)} onChange={e=>{if(!e.target.checked||canEnableAutoRecommend)setAutoRecommend?.(e.target.checked);}}/><span><strong>自动模型推荐（可能产生费用）</strong><small>默认关闭，需单独开启。仅授权当前服务和模型；切换服务或模型后需重新开启。新一组完整三张候选连续两次识别稳定后自动分析，并将当前有效结果显示在侧栏。识别本身不调用模型、不产生模型费用。</small></span></label>
    <p className="hint" role="status" aria-label="自动推荐状态">{autoRecommend?'自动推荐已开启':'自动推荐已关闭（默认手动）'}{autoRecommendStatus?` · ${autoRecommendStatus}`:!autoRecommend&&!canEnableAutoRecommend?' · 请先在桌面端填写模型并勾选数据授权。':''}</p>
    <p className="settings-footnote">同一组候选在本次运行中不会自动重复请求，失败也不会自动重试；本次应用运行中每轮最多 3 次自动请求，与手动分析共用每日总上限。局势、装备或知识变化不会额外触发自动请求。关闭立即停止新的自动调用；已发出的请求可能仍产生费用。</p>
-   <details className="settings-details"><summary>协议、费用与隐私说明</summary><p>Jev 使用官方 System One 协议，默认地址为官方 api.typesafe.ai，改填第三方地址需先勾选「允许使用第三方地址」；普通模型使用统一判断问题的 JSON 适配。支持第三方 HTTPS 和本机 HTTP，不会自动切换服务商。模型费用由用户账号承担；API Key 在彻底退出应用后清空。</p></details>
+   <details className="settings-details"><summary>协议、费用与隐私说明</summary><p>Jev 使用官方 System One 协议，默认地址为官方 api.typesafe.ai，改填第三方地址需先勾选「允许使用第三方地址」；普通模型使用统一判断问题的 JSON 适配。支持第三方 HTTPS 和本机 HTTP，不会自动切换服务商。模型费用由用户账号承担；API Key 按协议及服务地址保存在当前 Windows 用户的凭据管理器中，不写入普通设置、对局档案、导出文件或日志。换服务会读取该服务独立保存的密钥；清空输入框可删除。</p></details>
   </section>
 
   <section className="panel settings-card settings-runtime-card">
