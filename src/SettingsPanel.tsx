@@ -17,6 +17,9 @@ type Props={
  setApiKey:(value:string)=>void;
  consent:boolean;
  setConsent:(value:boolean)=>void;
+ autoRecommend?:boolean;
+ setAutoRecommend?:(enabled:boolean)=>void;
+ autoRecommendStatus?:string;
  models:string[];
  clearModels:()=>void;
  modelStatus:string;
@@ -43,8 +46,9 @@ const presets=[
  ['自定义本地','http://127.0.0.1:8080/v1']
 ] as const;
 
-export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsent,models,clearModels,modelStatus,onTestModel,lockfile,setLockfile,busy,onResumeLive,storage,budget,setBudget,days,setDays,dailyLimit,setDailyLimit,dailyUsed,onConfirm,onMaintenance}:Props){
+export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsent,autoRecommend=false,setAutoRecommend,autoRecommendStatus,models,clearModels,modelStatus,onTestModel,lockfile,setLockfile,busy,onResumeLive,storage,budget,setBudget,days,setDays,dailyLimit,setDailyLimit,dailyUsed,onConfirm,onMaintenance}:Props){
  const desktop=isTauri();
+ const canEnableAutoRecommend=desktop&&consent&&!!model.name.trim()&&!!setAutoRecommend;
  return <div className="settings-page">
   <section className="panel settings-card settings-model-card">
    <div className="settings-card-head"><div><div className="eyebrow">MODEL ADAPTER</div><h2><b>01</b> 模型连接</h2><p>先选协议和服务地址，再验证模型是否可用。</p></div><span className={model.name.trim()?'settings-state ready':'settings-state'}>{model.name.trim()?'已填写模型':'等待配置'}</span></div>
@@ -70,7 +74,10 @@ export function SettingsPanel({model,setModel,apiKey,setApiKey,consent,setConsen
      <div className={modelStatus?'connection-status':'connection-status idle'}><i/>{modelStatus||'尚未测试连接'}</div>
     </div>
    </div>
-   <label className="settings-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span><strong>允许 {modelServiceLabel(model)} 分析本局数据</strong><small>点击分析时发送英雄、海克斯、文档片段和历史摘要。授权会记住；更换服务地址后需要重新勾选。原始账号标识不发送，但手填文字可能包含个人信息。</small></span></label>
+   <label className="settings-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span><strong>允许 {modelServiceLabel(model)} 分析本局数据</strong><small>手动分析或已开启的自动推荐会发送英雄、海克斯、文档片段和历史摘要。数据授权会记住；更换服务地址后需要重新勾选。原始账号标识不发送，但手填文字可能包含个人信息。</small></span></label>
+   <label className="settings-consent"><input type="checkbox" aria-label="自动模型推荐（可能产生费用）" checked={autoRecommend} disabled={!setAutoRecommend||(!autoRecommend&&!canEnableAutoRecommend)} onChange={e=>{if(!e.target.checked||canEnableAutoRecommend)setAutoRecommend?.(e.target.checked);}}/><span><strong>自动模型推荐（可能产生费用）</strong><small>默认关闭，需单独开启。仅授权当前服务和模型；切换服务或模型后需重新开启。新一组完整三张候选连续两次识别稳定后自动分析，并将当前有效结果显示在侧栏。识别本身不调用模型、不产生模型费用。</small></span></label>
+   <p className="hint" role="status" aria-label="自动推荐状态">{autoRecommend?'自动推荐已开启':'自动推荐已关闭（默认手动）'}{autoRecommendStatus?` · ${autoRecommendStatus}`:!autoRecommend&&!canEnableAutoRecommend?' · 请先在桌面端填写模型并勾选数据授权。':''}</p>
+   <p className="settings-footnote">同一组候选在本次运行中不会自动重复请求，失败也不会自动重试；本次应用运行中每轮最多 3 次自动请求，与手动分析共用每日总上限。局势、装备或知识变化不会额外触发自动请求。关闭立即停止新的自动调用；已发出的请求可能仍产生费用。</p>
    <details className="settings-details"><summary>协议、费用与隐私说明</summary><p>Jev 使用官方 System One 协议，默认地址为官方 api.typesafe.ai，改填第三方地址需先勾选「允许使用第三方地址」；普通模型使用统一判断问题的 JSON 适配。支持第三方 HTTPS 和本机 HTTP，不会自动切换服务商。模型费用由用户账号承担；API Key 在彻底退出应用后清空。</p></details>
   </section>
 

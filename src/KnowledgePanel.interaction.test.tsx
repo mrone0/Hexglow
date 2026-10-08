@@ -105,7 +105,7 @@ describe('knowledge panel user interactions (mocked desktop I/O only)',()=>{
   await waitFor(()=>expect(saveButton().disabled).toBe(true));
   expect(operations).toEqual(['knowledge_validate','knowledge_save','onChanged','knowledge_list']);
   expect(stored[championPath]).toBe(champion.replace('## 基础机制\n原始机制。','## 基础机制\n\n新的机制与成立条件。'));
-  expect(screen.getByText(/资料已保存。下次主动模型分析/)).toBeTruthy();
+  expect(screen.getByText(/资料已保存。下次模型分析/)).toBeTruthy();
  });
 
  it('retains unsaved content when validation rejects and never attempts a write',async()=>{
@@ -150,7 +150,7 @@ describe('knowledge panel user interactions (mocked desktop I/O only)',()=>{
   expect(source().value).toBe(edited.replace('## 常见打法\n原始打法。','## 常见打法\n\n在表单修改的打法。'));
   expect(window.confirm).not.toHaveBeenCalled();
   fireEvent.click(saveButton());
-  await screen.findByText(/资料已保存。下次主动模型分析/);
+  await screen.findByText(/资料已保存。下次模型分析/);
   expect(stored[championPath]).toContain('# Keep the author\'s metadata comment.');
   expect(stored[championPath]).toContain('author_extension: {retain: "exactly this"}');
   expect(stored[championPath]).toContain('[原有关联](../augments/example.md)');
@@ -166,7 +166,7 @@ describe('knowledge panel user interactions (mocked desktop I/O only)',()=>{
   fireEvent.change(screen.getByLabelText('海克斯名称'),{target:{value:'新的测试海克斯'}});
   expect(screen.queryByLabelText('文件位置（自动管理）')).toBeNull();
   fireEvent.click(saveButton());
-  await screen.findByText(/资料已保存。下次主动模型分析/);
+  await screen.findByText(/资料已保存。下次模型分析/);
   const call=invokeMock.mock.calls.find(([command])=>command==='knowledge_save')!;
   const args=call[1] as InvokeArgs;
   expect(args.kind).toBe('Augment');
@@ -284,7 +284,7 @@ describe('knowledge panel user interactions (mocked desktop I/O only)',()=>{
   fireEvent.click(screen.getByRole('tab',{name:'表单编辑'}));
   expect((screen.getByLabelText('海克斯名称') as HTMLInputElement).value).toBe('新海克斯');
   fireEvent.click(saveButton());
-  await screen.findByText(/资料已保存。下次主动模型分析/);
+  await screen.findByText(/资料已保存。下次模型分析/);
   expect(stored['augments/custom-imported.md']).toBe(imported);
  });
 

@@ -48,7 +48,7 @@ export function recognizedCandidates(session: Session): ScoreResult {
   };
 }
 
-/** Associate a user-requested model result only with the exact, complete candidate set. */
+/** Associate an authorized model result only with the exact, complete candidate set. */
 export function modelRecommendation(session: Session, recommendation: Recommendation): ScoreResult {
   const recognized = recognizedCandidates(session);
   const items = Array.isArray(recommendation.ranking) ? recommendation.ranking.filter(item => item && typeof item === 'object') : [];
@@ -95,7 +95,7 @@ export function localRankingPresentation(result: ScoreResult) {
     reliable,
     source: result.source,
     label: result.source === 'model' ? '模型推荐' : result.source === 'recognition' ? '已识别 · 待模型分析' : '历史结果 · 待模型分析',
-    summary: `${result.profile?.champion ? `本次英雄：${result.profile.champion}。` : ''}${reliable ? result.summary : result.source === 'recognition' ? '已识别候选与效果；点击模型分析后比较，不自动调用模型。' : result.source === 'model' ? `${result.summary} 模型依据或置信度不足，暂不排名或给分。` : '历史结果来源未明确，不沿用本地规则分数；等待模型分析。'}`,
+    summary: `${result.profile?.champion ? `本次英雄：${result.profile.champion}。` : ''}${reliable ? result.summary : result.source === 'recognition' ? '已识别候选与效果；默认手动分析，开启自动推荐后按设置触发。' : result.source === 'model' ? `${result.summary} 模型依据或置信度不足，暂不排名或给分。` : '历史结果来源未明确，不沿用本地规则分数；等待模型分析。'}`,
     candidates: ordered.map(candidate => ({
       ...candidate,
       displayScore: reliable ? candidate.displayScore! : null,

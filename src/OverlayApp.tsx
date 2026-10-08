@@ -135,7 +135,7 @@ export function OverlayApp() {
           <div>
             <span className="overlay-brand">HEXGLOW</span>
             <strong>{result.source === 'model' ? '模型推荐' : '海克斯候选'}</strong>
-            <span className="overlay-mode" title="识别不评分；仅展示用户主动请求的模型比较，不自动调用模型">
+            <span className="overlay-mode" title="识别本身不评分、不调用模型；默认手动分析，开启自动推荐后按设置触发">
               {presentation.label}
             </span>
           </div>
@@ -165,17 +165,17 @@ export function OverlayApp() {
                   <small key={`${index}-${line}`}>{line}</small>
                 ))}
               </div>
-              <small>匹配候选后，可在主窗口主动发起模型分析。</small>
+              <small>匹配候选后，可在主窗口手动分析，或在设置中开启自动推荐。</small>
             </div>
           ) : (
             <div className="overlay-empty">
               <span>◇</span>
-              <p>截屏识别后显示候选与效果；模型分析由你主动发起。</p>
+              <p>截屏识别后显示候选与效果；默认手动分析，开启自动推荐后按设置触发。</p>
               <small>不展示胜率 · 结果仅本机可见</small>
             </div>
           )}
         </div>
-        <footer className="overlay-foot">{result.source === 'model' ? presentation.reliable ? '模型比较分，不代表胜率' : '模型依据不足，暂不排名或给分' : '仅识别，不评分或自动调用模型'} · 滚动查看完整内容</footer>
+        <footer className="overlay-foot">{result.source === 'model' ? presentation.reliable ? '模型比较分，不代表胜率' : '模型依据不足，暂不排名或给分' : '识别本身不收费 · 自动推荐需单独开启'} · 滚动查看完整内容</footer>
       </section>
     </div>
   );

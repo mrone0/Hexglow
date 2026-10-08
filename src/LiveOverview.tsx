@@ -10,6 +10,8 @@ type Props={
  session:Session;
  snapshot:CollectorSnapshot|null;
  auto:boolean;
+ autoRecommend?:boolean;
+ autoRecommendStatus?:string;
  localRecommendation:LocalRecommendation|null;
  detectionMessage:string;
  onSync:()=>void;
@@ -43,7 +45,7 @@ const completeModelContext=(value:Partial<Session>|undefined):value is Session=>
  Array.isArray(value.candidates)&&value.candidates.every(c=>c&&typeof c.id==='string'&&typeof c.name==='string'&&typeof c.description==='string')&&
  Array.isArray(value.players)&&value.players.every(p=>p&&typeof p.id==='string'&&typeof p.team==='string'&&typeof p.champion==='string'&&Array.isArray(p.augments)&&Array.isArray(p.items));
 
-export function LiveOverview({session,snapshot,auto,localRecommendation,detectionMessage,onSync,busy,ready,setupIssue,blockers,onRun,onSettings,onPatch,onResume,historical}:Props){
+export function LiveOverview({session,snapshot,auto,autoRecommend=false,autoRecommendStatus,localRecommendation,detectionMessage,onSync,busy,ready,setupIssue,blockers,onRun,onSettings,onPatch,onResume,historical}:Props){
  const [editing,setEditing]=useState(false);
  const display=liveOverviewState(session,snapshot,historical);
  const liveSession=display.live?{...session,liveData:display.data}:session;
@@ -86,16 +88,17 @@ export function LiveOverview({session,snapshot,auto,localRecommendation,detectio
     <div><span>客户端连接</span><strong>{historical?'历史记录':snapshot?.connection||'自动发现中'}</strong></div>
     <div><span>{historical?'档案更新':display.live?'最近同步':'最近检查'}</span><strong>{syncTime}</strong></div>
    </div>
-   <div className="live-observations"><p>{display.live?'本人已选海克斯：':'已记录的本人海克斯：'}{own?.augments.filter(name=>name.trim()).join('、')||(own?.augmentsConfirmed?'已核实，暂无':'尚未识别')}</p>{display.live&&<p>{busy?'正在分析，实时对局采集继续，候选识别暂时暂停。':detectionMessage}{local&&(local.result.source==='model'?'；保留本轮模型分析快照。':'；保留本轮已识别候选，等待主动发起模型分析。')}</p>}</div>
+   <div className="live-observations"><p>{display.live?'本人已选海克斯：':'已记录的本人海克斯：'}{own?.augments.filter(name=>name.trim()).join('、')||(own?.augmentsConfirmed?'已核实，暂无':'尚未识别')}</p>{display.live&&<p>{busy?'正在分析，实时对局采集与候选识别继续，不会并发发起自动模型请求。':detectionMessage}{local&&(local.result.source==='model'?'；保留本轮模型分析快照。':autoRecommend?'；保留本轮已识别候选，自动推荐按当前状态处理。':'；保留本轮已识别候选，可手动分析或在设置中开启自动推荐。')}</p>}</div>
   </section>
 
   <section className="recommend-panel">
    <div className="recommend-heading"><h2>{display.live||!hasGame?'海克斯推荐':'海克斯记录'}</h2>{localPresentation&&<span className="local-rule-badge">{localPresentation.label}</span>}</div>
+   {display.live&&<p className="hint" role="status" aria-label="自动推荐状态">{autoRecommend?'自动模型推荐已开启（可能产生费用）':'自动模型推荐已关闭（默认手动，可在设置中开启）'}{autoRecommendStatus?` · ${autoRecommendStatus}`:''}</p>}
    {!hasGame?<div className="calm-empty"><span>✧</span><h3>先去享受游戏</h3><p>检测到对局后，这里会显示你的英雄与海克斯建议。</p><small>无需手动建立对局或保存快照</small></div>:<>
     {local&&localPresentation?<div className="live-local-recommendation" aria-label={local.result.source==='model'?'模型推荐':'已识别候选'}><div className="local-recommend-heading"><strong>{local.result.source==='model'?'本轮模型推荐':'本轮已识别候选'}</strong><small>{augmentRoundLabel(local.band)} · {new Date(local.at).toLocaleTimeString()} 快照</small></div><p className="local-recommend-summary">{localPresentation.summary}</p><div className="local-candidate-grid">{localPresentation.candidates.map(candidate=>{
      const current=session.candidates.find(c=>c.id===candidate.id);
      return <article className={`local-candidate${candidate.rank===1?' top':''}`} key={candidate.id}><div className="local-candidate-meta"><span>{candidate.alreadyOwned?'已拥有 · 不作为新选择':candidate.rank!==null?`${candidate.tied?'并列':''}第${candidate.rank}名`:local.result.source==='recognition'?'待模型分析':assessmentLabel(candidate.assessment)}</span>{candidate.displayScore!==null&&<b aria-label={`模型比较分 ${candidate.displayScore}，非胜率`}>{candidate.displayScore}<small> 分</small></b>}</div><h3>{current?.name||candidate.name}</h3><span className="local-rarity">{rarity[candidate.rarity]||candidate.rarity}</span><p>{candidate.reason}</p>{candidate.evidence.length>0&&<ul aria-label="已知依据">{candidate.evidence.map((item,i)=><li key={i}>{item}</li>)}</ul>}<details open><summary>效果与注意事项</summary><p>{current?.description||candidate.description}</p>{candidate.risks.length>0?<ul>{candidate.risks.map((risk,i)=><li key={i}>{risk}</li>)}</ul>:<p>{local.result.source==='recognition'?'尚未进行模型分析，风险未评估。':'暂无额外注意事项'}</p>}</details></article>;
-    })}</div><p className="local-recommend-footnote">模型比较不代表胜率；识别候选不评分，也不会自动调用模型。</p></div>:visibleCandidates.length>0&&<div className="live-candidate-preview" aria-label="已记录候选"><div className="local-recommend-heading"><strong>{!display.live?'历史候选记录':previousCandidateBand?'上一轮已记录候选':candidatesComplete?'候选已就绪':'已记录候选'}</strong><small>{display.live?'待模型分析':'只读记录 · 非当前选择'}</small></div><div className="local-candidate-grid">{visibleCandidates.map((candidate,index)=><article className="local-candidate" key={candidate.id}><span className="quiet-label">候选 {index+1}{candidate.source==='manual'?' · 手动补充':''}</span><h3>{candidate.name}</h3><p>{candidate.description||'尚未补充效果。'}</p></article>)}</div><p className="local-recommend-footnote">{!display.live?'显示最近记录的候选，不代表当前仍在选择。':previousCandidateBand?`等待${augmentRoundLabel(augmentBand(level??1))}的新候选；上一轮记录不用于本轮分析。`:session.candidates.some(c=>c.source==='manual')?'手动候选已保留；点击模型分析后按当前效果比较。':'显示已记录的候选；游戏位于前台时会继续自动识别。'}</p></div>}
+    })}</div><p className="local-recommend-footnote">模型比较不代表胜率；识别本身不评分、不调用模型。默认手动分析，开启自动推荐后按设置触发。</p></div>:visibleCandidates.length>0&&<div className="live-candidate-preview" aria-label="已记录候选"><div className="local-recommend-heading"><strong>{!display.live?'历史候选记录':previousCandidateBand?'上一轮已记录候选':candidatesComplete?'候选已就绪':'已记录候选'}</strong><small>{display.live?'待模型分析':'只读记录 · 非当前选择'}</small></div><div className="local-candidate-grid">{visibleCandidates.map((candidate,index)=><article className="local-candidate" key={candidate.id}><span className="quiet-label">候选 {index+1}{candidate.source==='manual'?' · 手动补充':''}</span><h3>{candidate.name}</h3><p>{candidate.description||'尚未补充效果。'}</p></article>)}</div><p className="local-recommend-footnote">{!display.live?'显示最近记录的候选，不代表当前仍在选择。':previousCandidateBand?`等待${augmentRoundLabel(augmentBand(level??1))}的新候选；上一轮记录不用于本轮分析。`:session.candidates.some(c=>c.source==='manual')?'手动候选已保留；点击模型分析后按当前效果比较。':'显示已记录的候选；游戏位于前台时会继续自动识别。'}</p></div>}
     {display.live&&!previousCandidateBand&&candidatesComplete&&<LocalChoiceControls key={localRecommendationKey(liveSession)} session={liveSession} busy={busy} onPatch={onPatch}/>}
     {last?<>
      <div className="model-recommend-heading"><h3>上次模型分析</h3><small>{new Date(last.at).toLocaleTimeString()} · {modelIsCurrent?'本轮分析快照':'历史分析快照，仅供查看'}</small></div>

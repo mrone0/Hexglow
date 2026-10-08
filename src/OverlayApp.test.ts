@@ -1,7 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {OverlayCandidates,reduceOverlayPublication,type OverlayPayload,type OverlayPublication} from './OverlayApp';
+import {OverlayApp,OverlayCandidates,reduceOverlayPublication,type OverlayPayload,type OverlayPublication} from './OverlayApp';
 import type {ScoreResult} from './liveRecommendation';
 
 const initial = ():OverlayPublication => ({sequence:-1,state:{level:null,status:'idle',message:'waiting',lines:[],candidates:[]}});
@@ -48,6 +48,14 @@ describe('overlay ordered publications',()=>{
 });
 
 describe('overlay evidence-aware candidates',()=>{
+  it('distinguishes free recognition from separately enabled automatic model requests',()=>{
+    const html=renderToStaticMarkup(createElement(OverlayApp));
+    expect(html).toContain('默认手动分析，开启自动推荐后按设置触发');
+    expect(html).toContain('识别本身不收费 · 自动推荐需单独开启');
+    expect(html).not.toContain('模型分析由你主动发起');
+    expect(html).not.toContain('不评分或自动调用模型');
+  });
+
   const result = ():ScoreResult => ({source:'model',rankingReliable:true,summary:'已核实机制比较',ranking:[83,74,72].map((score,index)=>({
     id:String(index),name:`候选 ${index}`,description:`完整效果 ${index}`,rarity:'prismatic',category:'utility',
     score,displayScore:score,confidence:0.8,assessment:'supported',evidence:[`机制依据 ${index}`],reason:`理由 ${index}`,risks:[`风险 ${index}`],

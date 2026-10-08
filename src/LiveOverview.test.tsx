@@ -76,6 +76,35 @@ function render(session = sessionFixture(), overrides: Partial<ComponentProps<ty
 }
 
 describe('main app realtime recommendation rendering', () => {
+  it('defaults to manual recommendation separately from automatic tracking',()=>{
+    const html=render();
+    expect(html).toContain('自动跟踪中');
+    expect(html).toContain('自动模型推荐已关闭（默认手动，可在设置中开启）');
+    expect(html).not.toContain('自动模型推荐已开启');
+  });
+
+  it('shows enabled automatic recommendation and the scheduler status beside candidates',()=>{
+    const session=sessionFixture();
+    const html=render(session,{autoRecommend:true,autoRecommendStatus:'本轮自动请求已达上限，请手动分析',localRecommendation:createLocalRecommendation(session,recognizedCandidates(session),observedAt)});
+    expect(html).toContain('自动模型推荐已开启（可能产生费用）');
+    expect(html).toContain('本轮自动请求已达上限，请手动分析');
+    expect(html).toContain('自动推荐按当前状态处理');
+    expect(html).not.toContain('等待主动发起模型分析');
+    expect(html).not.toContain('也不会自动调用模型');
+  });
+
+  it('does not present the current automatic scheduler status as historical evidence',()=>{
+    const html=render(sessionFixture(),{historical:true,autoRecommend:true,autoRecommendStatus:'当前自动推荐进行中'});
+    expect(html).not.toContain('当前自动推荐进行中');
+    expect(html).not.toContain('自动模型推荐已开启');
+  });
+
+  it('explains that recognition continues during model analysis without concurrent automatic requests',()=>{
+    const html=render(sessionFixture(),{busy:true,autoRecommend:true});
+    expect(html).toContain('实时对局采集与候选识别继续，不会并发发起自动模型请求');
+    expect(html).not.toContain('候选识别暂时暂停');
+  });
+
   it('shows recognition only before model analysis, without inferred scores or recommendation emphasis',()=>{
     const session=sessionFixture();
     const html=render(session,{localRecommendation:createLocalRecommendation(session,recognizedCandidates(session),observedAt)});

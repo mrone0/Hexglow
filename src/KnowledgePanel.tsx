@@ -62,7 +62,7 @@ export function KnowledgePanel({onChanged,onLeaveGuard}:{onChanged:()=>void;onLe
    const r=await validate();if(!r.valid)return;
    const saved=await invoke<{warnings?:string[]}>('knowledge_save',{kind,path,content});
    setDirty(false);setCheck({...r,warnings:[...new Set([...r.warnings,...(saved.warnings||[])])]});
-   setMessage('资料已保存。下次主动模型分析会读取更新；历史分析不变，也不会自动调用模型。');
+   setMessage('资料已保存。下次模型分析会读取更新；历史分析不变，保存本身不会调用模型。');
    // Invalidate current recommendations after the write, even if list refresh fails.
    onChanged();
    try{await list();}catch(e){setMessage(`资料已保存，但列表刷新失败：${knowledgeMessage(String(e))}`);}
@@ -123,7 +123,7 @@ export function KnowledgePanel({onChanged,onLeaveGuard}:{onChanged:()=>void;onLe
      </>}
    </div>
    <div className="knowledge-footer">
-    <p className="hint">保存时自动检查格式。新内容供下次主动分析使用，不会自动调用模型。</p>
+    <p className="hint">保存时自动检查格式。新内容供下次模型分析使用，保存本身不会调用模型。</p>
     <div className="knowledge-footer-actions">
      {mode==='source'&&<button className="knowledge-validate" disabled={busy||!desktop} onClick={()=>void checkFormat()}>检查格式</button>}
      <button className="accent knowledge-save" disabled={busy||!desktop||!dirty||(mode==='form'&&!form?.fields)} onClick={()=>void save()}>{busy?'处理中…':'保存资料'}</button>

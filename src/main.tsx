@@ -28,6 +28,8 @@ import {synchronizeSelections} from './domain';
 import {RankingItemView,EngineBadge} from './Ranking';
 import {DEFAULT_JEV_MODEL,DEFAULT_JEV_URL,SettingsPanel} from './SettingsPanel';
 import {modelDestination,modelServiceLabel} from './modelConsent';
+import {AutoRecommendationGate,autoRecommendationKey} from './autoRecommendation';
+import {autoModelIdentity,automaticModelIssue} from './autoModelConfig';
 type KnowledgeResult={documents:{path:string;title:string;content:string;hash:string;sections?:string[]}[];missing:string[];warnings:string[];fingerprint:string};
 type StorageStats={databaseBytes:number;sessionCount:number;sampleCount:number;budgetMb:number;retentionDays:number;budgetReached?:boolean;unreadableSessions?:number};
 type ModelConfig={provider?:'jev'|'openai';baseUrl:string;name:string;jsonMode?:boolean;maxTokens?:number;allowThirdParty?:boolean};
@@ -55,16 +57,24 @@ function App(){
  const knowledgeRevision=useRef(0);
  const knowledgeLeaveGuard=useRef<(()=>boolean)|null>(null);
  const [approvedDestination,setApprovedDestination]=useState(()=>localStorage.getItem('hexglow-model-consent')||'');
+ const [automaticApproval,setAutomaticApproval]=useState(()=>localStorage.getItem('hexglow-auto-recommend-consent')||'');
+ const [autoRecommendStatus,setAutoRecommendStatus]=useState('等待本轮完整候选稳定识别。');
+ const modelRevision=useRef(0),autoRecommendationGate=useRef(new AutoRecommendationGate());
+ const lastAutoScan=useRef<{key:string;at:number}|null>(null);
  const exitPending=useRef<number|null>(null),lastExitRequest=useRef(0);
  const consent=!!modelDestination(model)&&approvedDestination===modelDestination(model);
- const setConsent=(approved:boolean)=>{const destination=approved?modelDestination(model):'';setApprovedDestination(destination);localStorage.setItem('hexglow-model-consent',destination);};
- const setModel=(next:ModelConfig)=>{if(modelDestination(next)!==modelDestination(model)){setConsent(false);setApiKey('');setModels([]);setModelStatus('');}setModelState(next);};
- const [apiKey,setApiKey]=useState(''),[modelStatus,setModelStatus]=useState(''),[models,setModels]=useState<string[]>([]);
+ const autoRecommend=consent&&!!autoModelIdentity(model)&&automaticApproval===autoModelIdentity(model);
+ const setAutoRecommend=(enabled:boolean)=>{const approval=enabled&&analysisSettings.current.consent?autoModelIdentity(analysisSettings.current.model):'';modelRevision.current++;analysisSettings.current={...analysisSettings.current,autoRecommend:!!approval,revision:modelRevision.current};autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;setAutomaticApproval(approval);localStorage.setItem('hexglow-auto-recommend-consent',approval);setAutoRecommendStatus(approval?'已开启，等待本轮完整候选稳定识别。':'已关闭，不再发起自动请求；在途请求可能已计费。');};
+ const setConsent=(approved:boolean)=>{const destination=approved?modelDestination(model):'';modelRevision.current++;analysisSettings.current={...analysisSettings.current,consent:!!destination,revision:modelRevision.current};if(!approved)setAutoRecommend(false);setApprovedDestination(destination);localStorage.setItem('hexglow-model-consent',destination);};
+ const setModel=(next:ModelConfig)=>{modelRevision.current++;analysisSettings.current={...analysisSettings.current,model:next,revision:modelRevision.current};if(autoModelIdentity(next)!==autoModelIdentity(model))setAutoRecommend(false);if(modelDestination(next)!==modelDestination(model)){setConsent(false);setApiKey('');setModels([]);setModelStatus('');}setModelState(next);};
+ const [apiKey,setApiKeyState]=useState(''),[modelStatus,setModelStatus]=useState(''),[models,setModels]=useState<string[]>([]);
+ const setApiKey=(value:string)=>{modelRevision.current++;analysisSettings.current={...analysisSettings.current,apiKey:value,revision:modelRevision.current};autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;setApiKeyState(value);};
  const [storage,setStorage]=useState<StorageStats|null>(null),[budget,setBudget]=useState(128),[days,setDays]=useState(7);
  const [confirmation,setConfirmation]=useState<{title:string;detail:string;action:()=>Promise<void>}|null>(null);
  const debounce=useRef<ReturnType<typeof setTimeout>|null>(null);
  const [lockfile,setLockfile]=useState(()=>localStorage.getItem('hexlens-lockfile')||'');
- const [auto,setAuto]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[view,setView]=useState('live'),[advancedOpen,setAdvancedOpen]=useState(false);
+ const [auto,setAutoState]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[view,setView]=useState('live'),[advancedOpen,setAdvancedOpen]=useState(false);
+ const setAuto=(enabled:boolean)=>{config.current.auto=enabled;autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;setAutoState(enabled);};
  const [snapshot,setSnapshot]=useState<CollectorSnapshot|null>(null),[diag,setDiag]=useState<Diagnostics|null>(null),[saved,setSaved]=useState('尚未保存');
  const snapshotRef=useRef(snapshot);snapshotRef.current=snapshot;
  const [localRecommendation,setLocalRecommendation]=useState<LocalRecommendation|null>(null),[detection,setDetection]=useState<{sessionId:string;message:string}|null>(null);
@@ -73,21 +83,25 @@ function App(){
  const [ocr,setOcr]=useState<OcrStats|null>(null);
  const loadOcr=()=>{invoke<OcrStats>('ocr_stats').then(setOcr).catch(()=>setOcr(null));};
  const [updateInfo,setUpdateInfo]=useState<UpdateInfo|null|undefined>(undefined),[updateErr,setUpdateErr]=useState(''),[updateBusy,setUpdateBusy]=useState<'idle'|'check'|'install'>('idle'),[updateProg,setUpdateProg]=useState<number|null>(null),[appVersion,setAppVersion]=useState('');
+ const analysisSettings=useRef({model,apiKey,consent,autoRecommend,dailyLimit,revision:modelRevision.current,updating:updateBusy==='install'});
+ analysisSettings.current={model,apiKey,consent,autoRecommend,dailyLimit,revision:modelRevision.current,updating:updateBusy==='install'};
+ const runRef=useRef(run);runRef.current=run;
+ const maybeAutoRecommendRef=useRef(maybeAutoRecommend);maybeAutoRecommendRef.current=maybeAutoRecommend;
  useEffect(()=>{if(isTauri())void getVersion().then(v=>setAppVersion(v)).catch(()=>{});},[]);
  const [similar,setSimilar]=useState<HistoryEntry[]>([]);
  const [historical,setHistorical]=useState(false);
  useEffect(()=>{localStorage.setItem('hexlens-daily-budget',String(dailyLimit));},[dailyLimit]);
  useEffect(()=>{if(!flash)return;const t=setTimeout(()=>setFlash(''),9000);return()=>clearTimeout(t);},[flash]);const reading=useRef(false),readingSince=useRef(0),pollSeq=useRef(0),epoch=useRef(0),lastSaved=useRef(0),busyRef=useRef(false),collectionPaused=useRef(false);const writeQueue=useRef<Promise<unknown>>(Promise.resolve());const saver=useRef(new SaveQueue<Session>(value=>invoke('save_session',{session:value})));
  const config=useRef({lockfile,auto,historical,view});config.current={lockfile,auto,historical,view};const nextPoll=useRef(0),idleFailures=useRef(0);const trigger=useRef<TriggerState>({matchId:'',fired:[]});
-  // OCR 仅识别候选；模型分析由用户发起，不随轮询收费。
+  // OCR 本身不调用模型。独立授权后仅稳定的新候选可进入有界自动分析。
   const scanning=useRef(false),seenMatch=useRef(''),seenIds=useRef(''),candidateRevision=useRef(0),panelMisses=useRef(0);
   const detectAugments=(session:Session)=>{
-   if(!isTauri()||scanning.current||busyRef.current||config.current.historical)return;
+   if(!isTauri()||scanning.current||(busyRef.current&&!analysisTarget.current)||config.current.historical)return;
    const band=liveDetectionBand(session,snapshotRef.current,config.current.historical);
    if(band===null)return;
    const ticket=epoch.current;
    const revision=candidateRevision.current;
-   const valid=()=>ticket===epoch.current&&revision===candidateRevision.current&&current.current.id===session.id&&!busyRef.current&&liveDetectionBand(current.current,snapshotRef.current,config.current.historical)===band;
+   const valid=()=>ticket===epoch.current&&revision===candidateRevision.current&&current.current.id===session.id&&(!busyRef.current||!!analysisTarget.current)&&liveDetectionBand(current.current,snapshotRef.current,config.current.historical)===band;
    scanning.current=true;
    void (async()=>{
     try{
@@ -96,13 +110,13 @@ function App(){
      if(!valid())return;
      setDetection({sessionId:session.id,message:scan.skipped?scan.message||'等待游戏回到前台识别':scan.candidates.length>=2?'已识别本轮候选':'未识别到完整候选，等待游戏中的选择面板'});
      const matched=(scan.candidates??[]).slice(0,3);
-     if(matched.length<2){if(!scan.skipped&&++panelMisses.current>=2&&seenIds.current){await invoke('overlay_close');seenIds.current='';}return;}
+     if(scan.skipped||matched.length<2){autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;if(!scan.skipped&&++panelMisses.current>=2&&seenIds.current){await invoke('overlay_close');seenIds.current='';}return;}
      panelMisses.current=0;
      const own=current.current.players.find(p=>p.id===current.current.ownPlayerId);
-     const key=JSON.stringify([band,own?.champion,own?.augments,own?.items,matched.map(c=>c.id).sort()]);
-     if(key===seenIds.current)return;
+     const key=JSON.stringify([band,own?.champion,own?.augments,own?.items,matched.map(c=>[c.id,c.name,c.description]).sort((a,b)=>a[0].localeCompare(b[0]))]);
+     if(key===seenIds.current){maybeAutoRecommendRef.current(current.current,scan);return;}
      const candidates=mergeDetectedCandidates(current.current,matched.map(c=>({id:c.id,name:c.name,description:c.description})),band);
-     if(!candidates){seenIds.current=key;return;}
+     if(!candidates){autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;seenIds.current=key;return;}
      const scoringContext={...current.current,candidates,candidateBand:band};
      const cached=selectLocalRecommendation(scoringContext,localRecommendationRef.current);
      const ranking=cached?.result.source==='model'?cached.result:recognizedCandidates(scoringContext);
@@ -116,7 +130,8 @@ function App(){
      await invoke('overlay_open',{level:band});
      if(!valid())return;
      seenIds.current=key;
-    }catch(error){if(valid())setError(String(error));}
+     maybeAutoRecommendRef.current(current.current,scan);
+    }catch(error){if(valid()){autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;setError(String(error));}}
     finally{scanning.current=false;}
    })();
   };
@@ -205,6 +220,7 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
     const detectionBand=liveDetectionBand(applied.session,snap,config.current.historical);
     if(detectionBand===null||previous.id!==applied.session.id||(previous.phase==='InProgress'&&applied.session.phase!=='InProgress')||augmentBand(ownLevel(previous.liveData)??1)!==detectionBand){
      seenIds.current='';panelMisses.current=0;
+     autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;
      await invoke('overlay_close');
      if(ticket!==epoch.current)return;
     }
@@ -272,7 +288,34 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
  }
  useEffect(()=>{if(!isTauri())return;const cleanup=setInterval(()=>{if(!busyRef.current&&!reading.current&&!current.current.players.length)void refreshStorage().then(s=>maintenance(s.budgetMb,s.retentionDays)).catch(e=>setError(String(e)));},30*60*1000);return()=>clearInterval(cleanup);},[]);
  useEffect(()=>{if(!isTauri())return;let active=true;let stop:(()=>void)|undefined;void listen('app:background-tick',()=>{if(active&&config.current.auto&&Date.now()>=nextPoll.current)void poll();}).then(unlisten=>{if(!active){unlisten();return;}stop=unlisten;void poll();}).catch(e=>setError(String(e)));return()=>{active=false;stop?.();epoch.current++;};},[]);
- async function run(mode:'recommend'|'review',target:Session=current.current){
+ function automaticIssue():string {
+   const settings=analysisSettings.current;
+   if(!settings.autoRecommend)return '自动推荐未开启。';
+   if(!settings.consent)return '请先授权当前模型服务分析数据。';
+   if(!config.current.auto||config.current.historical||collectionPaused.current||settings.updating)return '自动推荐已暂停，等待恢复实时跟踪。';
+   const issue=automaticModelIssue(settings.model,settings.apiKey);
+   if(issue)return issue;
+   if(readUsage().count>=settings.dailyLimit)return '今日分析次数已达上限，自动推荐已暂停。';
+   return '';
+ }
+ function maybeAutoRecommend(session:Session,scan:OcrScan){
+   const key=autoRecommendationKey(session);
+   const observedKey=autoRecommendationKey({...session,candidates:scan.candidates.map(candidate=>({...candidate,source:'ocr'}))});
+   if(scan.skipped||scan.source!=='capture'||!key||observedKey!==key){autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;if(analysisSettings.current.autoRecommend)setAutoRecommendStatus('等待本轮三张完整 OCR 候选；手动候选请点击分析。');return;}
+   lastAutoScan.current={key,at:Date.now()};
+   const issue=automaticIssue();
+   if(issue){autoRecommendationGate.current.resetObservation();setAutoRecommendStatus(issue);return;}
+   if(busyRef.current){autoRecommendationGate.current.observe(session,Date.now());setAutoRecommendStatus('正在分析，请稍候；不会并发发送自动请求。');return;}
+   if(liveDetectionBand(session,snapshotRef.current,config.current.historical)!==session.candidateBand){autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;return;}
+   if(!autoRecommendationGate.current.observe(session,Date.now())){setAutoRecommendStatus('等待完整候选稳定；已请求的同组不自动重试，每轮最多 3 次。');return;}
+   if(Date.now()-lastRun.current<COOLDOWN_MS){setAutoRecommendStatus('自动推荐等待请求间隔，避免重复扣费。');return;}
+   if(blockers(session).length){setAutoRecommendStatus('当前候选或本人信息不完整，请检查后手动分析。');return;}
+   void runRef.current('recommend',session,true);
+ }
+ async function run(mode:'recommend'|'review',target:Session=current.current,automatic=false){
+   const settings=analysisSettings.current;
+   const {model,apiKey,consent,dailyLimit}=settings;
+   if(automatic){const issue=automaticIssue();if(issue){setAutoRecommendStatus(issue);return;}}
    let source:Session;
    try{source=analysisSource(mode,target,current.current,snapshotRef.current,config.current.historical);}catch(e){setError(String(e));return;}
     if(!consent){setView('settings');setError(`请在下方勾选“允许 ${modelServiceLabel(model)} 分析本局数据”，再返回对局分析。`);return;}
@@ -286,6 +329,8 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
    analysisTarget.current=tracking;
    const selected=tracking.snapshot;
    const selectedKnowledgeRevision=knowledgeRevision.current;
+   const selectedModelRevision=settings.revision;
+   if(automatic)setAutoRecommendStatus('候选已稳定，正在获取模型推荐…');
   try{
    // Do not recursively embed earlier decision contexts or repeated sampled snapshots.
    const {samples,decisions,...rest}=selected;
@@ -296,27 +341,37 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
     const context={...rest,knowledge:evidence,decisions:mode==='review'?decisions:[],history:similarEntries};
    // Retrieval can outlive a disconnect or game transition; recheck before sending paid work.
    analysisSource(mode,selected,current.current,snapshotRef.current,config.current.historical);
+   if(!analysisSettings.current.consent||selectedModelRevision!==analysisSettings.current.revision)throw new Error('模型配置或授权已变化；本次尚未调用模型。');
+   if(readUsage().count>=analysisSettings.current.dailyLimit)throw new Error('今日分析次数已达上限；本次尚未调用模型。');
    if(mode==='recommend'&&(modelContextKey(selected)!==modelContextKey(current.current)||selectedKnowledgeRevision!==knowledgeRevision.current))throw new Error('候选、阵容或知识已变化，请重新发起分析；本次尚未调用模型。');
+   if(automatic){
+    const latest=lastAutoScan.current,key=autoRecommendationKey(current.current);
+    if(automaticIssue()||!key||latest?.key!==key||Date.now()-latest.at>15000||!autoRecommendationGate.current.isReady(current.current,Date.now()))throw new Error('自动推荐条件已变化，等待下一次稳定识别；本次尚未调用模型。');
+   }
    // 发出请求即计数，模型失败或保存超时也不能绕过当日调用上限。
    const used=bumpUsage();setDailyUsed(used);
+   if(mode==='recommend')autoRecommendationGate.current.markAttempt(selected,automatic);
    const result=await invoke<Recommendation|Review>('analyze_structured',{request:{mode,context,model:{...model,provider:model.provider||'openai',apiKey}}});
     const next=tracking.complete(context,mode==='recommend'?{mode,result:result as Recommendation}:{mode,result:result as Review});
     if(next.id===current.current.id)commit(next);else setArchiveDetail(d=>d&&d.id===next.id?next:d);
     await save(next);
     // 已持久化结果只可发布回同局、同轮、同候选及同阵容/装备上下文。
     // 过期响应保留在档案中，不覆盖当前侧栏，也不产生第二次模型调用。
-    if(mode==='recommend'&&!config.current.historical&&selectedKnowledgeRevision===knowledgeRevision.current&&canPublishModelRecommendation(selected,current.current)&&liveDetectionBand(current.current,snapshotRef.current,false)===selected.candidateBand){
+    const publishable=()=>!config.current.historical&&analysisSettings.current.consent&&selectedModelRevision===analysisSettings.current.revision&&selectedKnowledgeRevision===knowledgeRevision.current&&canPublishModelRecommendation(selected,current.current)&&liveDetectionBand(current.current,snapshotRef.current,false)===selected.candidateBand&&(!automatic||(analysisSettings.current.autoRecommend&&config.current.auto&&!collectionPaused.current&&lastAutoScan.current?.key===autoRecommendationKey(current.current)&&Date.now()-lastAutoScan.current.at<=15000));
+    if(mode==='recommend'&&publishable()){
      const ranking=modelRecommendation(selected,result as Recommendation);
      setLocalRecommendation(createLocalRecommendation(selected,ranking,tracking.at));
      await invoke('overlay_publish',{payload:{level:selected.candidateBand,sessionId:selected.id,ranking}});
+     if(publishable())await invoke('overlay_open',{level:selected.candidateBand});
     }
+   if(automatic)setAutoRecommendStatus('本组自动分析已完成；同组不重复请求，手动仍可重新分析。');
    const eng=(result as Partial<Recommendation>).engine;
    setFlash(mode==='recommend'?`分析完成 · 今日第 ${used}/${dailyLimit} 次${eng?` · ${eng.latencyMs} ms · 上下文 ${Math.round((eng.inputBytes||0)/1024)} KiB`:''}`:`复盘完成 · 今日第 ${used}/${dailyLimit} 次`);
-  }catch(e){setError(String(e));}finally{analysisTarget.current=null;busyRef.current=false;setBusy(false);}
+  }catch(e){if(automatic)setAutoRecommendStatus(`自动推荐未完成，同组已发送请求不会自动重试：${String(e)}`);setError(String(e));}finally{analysisTarget.current=null;busyRef.current=false;setBusy(false);}
  }
  function beginMutation(){if(busyRef.current)return false;epoch.current++;collectionPaused.current=true;busyRef.current=true;setBusy(true);return true;}
  function endMutation(){collectionPaused.current=false;busyRef.current=false;setBusy(false);nextPoll.current=0;}
- function resumeLive(){if(collectionPaused.current)return;epoch.current++;if(debounce.current){clearTimeout(debounce.current);debounce.current=null;if(isTauri())void save(current.current).catch(e=>setError(String(e)));}if(config.current.historical&&activeSession.current){commit(activeSession.current);activeSession.current=null;}setHistorical(false);config.current.historical=false;void poll();}
+ function resumeLive(){if(collectionPaused.current)return;epoch.current++;autoRecommendationGate.current.resetObservation();lastAutoScan.current=null;if(debounce.current){clearTimeout(debounce.current);debounce.current=null;if(isTauri())void save(current.current).catch(e=>setError(String(e)));}if(config.current.historical&&activeSession.current){commit(activeSession.current);activeSession.current=null;}setHistorical(false);config.current.historical=false;void poll();}
  function patch(p:Partial<Session>,source:'manual'|'ocr'='manual'){if(source==='manual'&&(p.candidates||p.players&&p.decisions)&&!liveOverviewState(current.current,snapshotRef.current,config.current.historical).live){setError('当前显示的是已保留记录，本轮候选与选择只能在实时对局中修改。');return;}if(p.candidates&&source==='manual'){candidateRevision.current++;seenIds.current='';const edited=p.candidates.some(c=>{const old=current.current.candidates.find(x=>x.id===c.id);return !old||old.name!==c.name||old.description!==c.description;});p={...p,candidates:markCandidateEdits(current.current.candidates,p.candidates),...(edited?{candidateBand:augmentBand(ownLevel(current.current.liveData)??1)}:{})};}const next={...current.current,...p,updatedAt:new Date().toISOString()};commit(next);if(debounce.current)clearTimeout(debounce.current);if(isTauri())debounce.current=setTimeout(()=>{void save(current.current).catch(e=>setError(String(e)));debounce.current=null;},1500);}
  async function openArchive(id:string){if(!beginMutation())return;try{if(debounce.current){clearTimeout(debounce.current);debounce.current=null;}if(hasContent(current.current))await save();let full=readSession(await invoke<unknown>('get_session',{id}));if(hasMissingPostgameEvidence(full)){const payload=await invoke<unknown>('postgame_rescan',{session:full,lockfilePath:config.current.lockfile.trim()||null});const filled=mergePostgameEvidence(full,payload);if(filled!==full){await save(filled);full=filled;postgameRetries.current.observe(full);if(full.id===current.current.id)commit(full);if(activeSession.current?.id===full.id)activeSession.current=full;}}setArchiveDetail(full);}finally{endMutation();}}
  async function checkUpdate(){if(!isTauri())return;setUpdateBusy('check');setUpdateErr('');let update:Awaited<ReturnType<typeof check>>=null;try{update=await check();setUpdateInfo(update?{version:update.version,date:update.date,body:update.body}:null);}catch(e){setUpdateErr(String(e));}finally{await update?.close().catch(()=>{});setUpdateBusy('idle');}}
@@ -380,7 +435,7 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
  {flash&&<div className="notice" role="status">{flash}</div>}
  {error&&<div className="error" role="alert">{error}<button onClick={()=>setError('')}>关闭</button></div>}
  {view==='logs'&&snapshot?.warnings.map((w,i)=><div className="notice compact" key={i}>{w}</div>)}
- {view==='live'&&<><LiveOverview session={session} snapshot={snapshot} auto={auto} localRecommendation={localRecommendation} detectionMessage={detection?.sessionId===session.id?detection.message:'等待游戏中的候选面板'} onSync={()=>{epoch.current++;resumeLive();}} busy={busy} ready={!!model.name.trim()&&consent&&isTauri()} setupIssue={!isTauri()?'请使用 Windows 桌面端生成模型分析。':!model.name.trim()?'模型分析需先填写模型名称并测试连接。':!consent?'模型分析需先在本地设置授权当前模型服务。':''} blockers={errors} onRun={()=>void run('recommend')} onSettings={()=>setView('settings')} onPatch={patch} historical={historical} onResume={resumeLive}/><div className="advanced-entry"><button className="advanced-open" onClick={()=>setAdvancedOpen(true)} aria-haspopup="dialog">高级 · 手动纠正、复盘与诊断 <span>↗</span></button></div>{advancedOpen&&<div className="advanced-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setAdvancedOpen(false);}}><section className="advanced-drawer" role="dialog" aria-modal="true" aria-labelledby="advanced-title"><div className="advanced-drawer-head"><div><span className="eyebrow">ADVANCED TOOLS</span><h2 id="advanced-title">手动纠正、复盘与诊断</h2></div><button onClick={()=>setAdvancedOpen(false)} aria-label="关闭高级面板">关闭</button></div><div className="advanced-content"><p className="hint">以下仅供需要时使用，正常查看推荐无需逐项操作。未识别信息保持未知，不需要为通过校验而确认空白。</p><div className="metrics"><div><span>CLIENT LINK</span><strong>{snapshot?.connection||'自动发现中'}</strong><small>LCU / Live Client API</small></div><div><span>MATCH PHASE</span><strong>{phaseLabel(session.phase)}</strong><small>{session.matchId?`对局 ${session.matchId}`:'等待可验证的对局 ID'}</small></div><div><span>CONTEXT COVERAGE</span><strong>{verified}<em> / 1</em></strong><small>只有本人海克斯可核实</small></div><div><span>LOCAL ARCHIVE</span><strong>{resultLabel(session.result)}</strong><small>最近保存 {saved}</small></div></div>
+ {view==='live'&&<><LiveOverview session={session} snapshot={snapshot} auto={auto} autoRecommend={autoRecommend} autoRecommendStatus={autoRecommend?(automaticIssue()||autoRecommendStatus):undefined} localRecommendation={localRecommendation} detectionMessage={detection?.sessionId===session.id?detection.message:'等待游戏中的候选面板'} onSync={()=>{epoch.current++;resumeLive();}} busy={busy} ready={!!model.name.trim()&&consent&&isTauri()} setupIssue={!isTauri()?'请使用 Windows 桌面端生成模型分析。':!model.name.trim()?'模型分析需先填写模型名称并测试连接。':!consent?'模型分析需先在本地设置授权当前模型服务。':''} blockers={errors} onRun={()=>void run('recommend')} onSettings={()=>setView('settings')} onPatch={patch} historical={historical} onResume={resumeLive}/><div className="advanced-entry"><button className="advanced-open" onClick={()=>setAdvancedOpen(true)} aria-haspopup="dialog">高级 · 手动纠正、复盘与诊断 <span>↗</span></button></div>{advancedOpen&&<div className="advanced-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setAdvancedOpen(false);}}><section className="advanced-drawer" role="dialog" aria-modal="true" aria-labelledby="advanced-title"><div className="advanced-drawer-head"><div><span className="eyebrow">ADVANCED TOOLS</span><h2 id="advanced-title">手动纠正、复盘与诊断</h2></div><button onClick={()=>setAdvancedOpen(false)} aria-label="关闭高级面板">关闭</button></div><div className="advanced-content"><p className="hint">以下仅供需要时使用，正常查看推荐无需逐项操作。未识别信息保持未知，不需要为通过校验而确认空白。</p><div className="metrics"><div><span>CLIENT LINK</span><strong>{snapshot?.connection||'自动发现中'}</strong><small>LCU / Live Client API</small></div><div><span>MATCH PHASE</span><strong>{phaseLabel(session.phase)}</strong><small>{session.matchId?`对局 ${session.matchId}`:'等待可验证的对局 ID'}</small></div><div><span>CONTEXT COVERAGE</span><strong>{verified}<em> / 1</em></strong><small>只有本人海克斯可核实</small></div><div><span>LOCAL ARCHIVE</span><strong>{resultLabel(session.result)}</strong><small>最近保存 {saved}</small></div></div>
  <div className="toolbar"><span><i/> {historical?'正在查看历史快照，不会被实时数据覆盖':auto?'自动跟踪 · 对局 3 秒 / 待机 8–15 秒':'自动跟踪已暂停'}</span><label><input type="checkbox" checked={auto&&!historical} disabled={busy||!isTauri()} onChange={e=>{epoch.current++;setAuto(e.target.checked);if(e.target.checked){resumeLive();}}}/>自动跟踪</label><button className="ghost" disabled={busy||!isTauri()} onClick={()=>{epoch.current++;resumeLive();}}>立即同步</button><button disabled={busy||!isTauri()} onClick={()=>void save().catch(e=>setError(String(e)))}>保存快照</button></div>
  <main><div><section className="panel"><div className="section-title"><h2><b>01</b> 战场上下文</h2><span>API 事实 × 人工核验</span></div><label>当前英雄<Select disabled={busy} value={session.ownPlayerId} onChange={e=>patch({ownPlayerId:e.target.value})}><option value="">等待识别 / 选择当前玩家</option>{session.players.map(p=><option key={p.id} value={p.id}>{p.champion} · {p.name}</option>)}</Select></label>
  {!session.players.length&&<div className="empty"><div className="radar">◎</div><h3>已就绪，等待本地对局信号</h3><p>工具启动后自动查找已运行的客户端。<br/>进入游戏后，阵容会自动出现在这里。</p><small>不伪造阵容 · 不推测隐藏信息</small></div>}
@@ -400,7 +455,7 @@ useEffect(()=>{localStorage.setItem('hexlens-model',JSON.stringify(model));},[mo
   <p className="hint">近 7 天（扫描/命中）：{Object.entries(ocr.byDay||{}).slice(-7).map(([d,s])=>`${d.slice(5)} ${s.scans}/${s.hits}`).join(' · ')||'尚无'}</p>
  </>:<p className="hint">等待第一次识别；桌面端截屏识别后自动累计。</p>}</section>}
  {view==='logs'&&<section className="panel"><div className="section-title"><h2>运行轨迹</h2><button onClick={()=>{void logs().catch(e=>setError(String(e)));loadOcr();}} disabled={!isTauri()}>刷新日志</button></div><p className="hint">限额轮转日志，仅记录状态变化；相同错误去重并限频。只在打开本页或手动刷新时读取，不持续刷盘。不记录令牌、玩家姓名或模型上下文。</p><div className="log-console"><div className="console-header"><i/><i/><i/><span>HEXGLOW / SYSTEM JOURNAL</span></div>{diag?.entries.length?diag.entries.map((l,i)=><div className="log-row" key={i}><time>{new Date(l.at).toLocaleTimeString()}</time><b className={l.level.toLowerCase()}>{l.level}</b><code>{l.event}</code><span>{l.message}</span></div>):<p>等待运行事件…</p>}</div><label>日志目录<input readOnly value={diag?.logDirectory||'桌面端启动后可用'}/></label><label>本地数据目录<input readOnly value={diag?.dataDirectory||'桌面端启动后可用'}/></label></section>}
- {view==='settings'&&<><SettingsPanel model={model} setModel={setModel} apiKey={apiKey} setApiKey={setApiKey} consent={consent} setConsent={setConsent} models={models} clearModels={()=>setModels([])} modelStatus={modelStatus} onTestModel={()=>void testModel()} lockfile={lockfile} setLockfile={setLockfile} busy={busy} onResumeLive={resumeLive} storage={storage} budget={budget} setBudget={setBudget} days={days} setDays={setDays} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} dailyUsed={dailyUsed} onConfirm={setConfirmation} onMaintenance={maintenance}/><section className="panel settings-card"><div className="settings-card-head"><div><div className="eyebrow">UPDATE</div><h2><b>04</b> 应用更新</h2><p>从配置的更新源检查新版本，签名校验通过才允许安装。</p></div><span className={updateInfo?'settings-state ready':'settings-state'}>{updateInfo?`发现 ${updateInfo.version}`:appVersion?`当前 ${appVersion}`:'当前版本'}</span></div><div className="settings-inline-fields"><button disabled={!isTauri()||updateBusy!=='idle'} onClick={()=>void checkUpdate()}>{updateBusy==='check'?'检查中…':'检查更新'}</button>{updateInfo&&<button className="accent" disabled={busy||updateBusy!=='idle'} onClick={()=>void installUpdate()}>{updateBusy==='install'?(updateProg!=null?`下载中 ${updateProg}%`:'安装中…'):`下载并安装 ${updateInfo.version}`}</button>}</div>{updateErr&&<p className="hint">检查失败：{updateErr}</p>}{!updateErr&&updateInfo===null&&<p className="hint">已是最新版本，没有发现新更新。</p>}{updateInfo&&<p className="hint">发布于 {updateInfo.date?new Date(updateInfo.date).toLocaleString():'未知时间'}{updateInfo.body?` · ${updateInfo.body.slice(0,200)}`:''}</p>}<details className="settings-details"><summary>更新与数据安全</summary><p>更新来自 Hexglow 官方 GitHub Releases，下载后会校验更新签名。安装前先保存本地对局，随后自动退出并启动安装程序。更新不删除你的知识库、历史对局和模型设置；如遇网络问题，可手动下载安装包。更新签名不等于 Windows 发布者证书，系统仍可能显示安全确认。</p></details></section></>}
+ {view==='settings'&&<><SettingsPanel autoRecommend={autoRecommend} setAutoRecommend={setAutoRecommend} autoRecommendStatus={autoRecommend?(automaticIssue()||autoRecommendStatus):autoRecommendStatus} model={model} setModel={setModel} apiKey={apiKey} setApiKey={setApiKey} consent={consent} setConsent={setConsent} models={models} clearModels={()=>setModels([])} modelStatus={modelStatus} onTestModel={()=>void testModel()} lockfile={lockfile} setLockfile={setLockfile} busy={busy} onResumeLive={resumeLive} storage={storage} budget={budget} setBudget={setBudget} days={days} setDays={setDays} dailyLimit={dailyLimit} setDailyLimit={setDailyLimit} dailyUsed={dailyUsed} onConfirm={setConfirmation} onMaintenance={maintenance}/><section className="panel settings-card"><div className="settings-card-head"><div><div className="eyebrow">UPDATE</div><h2><b>04</b> 应用更新</h2><p>从配置的更新源检查新版本，签名校验通过才允许安装。</p></div><span className={updateInfo?'settings-state ready':'settings-state'}>{updateInfo?`发现 ${updateInfo.version}`:appVersion?`当前 ${appVersion}`:'当前版本'}</span></div><div className="settings-inline-fields"><button disabled={!isTauri()||updateBusy!=='idle'} onClick={()=>void checkUpdate()}>{updateBusy==='check'?'检查中…':'检查更新'}</button>{updateInfo&&<button className="accent" disabled={busy||updateBusy!=='idle'} onClick={()=>void installUpdate()}>{updateBusy==='install'?(updateProg!=null?`下载中 ${updateProg}%`:'安装中…'):`下载并安装 ${updateInfo.version}`}</button>}</div>{updateErr&&<p className="hint">检查失败：{updateErr}</p>}{!updateErr&&updateInfo===null&&<p className="hint">已是最新版本，没有发现新更新。</p>}{updateInfo&&<p className="hint">发布于 {updateInfo.date?new Date(updateInfo.date).toLocaleString():'未知时间'}{updateInfo.body?` · ${updateInfo.body.slice(0,200)}`:''}</p>}<details className="settings-details"><summary>更新与数据安全</summary><p>更新来自 Hexglow 官方 GitHub Releases，下载后会校验更新签名。安装前先保存本地对局，随后自动退出并启动安装程序。更新不删除你的知识库、历史对局和模型设置；如遇网络问题，可手动下载安装包。更新签名不等于 Windows 发布者证书，系统仍可能显示安全确认。</p></details></section></>}
  {confirmation&&<div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-label={confirmation.title}><h2>{confirmation.title}</h2><p>{confirmation.detail}</p><div className="archive-actions"><button onClick={()=>setConfirmation(null)}>取消</button><button className="danger" disabled={busy} onClick={()=>{const action=confirmation.action;setConfirmation(null);void action().catch(e=>setError(String(e)));}}>确认执行</button></div></section></div>}<footer><span>海萤 · HEXGLOW</span> 本地优先 / 证据驱动 / 由你决策 <span>{appVersion?`${appVersion} · `:''}WINDOWS TARGET</span></footer></div></div>;
 }
 function isOverlayWindow():boolean{

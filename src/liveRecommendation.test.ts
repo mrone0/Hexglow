@@ -37,6 +37,14 @@ function playing(): Session {
 }
 
 describe('main window local recommendation lifecycle', () => {
+  it('explains both manual and explicitly enabled automatic analysis without adding heuristic scores',()=>{
+    const presentation=localRankingPresentation(recognizedCandidates(playing()));
+    expect(presentation.summary).toContain('默认手动分析，开启自动推荐后按设置触发');
+    expect(presentation.summary).not.toContain('不自动调用模型');
+    expect(presentation.reliable).toBe(false);
+    expect(presentation.candidates.every(candidate=>candidate.rank===null&&candidate.displayScore===null)).toBe(true);
+  });
+
   it('retains the completed candidate snapshot and recognition time', () => {
     const session = playing();
     const local = createLocalRecommendation(session, result, '2026-10-06T09:00:01.000Z');
