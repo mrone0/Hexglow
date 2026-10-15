@@ -79,7 +79,12 @@ fn validate_context(c: &Value, mode: &str) -> Result<(), String> {
         .get("players")
         .and_then(Value::as_array)
         .ok_or("缺少 players")?;
-    if ps.len() < 2 || !text(&c["ownPlayerId"]) {
+    if c.get("ownPlayerId")
+        .is_some_and(|value| !value.is_null() && !value.is_string())
+    {
+        return Err("ownPlayerId 必须为文本".into());
+    }
+    if mode != "recommend" && (ps.len() < 2 || !text(&c["ownPlayerId"])) {
         return Err("缺少当前玩家或阵容".into());
     }
     let mut ids = HashSet::new();
@@ -88,17 +93,22 @@ fn validate_context(c: &Value, mode: &str) -> Result<(), String> {
     for p in ps {
         let id = p["id"].as_str().ok_or("玩家缺少 id")?;
         let team = p["team"].as_str().ok_or("玩家缺少 team")?;
-        if !ids.insert(id)
-            || !matches!(team, "ORDER" | "CHAOS")
-            || !text(&p["champion"])
+        if id.trim().is_empty()
+            || !ids.insert(id)
+            || !matches!(team, "ORDER" | "CHAOS" | "UNKNOWN")
+            || !p["champion"].is_string()
             || !strings(&p["augments"])
+            || p.get("items").is_some_and(|items| !items.is_array())
+            || (mode != "recommend" && (team == "UNKNOWN" || !text(&p["champion"])))
         {
-            return Err("阵容数据不完整：需要双方英雄及有效海克斯数据结构".into());
+            return Err(
+                "已提供的玩家数据格式无效：需要唯一 id、有效阵营及英雄/装备/海克斯数据结构".into(),
+            );
         }
         teams.insert(team);
-        own |= id == c["ownPlayerId"].as_str().unwrap();
+        own |= Some(id) == c["ownPlayerId"].as_str();
     }
-    if !own || teams.len() != 2 {
+    if mode != "recommend" && (!own || teams.len() != 2) {
         return Err("必须提供双方阵容及当前玩家".into());
     }
     if mode == "recommend" {
@@ -127,6 +137,58 @@ fn validate_context(c: &Value, mode: &str) -> Result<(), String> {
         return Err("复盘需要结果与决策记录".into());
     }
     Ok(())
+}
+
+/// Presence of observed players never proves a complete roster. In particular,
+/// an empty side means not observed, not that the current game has no such side.
+fn context_availability(c: &Value) -> Value {
+    let players = c["players"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let own = c["ownPlayerId"]
+        .as_str()
+        .filter(|id| !id.trim().is_empty())
+        .and_then(|id| {
+            players
+                .iter()
+                .find(|player| player["id"].as_str() == Some(id))
+        });
+    let self_champion = own.is_some_and(|player| text(&player["champion"]));
+    let own_team = own
+        .and_then(|player| player["team"].as_str())
+        .filter(|team| matches!(*team, "ORDER" | "CHAOS"));
+    let mut allies = 0;
+    let mut opponents = 0;
+    for player in players {
+        if own.is_some_and(|current| std::ptr::eq(current, player)) {
+            continue;
+        }
+        if let (Some(team), Some(other)) = (own_team, player["team"].as_str()) {
+            if matches!(other, "ORDER" | "CHAOS") {
+                if team == other {
+                    allies += 1;
+                } else {
+                    opponents += 1;
+                }
+            }
+        }
+    }
+    let build_observed = own.is_some_and(|player| {
+        player["items"].is_array()
+            || player["augments"]
+                .as_array()
+                .is_some_and(|augments| !augments.is_empty())
+    });
+    json!({
+        "selfChampion": if self_champion { "observed" } else { "unknown" },
+        "selfBuild": if build_observed { "observed" } else { "unknown" },
+        "selfTeam": if own_team.is_some() { "observed" } else { "unknown" },
+        "allies": if allies > 0 { "observed_partial" } else { "unknown" },
+        "opponents": if opponents > 0 { "observed_partial" } else { "unknown" },
+        "observedPlayers": players.len(),
+        "observedAllies": allies,
+        "observedOpponents": opponents,
+        "rosterCompleteness": "unknown_or_partial",
+        "notice": "Only supplied current-game facts are observed. Missing self, items, allies or opponents are unknown, not absent; do not infer them from array order, knowledge documents or previous games."
+    })
 }
 
 fn safe_facts(v: &Value) -> Value {
@@ -180,11 +242,17 @@ fn safe_facts(v: &Value) -> Value {
 /// Remove raw LCU/live data and stable game identifiers; retain only decision facts.
 pub fn sanitize_context(c: &Value) -> Value {
     let mut out = serde_json::Map::new();
+    out.insert("contextAvailability".into(), context_availability(c));
     if let Some(ps) = c["players"].as_array() {
         let mut map = serde_json::Map::new();
         for (i, p) in ps.iter().enumerate() {
             let id = format!("p{}", i + 1);
             let mut q = json!({"id":id,"team":p["team"],"champion":p["champion"],"items":safe_facts(&p.get("items").cloned().unwrap_or(json!([]))),"augments":p["augments"],"augmentsConfirmed":p["augmentsConfirmed"]==true,"augmentDataStatus":if p["augmentsConfirmed"]==true{"confirmed"}else{"unknown_or_partial; missing is not none"}});
+            q["itemDataStatus"] = json!(if p["items"].is_array() {
+                "observed"
+            } else {
+                "unknown; missing is not none"
+            });
             if p.get("stats").is_some() {
                 q["stats"] = safe_facts(&p["stats"]);
             }
@@ -633,6 +701,59 @@ fn confidence_kind(provider: &str, answers: &Value, ids: &[String]) -> &'static 
     }
 }
 
+/// Restrict only factors whose required current-game facts were not supplied.
+/// Known self/candidate interactions remain model-scored when the roster is late.
+fn constrain_unknown_factors(answers: &mut Value, ids: &[String], state: &Value) {
+    for (factor, availability) in [
+        ("championSynergy", "selfChampion"),
+        ("buildSynergy", "selfBuild"),
+        ("teamFit", "allies"),
+        ("enemyFit", "opponents"),
+    ] {
+        if state["contextAvailability"][availability] == "unknown" {
+            for id in ids {
+                answers[id][factor] = json!({"score":2,"confidence":0,"reason":"","references":[]});
+            }
+        }
+    }
+}
+
+fn missing_information(c: &Value, state: &Value) -> Vec<Value> {
+    let mut missing = c["knowledge"]["missing"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for (field, message) in [
+        ("selfChampion", "当前英雄尚未确认；本次不推断英雄适配。"),
+        (
+            "selfBuild",
+            "当前装备与已选海克斯缺少观测；构筑适配保持未知。",
+        ),
+        (
+            "allies",
+            "队友阵容尚未确认；缺失不代表没有队友，队伍适配保持未知。",
+        ),
+        (
+            "opponents",
+            "敌方阵容尚未确认；缺失不代表没有对手，敌方适配保持未知。",
+        ),
+    ] {
+        if state["contextAvailability"][field] == "unknown" {
+            missing.push(json!(message));
+        }
+    }
+    if c["players"].as_array().is_some_and(|players| {
+        players
+            .iter()
+            .any(|player| player["augmentsConfirmed"] != true)
+    }) {
+        missing.push(json!(
+            "部分玩家的已选海克斯未识别，建议仅基于已知信息；缺失不代表没有。"
+        ));
+    }
+    missing
+}
+
 async fn bounded(mut r: reqwest::Response) -> Result<Value, String> {
     let mut b = Vec::new();
     while let Some(c) = r.chunk().await.map_err(|_| "响应读取失败")? {
@@ -729,7 +850,82 @@ fn enrich_context(c: &mut Value) {
     }
 }
 
-fn prepare_state(c: &Value, mode: &str) -> Result<(Value, Value, usize), String> {
+/// Project sanitized session facts into roles instead of player identifiers.
+/// The internal context still resolves ownership by exact id before this boundary.
+/// Recursion covers the current game's recorded decision contexts used in review.
+fn jev_state_facts(value: &Value) -> Value {
+    match value {
+        Value::Array(items) => Value::Array(items.iter().map(jev_state_facts).collect()),
+        Value::Object(fields) => {
+            let mut out: serde_json::Map<String, Value> = fields
+                .iter()
+                .filter(|(key, _)| {
+                    !matches!(key.as_str(), "players" | "ownPlayerId" | "history")
+                        && !key.eq_ignore_ascii_case("playerId")
+                })
+                .map(|(key, value)| (key.clone(), jev_state_facts(value)))
+                .collect();
+            if let Some(players) = fields.get("players").and_then(Value::as_object) {
+                let player_facts = |player: &Value| {
+                    let mut facts = player.clone();
+                    if let Some(object) = facts.as_object_mut() {
+                        object.remove("id");
+                    }
+                    jev_state_facts(&facts)
+                };
+                let own = fields
+                    .get("ownPlayerId")
+                    .and_then(Value::as_str)
+                    .and_then(|id| players.get_key_value(id));
+                if let Some((own_id, own_player)) = own {
+                    out.insert("self".into(), player_facts(own_player));
+                    let mut allies = Vec::new();
+                    let mut opponents = Vec::new();
+                    let mut unassigned = Vec::new();
+                    let own_team = own_player["team"]
+                        .as_str()
+                        .filter(|team| matches!(*team, "ORDER" | "CHAOS"));
+                    for (id, player) in players {
+                        if id == own_id {
+                            continue;
+                        }
+                        match (own_team, player["team"].as_str()) {
+                            (Some(team), Some(other)) if matches!(other, "ORDER" | "CHAOS") => {
+                                if team == other {
+                                    allies.push(player_facts(player));
+                                } else {
+                                    opponents.push(player_facts(player));
+                                }
+                            }
+                            _ => unassigned.push(player_facts(player)),
+                        }
+                    }
+                    out.insert("allies".into(), Value::Array(allies));
+                    out.insert("opponents".into(), Value::Array(opponents));
+                    if !unassigned.is_empty() {
+                        out.insert("unassignedPlayers".into(), Value::Array(unassigned));
+                    }
+                } else {
+                    // An incomplete legacy decision context must not guess the
+                    // current champion from array order or a shared champion name.
+                    out.insert(
+                        "unassignedPlayers".into(),
+                        Value::Array(players.values().map(player_facts).collect()),
+                    );
+                    out.insert("playerRoleStatus".into(), json!("unknown"));
+                }
+            }
+            Value::Object(out)
+        }
+        _ => value.clone(),
+    }
+}
+
+fn prepare_state_for_provider(
+    c: &Value,
+    mode: &str,
+    provider: &str,
+) -> Result<(Value, Value, usize), String> {
     if serde_json::to_vec(c).map_err(|_| "上下文无效")?.len() > 8 * 1024 * 1024 {
         return Err("分析原始上下文超过 8 MiB".into());
     }
@@ -737,7 +933,11 @@ fn prepare_state(c: &Value, mode: &str) -> Result<(Value, Value, usize), String>
     let mut enriched = c.clone();
     enrich_context(&mut enriched);
     let state = sanitize_context(&enriched);
-    let model_state = state.clone();
+    let model_state = if provider == "jev" {
+        jev_state_facts(&state)
+    } else {
+        state.clone()
+    };
     let input_bytes = serde_json::to_vec(&model_state)
         .map_err(|_| "上下文无效")?
         .len();
@@ -747,6 +947,28 @@ fn prepare_state(c: &Value, mode: &str) -> Result<(Value, Value, usize), String>
     Ok((state, model_state, input_bytes))
 }
 
+#[cfg(test)]
+fn prepare_state(c: &Value, mode: &str) -> Result<(Value, Value, usize), String> {
+    prepare_state_for_provider(c, mode, "openai")
+}
+
+/// This is the same payload used for the real request, so the Jev state and
+/// question contract can be checked offline without invoking a paid model.
+fn jev_payload(model_state: &Value, mode: &str, model_name: &str) -> Value {
+    let mut questions = serde_json::Map::new();
+    if mode == "recommend" {
+        for candidate in model_state["candidates"].as_array().into_iter().flatten() {
+            let id = candidate["id"].as_str().unwrap_or("");
+            for factor in ["championSynergy", "buildSynergy", "teamFit", "enemyFit"] {
+                questions.insert(format!("{id}__{factor}"),json!({"type":"score","instructions":format!("Judge {factor} for candidate \"{}\" (id {id}) using only the supplied current-game facts: self is the current champion with observed items and known augments; allies are teammates excluding self; opponents are the other team. contextAvailability distinguishes missing observations from actual absence. An empty or unassigned roster does not mean there are no allies or opponents. Never infer self's champion or team from array order, knowledge documents or unassignedPlayers. Continue comparing known champion and build interactions even when roster factors are unknown. augmentsConfirmed indicates completeness, not whether listed choices are known. Use the supplied candidate effects, knowledge documents and notes. Do not use outside knowledge. When evidence for this factor is missing, return neutral score 2 and confidence 0; unknown is not a negative interaction. Treat draft and inferred content as hypotheses.", candidate["name"].as_str().unwrap_or(id)),"criteria":["0: concrete evidence of an incompatible interaction","1: weak or mostly negative interaction","2: neutral or unknown interaction; use confidence 0 when unknown","3: good synergy backed by a concrete fact in the state","4: strong synergy backed by multiple concrete facts in the state"]}));
+            }
+        }
+    } else {
+        questions.insert("safe_decision".into(),json!({"type":"noul","instructions":"Is the current game's recorded decision safe to repeat given only the supplied decisions and outcome? self is the current champion, allies exclude self, and opponents are the other team. Use only supplied evidence; missing facts are unknown."}));
+    }
+    json!({"state": model_state, "model": model_name, "questions": questions})
+}
+
 #[tauri::command]
 pub async fn analyze_structured(request: Value) -> Result<Value, String> {
     let mode = request["mode"].as_str().ok_or("缺少 mode")?;
@@ -754,31 +976,20 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
         return Err("未知分析模式".into());
     }
     let c = &request["context"];
-    let (state, model_state, input_bytes) = prepare_state(c, mode)?;
     let m = &request["model"];
     let provider = m["provider"].as_str().unwrap_or("openai");
     if !matches!(provider, "jev" | "openai") {
         return Err("未知 provider".into());
     }
+    let (state, model_state, input_bytes) = prepare_state_for_provider(c, mode, provider)?;
     let started = Instant::now();
     let (body, model_name) = if provider == "jev" {
         let endpoint = base_url(m, "jev", "")?;
-        let mut qs = serde_json::Map::new();
-        if mode == "recommend" {
-            for x in c["candidates"].as_array().unwrap() {
-                let id = x["id"].as_str().unwrap();
-                for f in ["championSynergy", "buildSynergy", "teamFit", "enemyFit"] {
-                    qs.insert(format!("{}__{}",id,f),json!({"type":"score","instructions":format!("Judge {f} for candidate \"{}\" (id {id}) using only the supplied state: own champion, items and known augments (augmentsConfirmed indicates completeness, not whether listed choices are known), both teams, knowledge documents, notes and past reviews. Do not use outside knowledge. When evidence is missing, return neutral score 2 and confidence 0; unknown is not a negative interaction. Treat draft and inferred content as hypotheses.", x["name"].as_str().unwrap_or(id)),"criteria":["0: concrete evidence of an incompatible interaction","1: weak or mostly negative interaction","2: neutral or unknown interaction; use confidence 0 when unknown","3: good synergy backed by a concrete fact in the state","4: strong synergy backed by multiple concrete facts in the state"]}));
-                }
-            }
-        } else {
-            qs.insert("safe_decision".into(),json!({"type":"noul","instructions":"Is the recorded decision safe to repeat given only the supplied evidence?"}));
-        }
         let name = m["name"]
             .as_str()
             .filter(|s| !s.is_empty())
             .unwrap_or(JEV_MODEL);
-        let payload = json!({"state":model_state,"model":name,"questions":qs});
+        let payload = jev_payload(&model_state, mode, name);
         let mut rq = client(30)?.post(endpoint).json(&payload);
         if let Some(k) = m["apiKey"].as_str() {
             rq = rq.bearer_auth(k);
@@ -812,7 +1023,7 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
             qs.insert("safe_decision".into(), json!(0.5));
         }
         let instructions = if mode == "recommend" {
-            "Return exact JSON answers. Each candidate has four factors with score 0..4 and confidence 0..1 based only on the supplied state. Include a concise Chinese reason (at most 50 characters) for each known factor. references lists only exact supplied knowledge document paths, optionally #section; use [] for explanations based on candidate effects or player facts. Never invent a reference or mechanic. When a factor is unknown, return neutral score 2, confidence 0, empty reason and references; unknown is not a negative interaction. Draft documents and inferred labels are hypotheses, not verified mechanics. Confidence is your self-assessment, not a calibrated probability."
+            "Return exact JSON answers. Each candidate has four factors with score 0..4 and confidence 0..1 based only on the supplied state. contextAvailability distinguishes missing observations from actual absence: missing allies/opponents are unknown, not nonexistent. Resolve the current champion only through ownPlayerId; never infer it from array order, knowledge documents or prior games. Continue comparing supplied champion/build facts even when the roster is missing. Include a concise Chinese reason (at most 50 characters) for each known factor. references lists only exact supplied knowledge document paths, optionally #section; use [] for explanations based on candidate effects or player facts. Never invent a reference or mechanic. When a factor is unknown, return neutral score 2, confidence 0, empty reason and references; unknown is not a negative interaction. Draft documents and inferred labels are hypotheses, not verified mechanics. Confidence is your self-assessment, not a calibrated probability."
         } else {
             "Return exact JSON with safe_decision as a number 0..1: whether the recorded choice is supported for reuse under similar conditions, using only the supplied decisions and outcome. Use 0.5 if evidence is insufficient. A single outcome does not prove causation. Do not return candidate factor scores."
         };
@@ -867,7 +1078,7 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
         .iter()
         .map(|x| x["id"].as_str().unwrap().to_string())
         .collect();
-    let answers = if provider == "jev" {
+    let mut answers = if provider == "jev" {
         let raw = &body["answers"];
         let mut nested = serde_json::Map::new();
         for id in &ids {
@@ -886,6 +1097,8 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
         serde_json::from_str(s).map_err(|_| "模型 JSON 无效")?
     };
     validate_answers(&answers, &ids)?;
+    let confidence_origin = confidence_kind(provider, &answers, &ids);
+    constrain_unknown_factors(&mut answers, &ids, &state);
     let mut ranking = Vec::new();
     for id in &ids {
         let candidate = state["candidates"]
@@ -928,14 +1141,19 @@ pub async fn analyze_structured(request: Value) -> Result<Value, String> {
         .collect();
     let overall = (!confidences.is_empty())
         .then(|| confidences.iter().sum::<f64>() / confidences.len() as f64);
+    let basis = if provider == "jev" {
+        "本局事实与知识"
+    } else {
+        "对局、知识与历史"
+    };
     let summary = format!(
-        "本次模型依据对局、知识与历史动态比较；四项因素按置信度加权，证据不足向中性 50 分收缩，不叠加固定英雄或海克斯适配分{}；分数是相对契合度，不是胜率。",
+        "本次模型依据{basis}动态比较；四项因素按置信度加权，证据不足向中性 50 分收缩，不叠加固定英雄或海克斯适配分{}；分数是相对契合度，不是胜率。",
         overall
             .map(|c| format!("，综合置信度 {c:.2}"))
             .unwrap_or_default()
     );
     Ok(
-        json!({"ranking":ranking,"summary":summary,"missingInformation":({ let mut missing=c["knowledge"]["missing"].as_array().cloned().unwrap_or_default(); if c["players"].as_array().unwrap().iter().any(|p| p["augmentsConfirmed"]!=true) { missing.push(json!("部分玩家的已选海克斯未识别，建议仅基于已知信息；缺失不代表没有。")); } missing }),"engine":{"provider":provider,"model":model_name,"latencyMs":started.elapsed().as_millis(),"inputBytes":input_bytes,"confidenceKind":confidence_kind(provider,&answers,&ids),"scoringMode":"dynamic-model-v1"}}),
+        json!({"ranking":ranking,"summary":summary,"missingInformation":missing_information(c,&state),"engine":{"provider":provider,"model":model_name,"latencyMs":started.elapsed().as_millis(),"inputBytes":input_bytes,"confidenceKind":confidence_origin,"scoringMode":"dynamic-model-v1"}}),
     )
 }
 
@@ -1010,6 +1228,168 @@ mod tests {
         assert!(!v.to_string().contains("PRIVATE_PLAYER"));
         assert!(!v.to_string().contains("SECRET_GAME"));
     }
+
+    fn assert_no_jev_player_identifiers_or_history(value: &Value) {
+        match value {
+            Value::Array(items) => {
+                for item in items {
+                    assert_no_jev_player_identifiers_or_history(item);
+                }
+            }
+            Value::Object(fields) => {
+                for (key, value) in fields {
+                    assert!(
+                        !matches!(key.as_str(), "ownPlayerId" | "history" | "players")
+                            && !key.eq_ignore_ascii_case("playerId"),
+                        "unexpected Jev field: {key}"
+                    );
+                    assert_no_jev_player_identifiers_or_history(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn jev_state_uses_exact_current_player_roles_without_player_ids() {
+        let mut c = ctx();
+        c["players"] = json!([
+            {"id":"same-champion-ally","team":"ORDER","champion":"A","items":[{"itemID":1001}],"augments":["循环往复"],"augmentsConfirmed":true},
+            {"id":"enemy-id","team":"CHAOS","champion":"B","items":[{"itemID":3006}],"augments":[],"augmentsConfirmed":false},
+            {"id":"abc","team":"ORDER","champion":"A","items":[{"itemID":3115,"count":1}],"augments":["终极刷新"],"augmentsConfirmed":false,"stats":{"kills":3}}
+        ]);
+        c["candidates"] = json!([
+            {"id":"slot-one","name":"终极刷新","description":"当前效果"},
+            {"id":"slot-two","name":"循环往复","description":"另一个效果"}
+        ]);
+        let (internal, sent, bytes) = prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        assert_eq!(internal["ownPlayerId"], "p3");
+        assert_eq!(sent["self"]["items"][0]["itemID"], 3115);
+        assert_eq!(sent["self"]["stats"]["kills"], 3);
+        assert_eq!(sent["self"]["augments"][0], "终极刷新");
+        assert_eq!(sent["self"]["augmentsConfirmed"], false);
+        assert!(sent["self"]["augmentDataStatus"]
+            .as_str()
+            .unwrap()
+            .contains("unknown"));
+        assert_eq!(sent["allies"].as_array().unwrap().len(), 1);
+        assert_eq!(sent["allies"][0]["items"][0]["itemID"], 1001);
+        assert_eq!(sent["opponents"][0]["items"][0]["itemID"], 3006);
+        assert!(sent["self"].get("id").is_none());
+        assert!(sent["allies"][0].get("id").is_none());
+        assert!(sent["opponents"][0].get("id").is_none());
+        assert_eq!(sent["candidates"][0]["id"], "slot-one");
+        assert_eq!(sent["candidates"][0]["augmentId"], "1088");
+        assert_eq!(sent["candidates"][0]["alreadyOwned"], true);
+        assert_eq!(sent["candidates"][1]["alreadyOwned"], false);
+        assert_eq!(bytes, serde_json::to_vec(&sent).unwrap().len());
+        assert_no_jev_player_identifiers_or_history(&sent);
+        c["players"].as_array_mut().unwrap().reverse();
+        let (_, reordered, _) = prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        assert_eq!(sent, reordered);
+    }
+
+    #[test]
+    fn jev_payload_has_twelve_current_fact_questions_and_no_cross_game_history() {
+        let mut c = ctx();
+        c["candidates"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id":"c3","name":"Three","description":"third effect"}));
+        c["history"] = json!([{"notes":"PRIVATE_CROSS_GAME_HISTORY"}]);
+        c["knowledge"] =
+            json!({"documents":[{"path":"champions/a.md","content":"current champion mechanics"}]});
+        let (_, sent, _) = prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        let payload = jev_payload(&sent, "recommend", JEV_MODEL);
+        assert_eq!(payload["model"], JEV_MODEL);
+        let questions = payload["questions"].as_object().unwrap();
+        assert_eq!(questions.len(), 12);
+        for candidate in ["c1", "c2", "c3"] {
+            for factor in ["championSynergy", "buildSynergy", "teamFit", "enemyFit"] {
+                let question = &questions[&format!("{candidate}__{factor}")];
+                assert_eq!(question["type"], "score");
+                let instructions = question["instructions"].as_str().unwrap();
+                for role in ["self", "allies", "opponents"] {
+                    assert!(instructions.contains(role));
+                }
+                assert!(!instructions.contains("history"));
+                assert!(!instructions.contains("past reviews"));
+            }
+        }
+        assert_eq!(payload["state"]["knowledge"], sent["knowledge"]);
+        assert!(!payload.to_string().contains("PRIVATE_CROSS_GAME_HISTORY"));
+        assert_no_jev_player_identifiers_or_history(&payload["state"]);
+    }
+
+    #[test]
+    fn jev_review_keeps_current_decisions_but_projects_nested_contexts() {
+        let mut c = ctx();
+        c["history"] = json!([{"notes":"PRIVATE_TOP_HISTORY"}]);
+        let mut recorded = c.clone();
+        recorded["history"] = json!([{"notes":"PRIVATE_NESTED_HISTORY"}]);
+        c["outcome"] = json!("本局结果");
+        c["decisions"] = json!([{
+            "chosenId":"c1",
+            "context":recorded,
+            "result":{"summary":"本局当时比较","ranking":[{"candidateId":"c1","score":75}]}
+        }]);
+        let original = c.clone();
+        let (_, sent, _) = prepare_state_for_provider(&c, "review", "jev").unwrap();
+        let payload = jev_payload(&sent, "review", JEV_MODEL);
+        assert_eq!(c, original, "saved session input must not be changed");
+        assert_eq!(sent["decisions"][0]["chosenId"], "c1");
+        assert_eq!(sent["decisions"][0]["context"]["self"]["champion"], "A");
+        assert_eq!(
+            sent["decisions"][0]["context"]["opponents"][0]["champion"],
+            "B"
+        );
+        assert_eq!(
+            sent["decisions"][0]["result"]["ranking"][0]["candidateId"],
+            "c1"
+        );
+        assert!(sent["decisions"][0]["context"]["self"].get("id").is_none());
+        assert_eq!(payload["questions"].as_object().unwrap().len(), 1);
+        assert_eq!(payload["questions"]["safe_decision"]["type"], "noul");
+        assert!(!payload.to_string().contains("PRIVATE_TOP_HISTORY"));
+        assert!(!payload.to_string().contains("PRIVATE_NESTED_HISTORY"));
+        assert_no_jev_player_identifiers_or_history(&payload["state"]);
+    }
+
+    #[test]
+    fn jev_unknown_nested_player_role_does_not_guess_a_current_champion() {
+        let mut c = ctx();
+        c["outcome"] = json!("本局结果");
+        c["decisions"] = json!([{"chosenId":"c1","context":{"players":c["players"],"candidates":c["candidates"]}}]);
+        let (_, sent, _) = prepare_state_for_provider(&c, "review", "jev").unwrap();
+        let recorded = &sent["decisions"][0]["context"];
+        assert_eq!(recorded["playerRoleStatus"], "unknown");
+        assert!(recorded.get("self").is_none());
+        assert_eq!(recorded["unassignedPlayers"].as_array().unwrap().len(), 2);
+        for player in recorded["unassignedPlayers"].as_array().unwrap() {
+            assert!(player.get("id").is_none());
+            assert!(player["champion"].is_string());
+        }
+        assert_no_jev_player_identifiers_or_history(&sent);
+    }
+
+    #[test]
+    fn jev_input_budget_excludes_history_while_openai_context_is_unchanged() {
+        let mut c = ctx();
+        c["history"] = json!([{"ownChampion":"A","notes":"known observation"}]);
+        let (_, openai, _) = prepare_state_for_provider(&c, "recommend", "openai").unwrap();
+        assert_eq!(openai["ownPlayerId"], "p1");
+        assert_eq!(openai["players"]["p1"]["champion"], "A");
+        assert_eq!(openai["history"][0]["notes"], "known observation");
+        let (_, jev, _) = prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        c["history"][0]["notes"] = json!("x".repeat(MAX_IN + 1));
+        let (_, jev_with_large_ignored_history, _) =
+            prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        assert_eq!(jev, jev_with_large_ignored_history);
+        assert!(prepare_state_for_provider(&c, "recommend", "openai").is_err());
+        c["notes"] = json!("x".repeat(MAX_IN + 1));
+        assert!(prepare_state_for_provider(&c, "recommend", "jev").is_err());
+    }
+
     #[test]
     fn url_rules() {
         assert!(base_url(&json!({"provider":"jev"}), "jev", "").is_ok());
@@ -1056,10 +1436,152 @@ mod tests {
         assert!(validate_context(&x, "recommend").is_err());
         let mut x = c.clone();
         x["players"][1]["team"] = json!("ORDER");
-        assert!(validate_context(&x, "recommend").is_err());
+        assert!(validate_context(&x, "recommend").is_ok());
         let mut x = c;
         x["candidates"][0]["id"] = json!("  ");
         assert!(validate_context(&x, "recommend").is_err());
+    }
+
+    #[test]
+    fn recommend_accepts_missing_roster_without_guessing_own_champion() {
+        for players in [
+            json!([]),
+            json!([{"id":"unassigned","team":"ORDER","champion":"A","items":[],"augments":[]}]),
+        ] {
+            let mut c = ctx();
+            c["players"] = players;
+            c["ownPlayerId"] = json!("");
+            for provider in ["jev", "openai"] {
+                let (internal, sent, _) =
+                    prepare_state_for_provider(&c, "recommend", provider).unwrap();
+                assert_eq!(internal["contextAvailability"]["selfChampion"], "unknown");
+                assert_eq!(sent["contextAvailability"]["allies"], "unknown");
+                assert_eq!(sent["contextAvailability"]["opponents"], "unknown");
+                assert!(sent.get("self").is_none());
+                assert!(sent.get("ownPlayerId").is_none());
+                if provider == "jev" {
+                    assert_no_jev_player_identifiers_or_history(&sent);
+                }
+                assert_eq!(sent["candidates"].as_array().unwrap().len(), 2);
+                assert!(missing_information(&c, &internal)
+                    .iter()
+                    .any(|item| item.as_str().unwrap().contains("当前英雄")));
+            }
+        }
+    }
+
+    #[test]
+    fn partial_roster_keeps_known_self_scoring_and_neutralizes_only_missing_roles() {
+        let mut c = ctx();
+        c["players"].as_array_mut().unwrap().truncate(1);
+        c["players"][0]["items"] = json!([{"itemID":3115}]);
+        let (internal, sent, _) = prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        assert_eq!(sent["self"]["champion"], "A");
+        assert_eq!(sent["self"]["items"][0]["itemID"], 3115);
+        assert_eq!(sent["contextAvailability"]["selfChampion"], "observed");
+        assert_eq!(sent["contextAvailability"]["selfBuild"], "observed");
+        assert_eq!(sent["allies"], json!([]));
+        assert_eq!(sent["opponents"], json!([]));
+        let mut factors = json!({});
+        for (factor, _) in FACTORS {
+            factors[factor] = json!({"score":4,"confidence":1,"reason":"supplied or invented","references":["a.md"]});
+        }
+        let mut answers = json!({"c1":factors});
+        let before = answers.clone();
+        constrain_unknown_factors(&mut answers, &["c1".into()], &internal);
+        assert_eq!(
+            answers["c1"]["championSynergy"],
+            before["c1"]["championSynergy"]
+        );
+        assert_eq!(answers["c1"]["buildSynergy"], before["c1"]["buildSynergy"]);
+        for factor in ["teamFit", "enemyFit"] {
+            assert_eq!(
+                answers["c1"][factor],
+                json!({"score":2,"confidence":0,"reason":"","references":[]})
+            );
+        }
+        let evaluated = evaluate(
+            "c1",
+            &answers["c1"],
+            &internal["candidates"][0],
+            &internal["knowledge"],
+        );
+        assert_eq!(
+            evaluated["score"], 75.0,
+            "missing roster must not erase supported self evidence"
+        );
+    }
+
+    #[test]
+    fn unknown_team_is_not_guessed_as_an_ally_or_opponent() {
+        let mut c = ctx();
+        c["players"][0]["team"] = json!("UNKNOWN");
+        c["players"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id":"other","team":"UNKNOWN","champion":"C","items":[],"augments":[]}));
+        let (_, sent, _) = prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        assert_eq!(sent["self"]["champion"], "A");
+        assert_eq!(sent["contextAvailability"]["selfTeam"], "unknown");
+        assert_eq!(sent["contextAvailability"]["allies"], "unknown");
+        assert_eq!(sent["contextAvailability"]["opponents"], "unknown");
+        assert_eq!(sent["allies"], json!([]));
+        assert_eq!(sent["opponents"], json!([]));
+        assert_eq!(sent["unassignedPlayers"].as_array().unwrap().len(), 2);
+        assert_no_jev_player_identifiers_or_history(&sent);
+        c["players"][0]["team"] = json!("ORDER");
+        let (_, sent, _) = prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        assert_eq!(sent["opponents"].as_array().unwrap().len(), 1);
+        assert_eq!(sent["unassignedPlayers"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn missing_champion_does_not_erase_known_build_or_roster_facts() {
+        let mut c = ctx();
+        c["players"][0]["champion"] = json!("");
+        c["players"][0]["items"] = json!([{"itemID":3115}]);
+        let (internal, _, _) = prepare_state_for_provider(&c, "recommend", "jev").unwrap();
+        assert_eq!(internal["contextAvailability"]["selfChampion"], "unknown");
+        assert_eq!(internal["contextAvailability"]["selfBuild"], "observed");
+        assert_eq!(
+            internal["contextAvailability"]["opponents"],
+            "observed_partial"
+        );
+        let mut answers = json!({"c1":{}});
+        for (factor, _) in FACTORS {
+            answers["c1"][factor] = json!({"score":3,"confidence":0.7});
+        }
+        constrain_unknown_factors(&mut answers, &["c1".into()], &internal);
+        assert_eq!(answers["c1"]["championSynergy"]["confidence"], 0);
+        assert_eq!(answers["c1"]["buildSynergy"]["confidence"], 0.7);
+        assert_eq!(answers["c1"]["enemyFit"]["confidence"], 0.7);
+    }
+
+    #[test]
+    fn partial_context_does_not_accept_malformed_types_or_weaken_review_requirements() {
+        let mut c = ctx();
+        for (field, value) in [
+            ("id", json!(" ")),
+            ("team", json!("OTHER")),
+            ("champion", json!(7)),
+            ("items", json!({})),
+            ("augments", json!(null)),
+        ] {
+            let mut bad = c.clone();
+            bad["players"][0][field] = value;
+            assert!(validate_context(&bad, "recommend").is_err(), "{field}");
+        }
+        let mut bad = c.clone();
+        bad["players"][1]["id"] = bad["players"][0]["id"].clone();
+        assert!(validate_context(&bad, "recommend").is_err());
+        bad = c.clone();
+        bad["ownPlayerId"] = json!({"id":"abc"});
+        assert!(validate_context(&bad, "recommend").is_err());
+        c["players"] = json!([]);
+        c["outcome"] = json!("记录结果");
+        c["decisions"] = json!([{"chosenId":"c1"}]);
+        assert!(validate_context(&c, "recommend").is_ok());
+        assert!(validate_context(&c, "review").is_err());
     }
     #[test]
     fn answer_schema() {

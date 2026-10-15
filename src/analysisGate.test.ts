@@ -25,9 +25,17 @@ describe('model analysis source gate',()=>{
   expect(()=>analysisSource('recommend',current,current,{...snapshot,phase,liveData:null},false)).toThrow('本轮推荐已暂停');
  });
 
- it('rejects missing Live API, mismatched games and explicit historical selection',()=>{
+ it('accepts identified LCU-only games without borrowing stale Live API context',()=>{
   const {session,snapshot}=liveFixture();
-  expect(()=>analysisSource('recommend',session,session,{...snapshot,liveData:null},false)).toThrow();
+  const source=analysisSource('recommend',session,session,{...snapshot,liveData:null},false);
+  expect(source.liveData).toBeNull();
+  const empty={...session,players:[],ownPlayerId:''};
+  expect(analysisSource('recommend',empty,empty,{...snapshot,liveData:null},false).players).toEqual([]);
+ });
+
+ it('rejects unidentified signals, mismatched games and explicit historical selection',()=>{
+  const {session,snapshot}=liveFixture();
+  expect(()=>analysisSource('recommend',session,session,{...snapshot,gameId:null,liveData:null},false)).toThrow();
   expect(()=>analysisSource('recommend',session,session,{...snapshot,gameId:'next-game'},false)).toThrow();
   expect(()=>analysisSource('recommend',{...session,id:'old-session'},session,snapshot,false)).toThrow();
   expect(()=>analysisSource('recommend',session,session,snapshot,true)).toThrow();
@@ -36,7 +44,7 @@ describe('model analysis source gate',()=>{
  it('rejects a disconnect or a new match discovered while local evidence was loading',()=>{
   const {session,snapshot}=liveFixture();
   const selected=analysisSource('recommend',session,session,snapshot,false);
-  expect(()=>analysisSource('recommend',selected,session,{...snapshot,liveData:null},false)).toThrow();
+  expect(()=>analysisSource('recommend',selected,session,{...snapshot,connection:'disconnected',liveData:null},false)).toThrow();
   const next={...session,id:'session-2',matchId:'game-2'};
   expect(()=>analysisSource('recommend',selected,next,{...snapshot,gameId:'game-2'},false)).toThrow();
  });

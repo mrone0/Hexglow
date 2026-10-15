@@ -15,6 +15,7 @@ fn main() {
             }
             lol_augment_assistant_lib::desktop::setup(app)?;
             lol_augment_assistant_lib::ocr::start_warmup(app.handle());
+            lol_augment_assistant_lib::knowledge::start_warmup(app.handle());
             Ok(())
         })
         .on_window_event(lol_augment_assistant_lib::desktop::on_window_event)
@@ -37,6 +38,7 @@ fn main() {
             lol_augment_assistant_lib::knowledge::knowledge_save,
             lol_augment_assistant_lib::knowledge::knowledge_delete,
             lol_augment_assistant_lib::knowledge::knowledge_retrieve,
+            lol_augment_assistant_lib::knowledge::knowledge_warmup,
             lol_augment_assistant_lib::storage::storage_stats,
             lol_augment_assistant_lib::storage::delete_session,
             lol_augment_assistant_lib::storage::delete_analysis,
@@ -49,15 +51,19 @@ fn main() {
             lol_augment_assistant_lib::storage::export_history,
             lol_augment_assistant_lib::collector::collector_snapshot,
             lol_augment_assistant_lib::collector::diagnostics,
+            lol_augment_assistant_lib::collector::recommendation_diagnostic,
             lol_augment_assistant_lib::collector::postgame_entries,
             lol_augment_assistant_lib::collector::postgame_rescan,
             lol_augment_assistant_lib::collector::ocr_stats,
             lol_augment_assistant_lib::overlay::overlay_open,
+            lol_augment_assistant_lib::overlay::overlay_prepare,
             lol_augment_assistant_lib::overlay::overlay_ready,
             lol_augment_assistant_lib::overlay::overlay_publish,
+            lol_augment_assistant_lib::overlay::overlay_analysis_status,
             lol_augment_assistant_lib::overlay::overlay_close,
             lol_augment_assistant_lib::overlay::overlay_set_collapsed,
             lol_augment_assistant_lib::ocr::ocr_scan,
+            lol_augment_assistant_lib::ocr::ocr_warmup,
             lol_augment_assistant_lib::scoring::score_candidates
         ])
         .run(tauri::generate_context!())

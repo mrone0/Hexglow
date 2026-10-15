@@ -59,10 +59,11 @@ describe('API context boundaries',()=>{
     const changed=structuredClone(raw);changed.allPlayers[0].championName='Ashe';
     expect(mergeLive(s,changed).players[0].augmentsConfirmed).toBe(false);
   });
-  it('requires teams and candidate effects but does not force per-player confirmation',()=>{
+  it('requires candidate effects but accepts an unknown team without inventing one',()=>{
     const s=mergeLive(newSession(),raw);expect(s.players.every(p=>!p.augmentsConfirmed)).toBe(true);
     s.candidates.forEach(c=>{c.name='name';c.description='effect';});expect(blockers(s)).toEqual([]);
-    s.players[1].team='UNKNOWN';expect(blockers(s)).not.toEqual([]);
+    s.players[1].team='UNKNOWN';expect(blockers(s)).toEqual([]);
+    s.players=[];s.ownPlayerId='';expect(blockers(s)).toEqual([]);
   });
   it('refuses to carry observations across a game-time reset',()=>{
     const s=mergeLive(newSession(),{...raw,gameData:{gameTime:900}});

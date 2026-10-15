@@ -9,6 +9,13 @@ const AUGMENTS_JSON: &str = include_str!("../data/augments.json");
 const CHAMPIONS_JSON: &str = include_str!("../data/champions.json");
 const MECHANICS_JSON: &str = include_str!("../data/scoring-mechanics.json");
 
+/// Parse local lookup tables before the first OCR frame; performs no scoring.
+pub fn warmup_catalog() {
+    let _ = augments();
+    let _ = champions();
+    let _ = data_patch();
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct MatchedCandidate {
     pub id: String,
@@ -247,6 +254,14 @@ pub fn data_patch() -> &'static str {
             .and_then(|v| v["meta"]["patch"].as_str().map(str::to_owned))
             .unwrap_or_else(|| "unknown".into())
     })
+}
+
+/// A single plausible title is only a reason to spend more OCR work, never
+/// candidate evidence. Use the same conservative fuzzy matcher as the full row.
+pub(crate) fn has_augment_title_hint(lines: &[TextLine]) -> bool {
+    lines
+        .iter()
+        .any(|line| line.width > 0 && line.height > 0 && match_title(line, augments()).is_some())
 }
 
 /// OCR 文本行 -> 同一行候选卡片上的海克斯，按左到右返回。

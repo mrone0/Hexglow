@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {newSession, type Session} from './domain';
-import {canPublishModelRecommendation, modelContextKey} from './modelPublication';
+import {canRetainModelRecommendation,canPublishModelRecommendation, modelContextKey,snapshotModelChoice} from './modelPublication';
 
 function playing(): Session {
   return {...newSession(), id:'session-a', matchId:'123', phase:'InProgress', candidateBand:7,
@@ -11,6 +11,38 @@ function playing(): Session {
 }
 
 describe('model result publication boundary', () => {
+  it('can publish a partial comparison and retain it as an old snapshot when the roster arrives',()=>{
+    const complete=playing(),partial={...complete,ownPlayerId:'',players:[]};
+    expect(canPublishModelRecommendation(partial,partial)).toBe(true);
+    expect(canPublishModelRecommendation(partial,complete)).toBe(false);
+    expect(canRetainModelRecommendation(partial,complete)).toBe(true);
+    const knownId={...partial,ownPlayerId:'self'};
+    expect(canRetainModelRecommendation(knownId,complete)).toBe(true);
+    expect(canRetainModelRecommendation(knownId,{...complete,ownPlayerId:'other'})).toBe(false);
+    complete.players[0].augments=[complete.candidates[0].name];
+    expect(canRetainModelRecommendation(partial,complete)).toBe(false);
+  });
+  it('copies only bounded choice facts and does not retain nested archived analysis or sample payloads',()=>{
+    const input=playing();input.samples=[{at:'now',data:{sensitive:'not-needed'}}];
+    input.notes='not-needed';input.decisions=[{at:'now',context:structuredClone(input),result:{ranking:[],summary:'',missingInformation:[]}}];
+    const snapshot=snapshotModelChoice(input);
+    expect(Object.keys(snapshot).sort()).toEqual(['candidateBand','candidates','id','matchId','ownPlayerId','players']);
+    expect(snapshot.players).toHaveLength(1);
+    input.players[0].augments.push('later');input.candidates[0].description='later';
+    expect(snapshot.players[0].augments).toEqual([]);expect(snapshot.candidates[0].description).toBe('效果A');
+  });
+  it('can retain changed equipment and notes only as a previous snapshot of the same choice',()=>{
+    const analyzed=playing(),current=structuredClone(analyzed);current.players[1].items.push({itemID:42});current.notes='updated';
+    expect(canPublishModelRecommendation(analyzed,current)).toBe(false);
+    expect(canRetainModelRecommendation(analyzed,current)).toBe(true);
+    current.players[0].items.push({itemID:43});expect(canRetainModelRecommendation(analyzed,current)).toBe(true);
+    current.players[0].augments.push('chosen');expect(canRetainModelRecommendation(analyzed,current)).toBe(false);
+  });
+  it('never retains a result across a game, band, player, hero, candidate or phase boundary',()=>{
+    const analyzed=playing();
+    const changes:Array<(s:Session)=>void>=[s=>{s.id='different';},s=>{s.matchId='different';},s=>{s.ownPlayerId='other';},s=>{s.players[0].champion='changed';},s=>{s.candidates[0].description='changed';},s=>{s.candidates[0].source='manual';},s=>{s.liveData={activePlayer:{level:11}};},s=>{s.phase='EndOfGame';},s=>{s.archived=true;}];
+    for(const update of changes){const current=structuredClone(analyzed);update(current);expect(canRetainModelRecommendation(analyzed,current)).toBe(false);}
+  });
   it('allows the same choice including manually corrected candidates', () => {
     const session=playing();
     expect(canPublishModelRecommendation(session,structuredClone(session))).toBe(true);

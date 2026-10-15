@@ -37,8 +37,20 @@ impl CaptureSkip {
 }
 
 pub(crate) enum CaptureAttempt {
-    Captured(RgbImage),
+    Captured {
+        image: RgbImage,
+        masked: Vec<MaskRect>,
+    },
     Skipped(CaptureSkip),
+}
+
+/// Known own-window overlap in image coordinates, never guessed from black pixels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MaskRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[cfg(target_os = "windows")]
@@ -73,11 +85,17 @@ fn capture_skip(
     None
 }
 
-/// 中心区域比例：海克斯选择卡片位于游戏客户区中部。
+/// Keep the central vertical band but a wide horizontal margin: the cards can
+/// sit left of centre on wide layouts. Own sidebar overlap is masked below.
 #[cfg(any(target_os = "windows", test))]
-const CENTER_WIDTH_RATIO: f64 = 0.62;
+const CENTER_WIDTH_RATIO: f64 = 0.90;
 #[cfg(any(target_os = "windows", test))]
 const CENTER_HEIGHT_RATIO: f64 = 0.52;
+
+#[cfg(target_os = "windows")]
+pub(crate) fn register_overlay_handle(handle: usize) {
+    imp::register_overlay_handle(handle);
+}
 
 #[cfg(any(target_os = "windows", test))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,7 +119,7 @@ pub fn grab_center_png() -> Result<Vec<u8>, String> {
 #[cfg(target_os = "windows")]
 pub fn grab_center_image() -> Result<RgbImage, String> {
     match try_grab_center_image()? {
-        CaptureAttempt::Captured(image) => Ok(image),
+        CaptureAttempt::Captured { image, .. } => Ok(image),
         CaptureAttempt::Skipped(reason) => Err(reason.message().into()),
     }
 }
@@ -121,6 +139,7 @@ mod imp {
     use image::RgbImage;
     use std::ffi::c_void;
     use std::mem::size_of;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use windows::core::{BOOL, PWSTR};
     use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, POINT, RECT};
     use windows::Win32::Graphics::Gdi::{
@@ -137,10 +156,36 @@ mod imp {
         DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetClientRect, GetForegroundWindow, GetSystemMetrics,
+        EnumWindows, GetClientRect, GetForegroundWindow, GetSystemMetrics, GetWindowRect,
         GetWindowThreadProcessId, IsIconic, IsWindowVisible, SM_CXVIRTUALSCREEN,
         SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
     };
+
+    static OWN_OVERLAY: AtomicUsize = AtomicUsize::new(0);
+    pub fn register_overlay_handle(handle: usize) {
+        OWN_OVERLAY.store(handle, Ordering::Release);
+    }
+    fn own_overlay_rect() -> Option<super::ScreenRect> {
+        let handle = OWN_OVERLAY.load(Ordering::Acquire);
+        if handle == 0 {
+            return None;
+        }
+        let window = HWND(handle as *mut c_void);
+        unsafe {
+            let mut pid = 0;
+            GetWindowThreadProcessId(window, Some(&mut pid));
+            // A destroyed HWND could be reused: only ever inspect our own UI.
+            if pid != std::process::id()
+                || !IsWindowVisible(window).as_bool()
+                || IsIconic(window).as_bool()
+            {
+                return None;
+            }
+            let mut rect = RECT::default();
+            GetWindowRect(window, &mut rect).ok()?;
+            super::screen_rect(rect.left, rect.top, rect.right, rect.bottom).ok()
+        }
+    }
 
     struct PhysicalPixels(DPI_AWARENESS_CONTEXT);
     impl PhysicalPixels {
@@ -266,18 +311,44 @@ mod imp {
 
     pub fn try_grab_center() -> Result<super::CaptureAttempt, String> {
         let _physical = PhysicalPixels::enter()?;
-        let window = find_game_window()?;
+        // Automatic capture can only use the foreground game. Do not enumerate
+        // unrelated windows/processes while the game is launching or loading.
+        let foreground = unsafe { GetForegroundWindow() };
+        if foreground.is_invalid() {
+            return Ok(super::CaptureAttempt::Skipped(
+                super::CaptureSkip::NoGameWindow,
+            ));
+        }
+        if !belongs_to_game(foreground) {
+            return Ok(super::CaptureAttempt::Skipped(
+                super::CaptureSkip::GameNotForeground,
+            ));
+        }
+        let window = Some(foreground);
         if let Some(reason) = current_skip(window) {
             return Ok(super::CaptureAttempt::Skipped(reason));
         }
         let window = window.ok_or("游戏窗口状态失效")?;
         let client = client_rect(window)?;
-        let image = capture_region(super::center_region(client)?)?;
+        let region = super::center_region(client)?;
+        let before_overlay = own_overlay_rect();
+        let mut image = capture_region(region)?;
         // BitBlt 读取显示输出；截屏期间切到其他应用时丢弃画面，不送入 OCR/cache。
         if let Some(reason) = current_skip(Some(window)) {
             return Ok(super::CaptureAttempt::Skipped(reason));
         }
-        Ok(super::CaptureAttempt::Captured(image))
+        // The wider horizontal band must not OCR our own repeated candidate
+        // titles. Mask only known own-window overlap, in memory, without
+        // hiding/moving any UI, enumerating other apps or saving the image.
+        let mut masked = Vec::new();
+        for overlay in before_overlay.into_iter().chain(own_overlay_rect()) {
+            if let Some(rect) = super::mask_region(&mut image, region, overlay) {
+                if !masked.contains(&rect) {
+                    masked.push(rect);
+                }
+            }
+        }
+        Ok(super::CaptureAttempt::Captured { image, masked })
     }
 
     fn capture_region(region: super::ScreenRect) -> Result<RgbImage, String> {
@@ -471,7 +542,7 @@ fn screen_rect(left: i32, top: i32, right: i32, bottom: i32) -> Result<ScreenRec
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn center_region(client: ScreenRect) -> Result<ScreenRect, String> {
+pub(crate) fn center_region(client: ScreenRect) -> Result<ScreenRect, String> {
     let right = i64::from(client.x) + i64::from(client.width);
     let bottom = i64::from(client.y) + i64::from(client.height);
     if client.width == 0
@@ -489,6 +560,34 @@ fn center_region(client: ScreenRect) -> Result<ScreenRect, String> {
         y: client.y + y as i32,
         width,
         height,
+    })
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn mask_region(
+    image: &mut RgbImage,
+    captured: ScreenRect,
+    excluded: ScreenRect,
+) -> Option<MaskRect> {
+    let left = (i64::from(excluded.x) - i64::from(captured.x)).clamp(0, i64::from(image.width()));
+    let top = (i64::from(excluded.y) - i64::from(captured.y)).clamp(0, i64::from(image.height()));
+    let right = (i64::from(excluded.x) + i64::from(excluded.width) - i64::from(captured.x))
+        .clamp(0, i64::from(image.width()));
+    let bottom = (i64::from(excluded.y) + i64::from(excluded.height) - i64::from(captured.y))
+        .clamp(0, i64::from(image.height()));
+    if right <= left || bottom <= top {
+        return None;
+    }
+    for y in top..bottom {
+        for x in left..right {
+            image.put_pixel(x as u32, y as u32, image::Rgb([0, 0, 0]));
+        }
+    }
+    Some(MaskRect {
+        x: left as u32,
+        y: top as u32,
+        width: (right - left) as u32,
+        height: (bottom - top) as u32,
     })
 }
 
@@ -531,6 +630,47 @@ mod tests {
     use super::*;
     use image::Rgb;
 
+    #[test]
+    fn own_mask_returns_only_clipped_image_coordinates() {
+        let mut image = RgbImage::from_pixel(100, 60, Rgb([30, 60, 85]));
+        let captured = ScreenRect {
+            x: -500,
+            y: 200,
+            width: 100,
+            height: 60,
+        };
+        let excluded = ScreenRect {
+            x: -540,
+            y: 210,
+            width: 90,
+            height: 80,
+        };
+        assert_eq!(
+            mask_region(&mut image, captured, excluded),
+            Some(MaskRect {
+                x: 0,
+                y: 10,
+                width: 50,
+                height: 50
+            })
+        );
+        assert_eq!(image.get_pixel(49, 59).0, [0, 0, 0]);
+        assert_eq!(image.get_pixel(50, 59).0, [30, 60, 85]);
+        assert_eq!(
+            mask_region(
+                &mut image,
+                captured,
+                ScreenRect {
+                    x: 400,
+                    y: 400,
+                    width: 100,
+                    height: 60
+                }
+            ),
+            None
+        );
+    }
+
     fn image(width: u32, height: u32) -> RgbImage {
         RgbImage::from_fn(width, height, |x, y| Rgb([x as u8, y as u8, 0]))
     }
@@ -538,7 +678,7 @@ mod tests {
     #[test]
     fn center_crop_is_centered_and_bounded() {
         let (x, y, width, height) = center_rect(1920, 1080);
-        assert_eq!((width, height), (1190, 561));
+        assert_eq!((width, height), (1728, 561));
         assert!((i64::from(x) * 2 + i64::from(width) - 1920).abs() <= 1);
         assert!((i64::from(y) * 2 + i64::from(height) - 1080).abs() <= 1);
     }
@@ -581,15 +721,15 @@ mod tests {
         assert_eq!(
             left_roi,
             ScreenRect {
-                x: -1555,
+                x: -1824,
                 y: 259,
-                width: 1190,
+                width: 1728,
                 height: 561
             }
         );
         let right = screen_rect(1920, 100, 3840, 1180).unwrap();
         let right_roi = center_region(right).unwrap();
-        assert_eq!(right_roi.x, 2285);
+        assert_eq!(right_roi.x, 2016);
         assert_eq!(right_roi.y, 359);
         assert!(contains(
             ScreenRect {
@@ -615,8 +755,8 @@ mod tests {
     fn physical_roi_uses_client_pixels_without_a_second_dpi_scale() {
         let client = screen_rect(-2400, -200, 480, 1420).unwrap();
         let roi = center_region(client).unwrap();
-        assert_eq!((roi.width, roi.height), (1785, 842));
-        assert_eq!((roi.x, roi.y), (-1853, 189));
+        assert_eq!((roi.width, roi.height), (2592, 842));
+        assert_eq!((roi.x, roi.y), (-2256, 189));
         assert!(contains(client, roi));
         let tiny = center_region(ScreenRect {
             x: 20,
@@ -655,7 +795,62 @@ mod tests {
     #[test]
     fn crop_returns_expected_size() {
         let cropped = crop_center(&image(1920, 1080));
-        assert_eq!((cropped.width(), cropped.height()), (1190, 561));
+        assert_eq!((cropped.width(), cropped.height()), (1728, 561));
+    }
+
+    #[test]
+    fn own_overlay_mask_clips_physical_overlap_and_preserves_all_other_pixels() {
+        let captured = ScreenRect {
+            x: -100,
+            y: 50,
+            width: 10,
+            height: 6,
+        };
+        let mut pixels = RgbImage::from_pixel(10, 6, Rgb([120, 130, 140]));
+        mask_region(
+            &mut pixels,
+            captured,
+            ScreenRect {
+                x: -97,
+                y: 52,
+                width: 4,
+                height: 2,
+            },
+        );
+        for y in 0..6 {
+            for x in 0..10 {
+                let expected = if (3..7).contains(&x) && (2..4).contains(&y) {
+                    [0, 0, 0]
+                } else {
+                    [120, 130, 140]
+                };
+                assert_eq!(pixels.get_pixel(x, y).0, expected);
+            }
+        }
+        let unchanged = pixels.clone();
+        mask_region(
+            &mut pixels,
+            captured,
+            ScreenRect {
+                x: i32::MAX,
+                y: i32::MAX,
+                width: u32::MAX,
+                height: u32::MAX,
+            },
+        );
+        assert_eq!(pixels, unchanged);
+        mask_region(
+            &mut pixels,
+            captured,
+            ScreenRect {
+                x: -105,
+                y: 54,
+                width: 7,
+                height: 20,
+            },
+        );
+        assert_eq!(pixels.get_pixel(0, 5).0, [0, 0, 0]);
+        assert_eq!(pixels.get_pixel(2, 5).0, [120, 130, 140]);
     }
 
     #[test]

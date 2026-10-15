@@ -1,5 +1,6 @@
 import {synchronizeSelections,type AugmentSelection,type Session} from './domain';
 import {augmentBand,ownLevel} from './level';
+import {currentChoiceBand} from './choiceContext';
 
 type Decision=Session['decisions'][number];
 type ChoiceState={session:Session;band:number|null;choice?:AugmentSelection;legacyChoice?:AugmentSelection;available:boolean};
@@ -12,6 +13,14 @@ export function localChoiceState(session:Session):ChoiceState {
   // 旧记录没有轮次时不猜成当前轮，但同名/同 ID 已确认候选不能再次确认。
   const legacyChoice=own?.augmentSelections?.find(selection=>selection.band===undefined&&current.candidates.some(candidate=>candidate.id===selection.id||candidate.name.trim()===selection.name.trim()));
   return {session:current,band,choice,legacyChoice,available:current.phase==='InProgress'&&!current.archived&&!current.endedAt&&band!==null&&current.candidateBand===band&&!!own&&!choice&&!legacyChoice};
+}
+
+/** Comparing a candidate panel does not require knowing whose selection to record. */
+export function recommendationChoiceAvailable(session:Session):boolean {
+  const state=localChoiceState(session),band=currentChoiceBand(session);
+  const own=state.session.players.find(player=>player.id===state.session.ownPlayerId);
+  const confirmed=own?.augmentSelections?.some(selection=>selection.band===band||selection.band===undefined&&session.candidates.some(candidate=>candidate.id===selection.id||candidate.name.trim()===selection.name.trim()));
+  return session.phase==='InProgress'&&!session.archived&&!session.endedAt&&band!==null&&session.candidateBand===band&&!confirmed;
 }
 
 /** A model snapshot may inform this round only when its game, player and band are explicit. */

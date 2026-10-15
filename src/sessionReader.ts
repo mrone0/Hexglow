@@ -131,6 +131,12 @@ export function readSession(value: unknown, mode: Mode = 'full'): Session {
   optionalTextFields(source, 'session', ['updatedAt', 'endedAt', 'patch', 'phase', 'postGameFilledAt']);
   for (const key of ['schemaVersion', 'candidateBand', 'sampleCount']) if (source[key] !== undefined) number(source[key], `session.${key}`);
   if (source.archived !== undefined) boolean(source.archived, 'session.archived');
+  if(source.ocrOpening!==undefined){
+    const opening=record(source.ocrOpening,'session.ocrOpening');
+    text(opening.gameId,'session.ocrOpening.gameId',undefined,true);
+    boolean(opening.loadingObserved,'session.ocrOpening.loadingObserved');
+    boolean(opening.advanced,'session.ocrOpening.advanced');
+  }
   const decisions = array(source.decisions, 'session.decisions').map((value, index) => {
     const at = `session.decisions[${index}]`, decision = record(value, at);
     const parsed: RecordValue = {...decision, at: mode === 'summary' && decision.at === null ? '' : text(decision.at, `${at}.at`, mode === 'summary' ? '' : undefined)};

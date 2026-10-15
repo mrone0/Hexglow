@@ -6,7 +6,8 @@ use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::{Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, TryLockError},
+    time::Instant,
 };
 use tauri::{AppHandle, Manager};
 
@@ -446,19 +447,45 @@ struct Doc {
     path: String,
     meta: Value,
     content: String,
+    // Context-independent work is shared by startup warmup and real retrieval.
+    // Rebuilt only after the bounded content-hash scan detects a changed file.
+    index: Arc<DocIndex>,
+}
+struct DocIndex {
+    names: BTreeSet<String>,
+    validation: Value,
+    links: BTreeSet<String>,
 }
 impl Doc {
+    fn new(path: String, meta: Value, content: String) -> Self {
+        let kind = meta["type"].as_str().unwrap_or("");
+        let index = Arc::new(DocIndex {
+            names: Self::index_names(&meta),
+            validation: validate(kind, &path, &content),
+            links: links(&path, &content),
+        });
+        Self {
+            path,
+            meta,
+            content,
+            index,
+        }
+    }
     fn kind(&self) -> &str {
         self.meta["type"].as_str().unwrap_or("")
     }
     fn title(&self) -> &str {
         self.meta["title"].as_str().unwrap_or("")
     }
-    fn names(&self) -> BTreeSet<String> {
-        let h = &self.meta["hexglow"];
+    fn names(&self) -> &BTreeSet<String> {
+        &self.index.names
+    }
+    fn index_names(meta: &Value) -> BTreeSet<String> {
+        let kind = meta["type"].as_str().unwrap_or("");
+        let h = &meta["hexglow"];
         let mut names = BTreeSet::from([
-            norm(self.title()),
-            norm(h[id_key(self.kind())].as_str().unwrap_or("")),
+            norm(meta["title"].as_str().unwrap_or("")),
+            norm(h[id_key(kind)].as_str().unwrap_or("")),
         ]);
         if let Some(a) = h["aliases"].as_array() {
             for v in a {
@@ -473,7 +500,7 @@ impl Doc {
         if let Some(n) = h["game_id"].as_u64() {
             names.insert(n.to_string());
         }
-        if self.kind() == "Champion" {
+        if kind == "Champion" {
             let r = registry();
             for c in r["champions"].as_array().unwrap() {
                 if c["id"] == norm(h["champion_id"].as_str().unwrap_or("")) {
@@ -498,12 +525,18 @@ struct ScanCache {
     docs: Vec<Doc>,
     warnings: Vec<String>,
 }
-// 每次有界读取内容，缓存 YAML 解析；同长度、保留 mtime 的外部编辑也必须及时生效。
+// 每次有界读取内容，缓存 YAML 与派生索引；同长度、保留 mtime 的外部编辑也必须及时生效。
 static SCAN_CACHE: Mutex<Option<ScanCache>> = Mutex::new(None);
 fn scan(root: &Path) -> Result<Vec<Doc>, String> {
     scan_with_warnings(root).map(|(docs, _)| docs)
 }
 fn scan_with_warnings(root: &Path) -> Result<(Vec<Doc>, Vec<String>), String> {
+    scan_with_cache(root, &SCAN_CACHE)
+}
+fn scan_with_cache(
+    root: &Path,
+    scan_cache: &Mutex<Option<ScanCache>>,
+) -> Result<(Vec<Doc>, Vec<String>), String> {
     let mut paths = Vec::new();
     for dir in ["champions", "augments"] {
         no_link(&root.join(dir))?;
@@ -542,7 +575,7 @@ fn scan_with_warnings(root: &Path) -> Result<(Vec<Doc>, Vec<String>), String> {
         .collect();
     let previous;
     {
-        let cache = SCAN_CACHE.lock().map_err(err)?;
+        let cache = scan_cache.lock().map_err(err)?;
         if let Some(cached) = cache
             .as_ref()
             .filter(|c| c.root == root && c.stamps == stamps)
@@ -589,11 +622,7 @@ fn scan_with_warnings(root: &Path) -> Result<(Vec<Doc>, Vec<String>), String> {
                 && (kind != "Champion"
                     || known_champion(meta["hexglow"]["champion_id"].as_str().unwrap_or("")))
             {
-                docs.push(Doc {
-                    path,
-                    meta,
-                    content,
-                });
+                docs.push(Doc::new(path, meta, content));
             }
         } else {
             warnings.push(format!(
@@ -601,7 +630,7 @@ fn scan_with_warnings(root: &Path) -> Result<(Vec<Doc>, Vec<String>), String> {
             ));
         }
     }
-    *SCAN_CACHE.lock().map_err(err)? = Some(ScanCache {
+    *scan_cache.lock().map_err(err)? = Some(ScanCache {
         root: root.to_path_buf(),
         stamps,
         docs: docs.clone(),
@@ -609,6 +638,78 @@ fn scan_with_warnings(root: &Path) -> Result<(Vec<Doc>, Vec<String>), String> {
     });
     Ok((docs, warnings))
 }
+
+fn warmup_with(
+    lock: &Mutex<()>,
+    scan_cache: &Mutex<Option<ScanCache>>,
+    resolve_root: impl FnOnce() -> Result<PathBuf, String>,
+) -> ResultV {
+    let started = Instant::now();
+    // Never queue speculative work behind a retrieval/save or another warmup.
+    let _guard = match lock.try_lock() {
+        Ok(guard) => guard,
+        Err(TryLockError::WouldBlock) => {
+            return Ok(json!({"status":"busy","documents":0,"excluded":0,
+                "elapsedMs":started.elapsed().as_millis()}));
+        }
+        Err(TryLockError::Poisoned(_)) => {
+            return Err("Local knowledge warmup unavailable".into());
+        }
+    };
+    let root = resolve_root().map_err(|_| "Local knowledge warmup unavailable".to_owned())?;
+    let (docs, warnings) = scan_with_cache(&root, scan_cache)
+        .map_err(|_| "Local knowledge warmup unavailable".to_owned())?;
+    let valid = docs
+        .iter()
+        .filter(|doc| doc.index.validation["valid"] == true)
+        .count();
+    Ok(json!({"status":"ready","documents":valid,
+        "excluded":warnings.len() + docs.len() - valid,
+        "elapsedMs":started.elapsed().as_millis()}))
+}
+
+fn run_warmup(app: &AppHandle) -> ResultV {
+    let started = Instant::now();
+    let result = warmup_with(&LOCK, &SCAN_CACHE, || root(app));
+    if let Ok((_, logs)) = crate::collector::directories(app) {
+        let report = result.as_ref().cloned().unwrap_or_else(|_| {
+            json!({"status":"failed","documents":0,"excluded":0,
+                "elapsedMs":started.elapsed().as_millis()})
+        });
+        // No document text, paths, request context, or underlying OS errors in logs.
+        let _ = crate::collector::append_log(
+            &logs,
+            if result.is_ok() { "info" } else { "warn" },
+            "knowledge-warmup",
+            &report.to_string(),
+        );
+    }
+    result
+}
+
+/// Startup preparation is entirely local, uses the retrieval cache, and never
+/// blocks setup or triggers an OCR/model request. Later loading-phase calls may
+/// retry after a failed or busy startup warmup.
+pub fn start_warmup(app: &AppHandle) {
+    static STARTED: OnceLock<()> = OnceLock::new();
+    if STARTED.set(()).is_err() {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = run_warmup(&app);
+    });
+}
+
+#[tauri::command]
+pub async fn knowledge_warmup(app: AppHandle) -> ResultV {
+    // A command dispatched asynchronously may still occupy an async runtime
+    // worker. Keep filesystem reads/parsing on the blocking pool like startup.
+    tauri::async_runtime::spawn_blocking(move || run_warmup(&app))
+        .await
+        .map_err(|_| "Local knowledge warmup unavailable".to_owned())?
+}
+
 fn indexes(root: &Path) -> Result<(), String> {
     let docs = scan(root)?;
     atomic(&root.join("index.md"), "---\nokf_version: '0.2'\n---\n# Hexglow Knowledge\n\nMinimal local knowledge; drafts are not verified mechanics.\n\n- [Champions](champions/index.md)\n- [Augments](augments/index.md)\n")?;
@@ -683,14 +784,10 @@ fn save_at(root: &Path, kind: &str, path: &str, content: &str) -> ResultV {
         return Err("Knowledge exceeds 2000-document limit".into());
     }
     let (m, _) = metadata(content)?;
-    let incoming = Doc {
-        path: path.into(),
-        meta: m.clone(),
-        content: content.into(),
-    };
+    let incoming = Doc::new(path.into(), m.clone(), content.into());
     let names = incoming.names();
     for d in &docs {
-        if d.path != path && d.kind() == kind && !names.is_disjoint(&d.names()) {
+        if d.path != path && d.kind() == kind && !names.is_disjoint(d.names()) {
             return Err(format!("Duplicate title, ID or alias: {}", d.path));
         }
     }
@@ -757,7 +854,7 @@ fn delete_at(root: &Path, path: &str) -> ResultV {
         .ok_or("Unregistered knowledge document")?;
     let references: Vec<_> = docs
         .iter()
-        .filter(|d| d.path != path && links(&d.path, &d.content).contains(path))
+        .filter(|d| d.path != path && d.index.links.contains(path))
         .map(|d| d.path.clone())
         .collect();
     backup(root, path, &d.content)?;
@@ -896,6 +993,13 @@ fn trim_doc(content: &str, kind: &str, budget: usize) -> Option<(String, Vec<Str
     Some((text, kept_titles))
 }
 fn retrieve_at(root: &Path, context: &Value) -> ResultV {
+    retrieve_with_cache(root, context, &SCAN_CACHE)
+}
+fn retrieve_with_cache(
+    root: &Path,
+    context: &Value,
+    scan_cache: &Mutex<Option<ScanCache>>,
+) -> ResultV {
     let observed = [
         context["patch"].as_str(),
         context["liveData"]["gameData"]["gameVersion"].as_str(),
@@ -905,7 +1009,7 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
     .map(str::trim)
     .find(|p| !p.is_empty() && !p.eq_ignore_ascii_case("unknown"));
     let patch = observed.unwrap_or(crate::scoring::data_patch());
-    let (docs, excluded) = scan_with_warnings(root)?;
+    let (docs, excluded) = scan_with_cache(root, scan_cache)?;
     let mut requests: Vec<(&str, Value, bool)> = Vec::new();
     let own = context
         .get("ownChampion")
@@ -1002,10 +1106,10 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
     let direct = selected.clone();
     for p in direct {
         if let Some(d) = docs.iter().find(|d| d.path == p) {
-            for link in links(&p, &d.content) {
-                if docs.iter().any(|d| d.path == link) {
-                    if !selected.contains(&link) {
-                        selected.push(link);
+            for link in &d.index.links {
+                if docs.iter().any(|d| &d.path == link) {
+                    if !selected.contains(link) {
+                        selected.push(link.clone());
                     }
                 } else {
                     warnings.insert(format!("Missing link: {link}"));
@@ -1018,7 +1122,7 @@ fn retrieve_at(root: &Path, context: &Value) -> ResultV {
     let mut fingerprint_data = BTreeMap::new();
     for p in selected {
         let d = docs.iter().find(|d| d.path == p).unwrap();
-        let report = validate(d.kind(), &p, &d.content);
+        let report = &d.index.validation;
         if report["valid"] != true {
             warnings.insert(format!("Invalid document excluded: {p}"));
             if mandatory.contains(&p) {
@@ -1103,11 +1207,222 @@ mod tests {
         fn root(&self) -> PathBuf {
             root_at(&self.0).unwrap()
         }
+        fn minimal_root(&self) -> PathBuf {
+            for dir in ["champions", "augments"] {
+                fs::create_dir_all(self.0.join(dir)).unwrap();
+            }
+            for (path, content) in SEEDS {
+                fs::write(self.0.join(path), content).unwrap();
+            }
+            self.0.clone()
+        }
     }
     impl Drop for Temp {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn warmup_populates_the_retrieval_cache_without_caching_match_results() {
+        let temp = Temp::new();
+        let root = temp.minimal_root();
+        let context = json!({"champion":"Ahri","candidates":["custom-example"]});
+        let cold = retrieve_with_cache(&root, &context, &Mutex::new(None)).unwrap();
+        let cache = Mutex::new(None);
+        let report = warmup_with(&Mutex::new(()), &cache, || Ok(root.clone())).unwrap();
+        assert_eq!(report["status"], "ready");
+        assert_eq!(report["documents"], 3);
+        assert_eq!(report["excluded"], 0);
+        assert_eq!(report.as_object().unwrap().len(), 4);
+        let before: Vec<_> = cache
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .docs
+            .iter()
+            .map(|d| (d.path.clone(), d.index.clone()))
+            .collect();
+        let first = retrieve_with_cache(&root, &context, &cache).unwrap();
+        assert_eq!(
+            first, cold,
+            "preparation must not alter first retrieval output"
+        );
+        let guard = cache.lock().unwrap();
+        let after = &guard.as_ref().unwrap().docs;
+        for (path, index) in before {
+            let doc = after.iter().find(|d| d.path == path).unwrap();
+            assert!(
+                Arc::ptr_eq(&index, &doc.index),
+                "derived work must actually be reused"
+            );
+            assert_eq!(
+                doc.index.validation,
+                validate(doc.kind(), &doc.path, &doc.content)
+            );
+            assert_eq!(doc.index.links, links(&doc.path, &doc.content));
+        }
+        drop(guard);
+        let next_match = retrieve_with_cache(&root, &json!({"champion":"Garen"}), &cache).unwrap();
+        assert_eq!(next_match["documents"].as_array().unwrap().len(), 1);
+        assert_eq!(next_match["documents"][0]["path"], "champions/garen.md");
+        assert_ne!(next_match["fingerprint"], first["fingerprint"]);
+    }
+
+    #[test]
+    fn warmed_indexes_refresh_same_length_mtime_edits_validation_deletion_and_additions() {
+        let temp = Temp::new();
+        let root = temp.minimal_root();
+        let target = root.join(SEEDS[2].0);
+        let original = SEEDS[2]
+            .1
+            .replace("aliases: [custom-example]", "aliases: [first-external]");
+        fs::write(&target, &original).unwrap();
+        let ahri = format!("{}\n[x](../augments/custom-example.md)\n", SEEDS[0].1);
+        fs::write(root.join(SEEDS[0].0), ahri).unwrap();
+        let cache = Mutex::new(None);
+        warmup_with(&Mutex::new(()), &cache, || Ok(root.clone())).unwrap();
+        let old_index = cache
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .docs
+            .iter()
+            .find(|d| d.path == SEEDS[2].0)
+            .unwrap()
+            .index
+            .clone();
+        let modified = fs::metadata(&target).unwrap().modified().unwrap();
+        let changed = original.replace("first-external", "other-external");
+        assert_eq!(changed.len(), original.len());
+        fs::write(&target, &changed).unwrap();
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&target)
+            .unwrap()
+            .set_times(fs::FileTimes::new().set_modified(modified))
+            .unwrap();
+        assert_eq!(fs::metadata(&target).unwrap().modified().unwrap(), modified);
+        let result = retrieve_with_cache(
+            &root,
+            &json!({"champion":"Garen","candidates":["other-external"]}),
+            &cache,
+        )
+        .unwrap();
+        assert!(result["missing"].as_array().unwrap().is_empty());
+        assert!(result["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["content"] == changed));
+        let new_index = cache
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .docs
+            .iter()
+            .find(|d| d.path == SEEDS[2].0)
+            .unwrap()
+            .index
+            .clone();
+        assert!(!Arc::ptr_eq(&old_index, &new_index));
+        assert!(!new_index.names.contains("first-external"));
+        assert!(new_index.names.contains("other-external"));
+
+        fs::write(&target, changed.replace("## 完整效果", "## 无效效果")).unwrap();
+        let invalid = retrieve_with_cache(
+            &root,
+            &json!({"champion":"Ahri","candidates":["other-external"]}),
+            &cache,
+        )
+        .unwrap();
+        assert!(invalid["missing"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(SEEDS[2].0)));
+        assert_eq!(invalid["documents"].as_array().unwrap().len(), 1);
+        fs::remove_file(&target).unwrap();
+        let deleted = retrieve_with_cache(&root, &json!({"champion":"Ahri"}), &cache).unwrap();
+        assert!(deleted["warnings"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("Missing link: augments/custom-example.md")));
+        assert!(!cache
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .docs
+            .iter()
+            .any(|d| d.path == SEEDS[2].0));
+
+        let added = SEEDS[2].1.replace("custom-example", "new-example");
+        fs::write(root.join("augments/new-example.md"), &added).unwrap();
+        let result = retrieve_with_cache(
+            &root,
+            &json!({"champion":"Garen","candidates":["new-example"]}),
+            &cache,
+        )
+        .unwrap();
+        assert!(result["missing"].as_array().unwrap().is_empty());
+        assert!(result["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["content"] == added));
+    }
+
+    #[test]
+    fn failed_warmup_is_safe_and_retryable() {
+        let temp = Temp::new();
+        let lock = Mutex::new(());
+        let cache = Mutex::new(None);
+        let error = warmup_with(&lock, &cache, || {
+            Err("private path and document text".into())
+        })
+        .unwrap_err();
+        assert_eq!(error, "Local knowledge warmup unavailable");
+        assert!(warmup_with(&lock, &cache, || Ok(temp.0.clone())).is_err());
+        assert!(cache.lock().unwrap().is_none());
+        let root = temp.minimal_root();
+        // A normal retrieval still works even if both preparation attempts failed.
+        let result = retrieve_with_cache(&root, &json!({"champion":"Ahri"}), &cache).unwrap();
+        assert_eq!(result["documents"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            warmup_with(&lock, &cache, || Ok(root)).unwrap()["status"],
+            "ready"
+        );
+    }
+
+    #[test]
+    fn concurrent_warmup_skips_busy_lock_without_touching_root_or_cache() {
+        let lock = Arc::new(Mutex::new(()));
+        let worker_lock = lock.clone();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _guard = worker_lock.lock().unwrap();
+            started_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+        });
+        started_rx.recv().unwrap();
+        let cache = Mutex::new(None);
+        let result = warmup_with(&lock, &cache, || {
+            panic!("busy warmup must not resolve a root")
+        });
+        release_tx.send(()).unwrap();
+        worker.join().unwrap();
+        assert_eq!(result.unwrap()["status"], "busy");
+        assert!(cache.lock().unwrap().is_none());
+        let temp = Temp::new();
+        let root = temp.minimal_root();
+        assert_eq!(
+            warmup_with(&lock, &cache, || Ok(root)).unwrap()["status"],
+            "ready"
+        );
     }
     #[test]
     fn tag_repair_only_updates_untouched_old_generated_documents() {

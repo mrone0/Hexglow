@@ -4,6 +4,7 @@ src-tauri/target/
 src-tauri/target-*/
 src-tauri/resources/ocr/*.onnx
 src-tauri/resources/ocr/ppocrv6_dict.txt
+src-tauri/resources/ocr/ppocrv6_tiny_dict.txt
 .local-backups/
 release/
 *.tsbuildinfo

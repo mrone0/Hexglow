@@ -36,7 +36,7 @@ describe('persisted session reader', () => {
     expect((readSession(withSnapshotDefaults).decisions[0].context as {candidates: unknown[]}).candidates).toEqual([]);
   });
 
-  it('preserves honest incomplete live facts while analysis blockers remain active', () => {
+  it('preserves honest incomplete live facts without blocking candidate comparison, while rejecting malformed fields', () => {
     const partial = mergeLive(newSession(), {
       activePlayer: {summonerName: 'me'},
       allPlayers: [{summonerName: 'me'}, {summonerName: 'enemy', championName: 'Garen', team: 'CHAOS'}],
@@ -45,7 +45,7 @@ describe('persisted session reader', () => {
     const parsed = readSession(partial);
     expect(parsed).toEqual(partial);
     expect(parsed.players[0]).toMatchObject({champion: '', team: 'UNKNOWN', augmentsConfirmed: false});
-    expect(blockers(parsed)).toEqual(['确认当前使用的英雄', '等待 API 提供双方阵容']);
+    expect(blockers(parsed)).toEqual([]);
     expect(readSessionPage([partial])).toMatchObject({invalid: 0});
     const source = full();
     const withPartialSnapshot = readSession({...source, decisions: [{...source.decisions[0], context: {...source.decisions[0].context, players: partial.players}}]});
@@ -146,5 +146,12 @@ describe('persisted session reader', () => {
     expect(page.sessions).toHaveLength(47);
     expect(readSessionPage(values.slice(0, 49)).hasNext).toBe(false);
     expect(readSessionPage([])).toEqual({sessions: [], invalid: 0, hasNext: false});
+  });
+  it('preserves valid optional opening boundaries and rejects malformed imported markers',()=>{
+    const ocrOpening={gameId:'123',loadingObserved:true,advanced:false};
+    expect(readSession({...full(),ocrOpening}).ocrOpening).toEqual(ocrOpening);
+    for(const marker of [null,{...ocrOpening,gameId:''},{...ocrOpening,loadingObserved:'true'},{...ocrOpening,advanced:1}]){
+      expect(()=>readSession({...full(),ocrOpening:marker})).toThrow();
+    }
   });
 });

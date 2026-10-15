@@ -3,6 +3,28 @@ import {applySnapshot,hasContent,newSession,postgameEntriesOf,type CollectorSnap
 const live=(time:number)=>({gameData:{gameTime:time},activePlayer:{summonerName:'me'},allPlayers:[{summonerName:'me',championName:'Ahri',team:'ORDER'},{summonerName:'enemy',championName:'Garen',team:'CHAOS'}]});
 const snapshot=(extra:Partial<CollectorSnapshot>={}):CollectorSnapshot=>({platformSupported:true,connection:'lcu-and-live',phase:'InProgress',gameId:'100',liveData:live(100),lcuSession:{gameData:{gameId:100}},endOfGame:null,result:null,observedAt:'2026-01-01T00:00:00Z',warnings:[],...extra});
 describe('automatic lifecycle',()=>{
+ it('keeps current partial timing without clearing known players or using old Live data in a gap',()=>{
+  const old=applySnapshot(newSession(),snapshot()).session;
+  const partial={gameData:{gameTime:110},activePlayer:{level:7}};
+  const next=applySnapshot(old,snapshot({liveData:partial})).session;
+  expect(next.players).toEqual(old.players);expect(next.liveData).toBe(partial);
+  const gap=applySnapshot(next,snapshot({liveData:null,connection:'lcu-only'})).session;
+  expect(gap.players).toEqual(old.players);expect(gap.liveData).toBeNull();
+ });
+ it('does not copy a previous roster into a new match with only partial timing',()=>{
+  const old=applySnapshot(newSession(),snapshot()).session;
+  const partial={gameData:{gameTime:4}};
+  const next=applySnapshot(old,snapshot({gameId:'101',liveData:partial}));
+  expect(next.completed?.id).toBe(old.id);expect(next.session.id).not.toBe(old.id);
+  expect(next.session.players).toEqual([]);expect(next.session.ownPlayerId).toBe('');expect(next.session.liveData).toBe(partial);
+ });
+ it('resets an ended empty shell on the next loading phase',()=>{
+  const empty={...newSession(),matchId:'100',phase:'EndOfGame',endedAt:'2026-01-01T00:00:00Z'};
+  expect(hasContent(empty)).toBe(false);
+  const next=applySnapshot(empty,snapshot({phase:'GameStart',gameId:null,liveData:null}));
+  expect(next.completed).toBeUndefined();expect(next.session.id).not.toBe(empty.id);
+  expect(next.session.endedAt).toBeUndefined();expect(next.session.matchId).toBe('');
+ });
  it('creates a tracked snapshot when tool opens mid-game',()=>{const s=applySnapshot(newSession(),snapshot()).session;expect(s.matchId).toBe('100');expect(s.players).toHaveLength(2);expect(s.samples).toHaveLength(1);expect(s.ownPlayerId).toBe('me');});
  it('archives on exact new match id and clears old augments',()=>{const s=applySnapshot(newSession(),snapshot()).session;s.players[0].augments=['old'];const r=applySnapshot(s,snapshot({gameId:'101',liveData:live(20)}));expect(r.completed?.id).toBe(s.id);expect(r.session.id).not.toBe(s.id);expect(r.session.players[0].augments).toEqual([]);});
  it('never infers defeat from a disconnected API',()=>{const s=applySnapshot(newSession(),snapshot()).session;const r=applySnapshot(s,snapshot({connection:'disconnected',phase:'Unknown',gameId:null,liveData:null,lcuSession:null}));expect(r.session.result?.status).toBe('unknown');expect(r.session.endedAt).toBeUndefined();expect(r.session.matchId).toBe('100');});

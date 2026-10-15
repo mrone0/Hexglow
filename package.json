@@ -1,6 +1,6 @@
 {
   "name": "hextech-local-coach",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -12,6 +12,7 @@
     "test:data": "vitest run scripts/data-tags.test.mjs",
     "prepare:ocr": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-ocr-models.ps1",
     "verify:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1",
+    "package:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-local.ps1",
     "data:fetch": "node scripts/fetch-data.mjs",
     "data:knowledge": "node scripts/build-knowledge.mjs",
     "data:sync": "node scripts/sync-hexdata.mjs",

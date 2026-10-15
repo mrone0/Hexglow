@@ -1,15 +1,19 @@
 pub mod app_icon;
 pub mod capture;
+mod choice_region;
 pub mod collector;
 pub mod credentials;
 pub mod decision;
 pub mod desktop;
+mod game_worker;
 pub mod knowledge;
 pub mod ocr;
 pub mod overlay;
+mod panel_probe;
 pub mod scoring;
 mod seed_generated;
 pub mod storage;
+mod title_watch;
 
 /// Compatibility commands retained for older clients. Analysis uses the same
 /// validation, privacy filtering and scoring as the current command names.
@@ -201,15 +205,55 @@ pub mod backend {
             let (method, sent) = server.join().unwrap();
             assert_eq!(method, "POST /v1/chat/completions HTTP/1.1");
             assert_eq!(result["ranking"][0]["candidateId"], "1");
-            assert_eq!(result["ranking"][0]["score"], 100.0);
-            assert_eq!(result["ranking"][1]["score"], 0.0);
-            assert_eq!(result["ranking"][0]["factors"].as_array().unwrap().len(), 4);
+            // This fixture supplies self and one opponent, but neither a build
+            // observation nor teammates. Only those missing dimensions become
+            // unknown; supported hero/enemy evidence is still model-scored.
+            for (index, known_score, total_score, model_score) in
+                [(0, 4.0, 75.0, 100.0), (1, 0.0, 25.0, 0.0)]
+            {
+                let ranked = &result["ranking"][index];
+                assert_eq!(ranked["score"], total_score);
+                assert_eq!(ranked["modelScore"], model_score);
+                assert_eq!(ranked["confidence"], 0.5);
+                assert_eq!(ranked["modelWeight"], 0.5);
+                let factors = ranked["factors"].as_array().unwrap();
+                assert_eq!(factors.len(), 4);
+                for key in ["championSynergy", "enemyFit"] {
+                    let factor = factors.iter().find(|factor| factor["key"] == key).unwrap();
+                    assert_eq!(factor["score"], known_score);
+                    assert_eq!(factor["confidence"], 1.0);
+                }
+                for key in ["buildSynergy", "teamFit"] {
+                    let factor = factors.iter().find(|factor| factor["key"] == key).unwrap();
+                    assert_eq!(factor["score"], 2.0);
+                    assert_eq!(factor["confidence"], 0.0);
+                    assert!(factor.get("reason").is_none());
+                    assert!(factor.get("references").is_none());
+                }
+            }
             assert!(result["summary"].is_string());
             assert!(result["missingInformation"].as_array().unwrap().len() > 0);
             let prompt: Value =
                 serde_json::from_str(sent["messages"][1]["content"].as_str().unwrap()).unwrap();
             assert_eq!(prompt["state"]["ownPlayerId"], "p1");
             assert_eq!(prompt["state"]["players"]["p1"]["augmentsConfirmed"], false);
+            assert_eq!(
+                prompt["state"]["contextAvailability"]["selfChampion"],
+                "observed"
+            );
+            assert_eq!(
+                prompt["state"]["contextAvailability"]["selfBuild"],
+                "unknown"
+            );
+            assert_eq!(prompt["state"]["contextAvailability"]["allies"], "unknown");
+            assert_eq!(
+                prompt["state"]["contextAvailability"]["opponents"],
+                "observed_partial"
+            );
+            assert_eq!(
+                prompt["state"]["players"]["p1"]["itemDataStatus"],
+                "unknown; missing is not none"
+            );
             assert!(!sent.to_string().contains("PRIVATE_PLAYER"));
             assert!(!sent.to_string().contains("PRIVATE_LIVE_DATA"));
         }

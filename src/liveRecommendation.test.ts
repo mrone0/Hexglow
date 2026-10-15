@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {applySnapshot, newSession, type CollectorSnapshot, type Recommendation, type Session} from './domain';
-import {createLocalRecommendation, localRankingPresentation, localScoringArgs, modelRecommendation, recognizedCandidates, selectLocalRecommendation, type ScoreResult} from './liveRecommendation';
+import {createLocalRecommendation, localRankingPresentation, localScoringArgs, modelRecommendation, recognizedCandidates, selectLocalRecommendation,restoreModelRecommendation, type ScoreResult} from './liveRecommendation';
 
 const result: ScoreResult = {
   ranking: [{id: '1068', name: '循环往复', description: '真实效果', rarity: 'gold', category: 'utility', score: 71, reason: '英雄契合', risks: []}],
@@ -39,7 +39,7 @@ function playing(): Session {
 describe('main window local recommendation lifecycle', () => {
   it('explains both manual and explicitly enabled automatic analysis without adding heuristic scores',()=>{
     const presentation=localRankingPresentation(recognizedCandidates(playing()));
-    expect(presentation.summary).toContain('默认手动分析，开启自动推荐后按设置触发');
+    expect(presentation.summary).toContain('自动推荐按已保存设置与数据授权触发');
     expect(presentation.summary).not.toContain('不自动调用模型');
     expect(presentation.reliable).toBe(false);
     expect(presentation.candidates.every(candidate=>candidate.rank===null&&candidate.displayScore===null)).toBe(true);
@@ -135,12 +135,17 @@ describe('main window local recommendation lifecycle', () => {
     expect(selectLocalRecommendation(changedOwned, local)).toBeNull();
   });
 
-  it('uses the initial band when level is unknown, but still requires recognized candidates', () => {
+  it('does not guess an initial band from a retained candidate when level and start evidence are unknown', () => {
     const session = playing();
     session.liveData = null;
     session.candidateBand = 1;
     const local = createLocalRecommendation(session, result);
     expect(local.band).toBe(1);
+    expect(selectLocalRecommendation(session, local)).toBeNull();
+    session.liveData={gameData:{gameTime:20}};
+    expect(selectLocalRecommendation(session, local)).toBeNull();
+    session.ocrOpening={gameId:session.matchId,loadingObserved:true,advanced:false};
+    session.liveData={events:{Events:[{EventID:0,EventName:'GameStart',EventTime:0}]}};
     expect(selectLocalRecommendation(session, local)).toBe(local);
   });
 
@@ -207,6 +212,18 @@ describe('explicit recognition and dynamic model conversion',()=>{
       confidence:0.8,reason:`模型理由 ${candidate.id}`,evidence:[`输入证据 ${candidate.id}`],risks:[`风险 ${candidate.id}`]})),
   });
 
+  it('retains and restores a partial-context comparison after the owner arrives without claiming a new analysis',()=>{
+    const complete=playing(),partial={...complete,players:[],ownPlayerId:''},response=recommendation(partial);
+    const local=createLocalRecommendation(partial,modelRecommendation(partial,response),'then');
+    const retained=selectLocalRecommendation(complete,local);
+    expect(retained?.result.source).toBe('model');expect(retained?.result.contextChanged).toBe(true);
+    expect(retained?.result.profile?.champion).toBeUndefined();
+    complete.decisions=[{at:'then',context:partial,result:response}];
+    const restored=restoreModelRecommendation(complete);
+    expect(restored?.result.contextChanged).toBe(true);expect(restored?.at).toBe('then');
+    expect(selectLocalRecommendation({...complete,matchId:'different'},local)).toBeNull();
+  });
+
   it('recognition preserves input effects and order but never invents a score or fit explanation',()=>{
     const session=playing(),before=structuredClone(session);
     const value=recognizedCandidates(session),view=localRankingPresentation(value);
@@ -235,7 +252,8 @@ describe('explicit recognition and dynamic model conversion',()=>{
     if(kind==='unknown')response.ranking[1].candidateId='not-a-candidate';
     if(kind==='extra-null')(response.ranking as unknown[]).push(null);
     if(kind==='legacy')delete response.engine!.scoringMode;
-    const view=localRankingPresentation(modelRecommendation(session,response));
+    const mapped=modelRecommendation(session,response),view=localRankingPresentation(mapped);
+    expect(mapped.modelScoresValid).toBe(false);
     expect(view.reliable).toBe(false);
     expect(view.candidates.every(item=>item.rank===null&&item.displayScore===null)).toBe(true);
     expect(view.candidates.map(item=>item.id)).toEqual(session.candidates.map(item=>item.id));
@@ -254,7 +272,20 @@ describe('explicit recognition and dynamic model conversion',()=>{
     for(const item of response.ranking){item.evidence=[];item.factors=[{key:'fit',label:'适配',score:8,references:[`candidate:${item.candidateId}`]}];}
     const value=modelRecommendation(session,response);
     expect(value.rankingReliable).toBe(true);
+    expect(value.modelScoresValid).toBe(true);
     expect(value.ranking[0].evidence).toEqual(['引用：candidate:1068']);
+  });
+
+  it('keeps finite model scores available for the compact overlay independently of evidence confidence',()=>{
+    const session=playing(),response=recommendation(session);
+    response.ranking.forEach(item=>{item.confidence=0.2;item.evidence=[];item.factors=[];});
+    const value=modelRecommendation(session,response);
+    expect(value.rankingReliable).toBe(false);
+    expect(value.modelScoresValid).toBe(true);
+    expect(value.ranking.map(item=>item.score)).toEqual(response.ranking.map(item=>item.score));
+    expect(localRankingPresentation(value).reliable).toBe(false);
+    response.ranking[0].score=NaN;
+    expect(modelRecommendation(session,response).modelScoresValid).toBe(false);
   });
 
   it('never promotes an already-owned candidate, and conservatively hides the group ranks',()=>{
@@ -266,14 +297,35 @@ describe('explicit recognition and dynamic model conversion',()=>{
     expect(view.candidates.every(item=>item.rank===null&&item.displayScore===null)).toBe(true);
   });
 
-  it('allows model analysis of manual effects and invalidates changed notes or another player build',()=>{
+  it('keeps a labelled model snapshot when notes or another player build changes',()=>{
     const session=playing();session.candidates[0].source='manual';
     session.players.push({...structuredClone(session.players[0]),id:'other',team:'CHAOS'});
     const cached=createLocalRecommendation(session,modelRecommendation(session,recommendation(session)));
     expect(selectLocalRecommendation(session,cached)).toBe(cached);
-    expect(selectLocalRecommendation({...session,notes:'new context'},cached)).toBeNull();
+    expect(selectLocalRecommendation({...session,notes:'new context'},cached)?.result).toMatchObject({source:'model',contextChanged:true});
     const changed=structuredClone(session);changed.players[1].items.push({itemID:123});
-    expect(selectLocalRecommendation(changed,cached)).toBeNull();
+    const retained=selectLocalRecommendation(changed,cached);
+    expect(retained?.result).toMatchObject({source:'model',contextChanged:true});
+    expect(retained?.key).toBe(cached.key);
+    const presentation=localRankingPresentation(retained!.result);
+    expect(presentation.label).toContain('此前模型推荐');
+    expect(presentation.summary).toContain('未自动重复调用模型');
+    expect(presentation.candidates.map(c=>c.displayScore)).toEqual([80,70]);
     expect(selectLocalRecommendation(session,createLocalRecommendation(session,recognizedCandidates(session)))).toBeNull();
+  });
+  it('retains own equipment changes as a snapshot but rejects a new owned augment or changed choice',()=>{
+    const session=playing(),cached=createLocalRecommendation(session,modelRecommendation(session,recommendation(session)));
+    const changed=structuredClone(session);changed.players[0].items.push({itemID:42});
+    expect(selectLocalRecommendation(changed,cached)?.result.contextChanged).toBe(true);
+    changed.players[0].augments.push('new choice');expect(selectLocalRecommendation(changed,cached)).toBeNull();
+    changed.players[0].augments=[];changed.candidates[0].description='corrected';expect(selectLocalRecommendation(changed,cached)).toBeNull();
+  });
+  it('restores the durable choice snapshot but not a previous game, round, ended game or legacy score',()=>{
+    const session=playing(),{decisions,samples,...context}=session;
+    session.decisions=[{at:'2026-10-11T07:30:00Z',context:structuredClone(context),result:recommendation(session)}];
+    expect(restoreModelRecommendation(session)?.result.source).toBe('model');
+    session.players[0].items.push({itemID:42});expect(restoreModelRecommendation(session)?.result.contextChanged).toBe(true);
+    for(const update of [{matchId:'other'},{candidateBand:11},{endedAt:'now'},{archived:true}])expect(restoreModelRecommendation({...session,...update})).toBeNull();
+    delete session.decisions[0].result.engine!.scoringMode;expect(restoreModelRecommendation(session)).toBeNull();
   });
 });

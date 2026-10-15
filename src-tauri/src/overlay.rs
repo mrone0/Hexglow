@@ -22,12 +22,61 @@ const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 const DWELL: Duration = Duration::from_millis(400);
 /// 弹出后若始终无人交互，自动收起，只留 44px 把手，不遮挡游戏画面。
 const AUTO_COLLAPSE: Duration = Duration::from_secs(20);
+/// Presentation only: unknown localization is not proof of a completed choice.
+const UNCONFIRMED_COLLAPSE: Duration = Duration::from_secs(3);
+
+#[derive(Default)]
+struct UnconfirmedCollapse {
+    since: Option<((String, u64, Vec<String>), Instant)>,
+}
+impl UnconfirmedCollapse {
+    fn due(&mut self, value: &Value, interacting: bool, now: Instant) -> bool {
+        let choice = (|| {
+            if interacting
+                || value["reset"] == true
+                || value["analysis"]["code"] != "choice-region-unavailable"
+                || !matches!(
+                    value["analysis"]["phase"].as_str(),
+                    Some("waiting" | "analyzing")
+                )
+            {
+                return None;
+            }
+            let session = value["sessionId"].as_str()?.to_owned();
+            let level = value["level"].as_u64()?;
+            let cards = value["ranking"]["ranking"].as_array()?;
+            if session.is_empty() || !(2..=3).contains(&cards.len()) {
+                return None;
+            }
+            let mut ids = cards
+                .iter()
+                .map(|v| v["id"].as_str().map(str::to_owned))
+                .collect::<Option<Vec<_>>>()?;
+            ids.sort();
+            Some((session, level, ids))
+        })();
+        let Some(choice) = choice else {
+            self.since = None;
+            return false;
+        };
+        if let Some((previous, since)) = &self.since {
+            if *previous == choice {
+                return now.saturating_duration_since(*since) >= UNCONFIRMED_COLLAPSE;
+            }
+        }
+        self.since = Some((choice, now));
+        false
+    }
+}
 static WATCHER: Mutex<Option<(u64, JoinHandle<()>)>> = Mutex::new(None);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 /// 同一时刻只允许一次开窗：并发触发会争抢同一个窗口标签。
 static OPENING: Mutex<()> = Mutex::new(());
 /// 当前是否处于收起态。resize 生效有延迟，坐标与自动收起判定都以它为准，不读窗口尺寸。
 static COLLAPSED: AtomicBool = AtomicBool::new(false);
+fn needs_open_layout(visible: bool, collapsed: bool) -> bool {
+    !visible || collapsed
+}
 struct OverlayContent {
     sequence: u64,
     value: Value,
@@ -54,7 +103,10 @@ impl OverlayContent {
         Ok(())
     }
 
-    fn reset(&mut self) -> Result<(), String> {
+    fn reset(&mut self) -> Result<bool, String> {
+        if self.value["reset"] == true {
+            return Ok(false);
+        }
         self.value = json!({
             "sequence": self.next_sequence()?,
             "reset": true,
@@ -62,7 +114,60 @@ impl OverlayContent {
             "sessionId": null,
             "ranking": {"ranking": [], "summary": "等待本轮海克斯候选"}
         });
-        Ok(())
+        Ok(true)
+    }
+
+    /// Status-only updates cannot replace a newer choice, resurrect a closed window,
+    /// or overwrite an already published model ranking.
+    fn analysis_status(&mut self, payload: Value) -> Result<bool, String> {
+        let status = &payload["analysis"];
+        if !matches!(
+            status["phase"].as_str(),
+            Some("waiting" | "preparing" | "analyzing" | "blocked" | "failed" | "complete")
+        ) || !status["code"].as_str().is_some_and(|s| {
+            !s.is_empty()
+                && s.len() <= 64
+                && s.bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || b"_-.".contains(&c))
+        }) || !status["message"].as_str().is_some_and(|s| {
+            !s.is_empty() && s.chars().count() <= 160 && !s.chars().any(char::is_control)
+        }) {
+            return Err("侧栏分析状态无效".into());
+        }
+        let identity = |values: &Value| -> Option<Vec<(String, String, String)>> {
+            let values = values.as_array()?;
+            if !(2..=3).contains(&values.len()) {
+                return None;
+            }
+            let mut keys = values
+                .iter()
+                .map(|v| {
+                    Some((
+                        v["id"].as_str()?.to_owned(),
+                        v["name"].as_str()?.to_owned(),
+                        v["description"].as_str()?.to_owned(),
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            keys.sort();
+            Some(keys)
+        };
+        let expected = identity(&payload["candidates"]);
+        if self.value["reset"] == true
+            || payload["sessionId"].as_str().is_none()
+            || self.value["sessionId"] != payload["sessionId"]
+            || self.value["level"] != payload["level"]
+            || expected.is_none()
+            || expected != identity(&self.value["ranking"]["ranking"])
+        {
+            return Ok(false);
+        }
+        if self.value["analysis"] == *status {
+            return Ok(false);
+        }
+        self.value["analysis"] = status.clone();
+        self.value["sequence"] = json!(self.next_sequence()?);
+        Ok(true)
     }
 
     fn opening_ticket(&self, level: u32) -> Option<u64> {
@@ -103,6 +208,9 @@ fn anchor(window: &WebviewWindow, logical_width: f64) -> Result<(), String> {
     let height_px = (HEIGHT * scale).round() as i32;
     let y = origin.y + (area.height as i32 - height_px).max(0) / 2;
     let position = PhysicalPosition::new(x + origin.x, y);
+    if window.outer_position().ok().as_ref() == Some(&position) {
+        return Ok(());
+    }
     window
         .set_position(position.clone())
         .map_err(|e| e.to_string())?;
@@ -154,6 +262,11 @@ fn edge_x(area_width: u32, logical_width: f64, scale: f64) -> i32 {
 
 /// 统一用逻辑尺寸调窗口大小，与建窗时的 inner_size 口径一致（Retina 下不缩水一半）。
 fn resize(window: &WebviewWindow, logical_width: f64) -> Result<(), String> {
+    let desired = LogicalSize::new(logical_width, HEIGHT)
+        .to_physical::<u32>(window.scale_factor().map_err(|e| e.to_string())?);
+    if window.inner_size().ok() == Some(desired) {
+        return Ok(());
+    }
     window
         .set_size(LogicalSize::new(logical_width, HEIGHT))
         .map_err(|e| e.to_string())
@@ -205,6 +318,7 @@ fn start_watcher(app: &AppHandle) {
         let mut enabled = false; // 当前是否已恢复可点击
         let mut dwell_since: Option<Instant> = None;
         let mut expanded_since: Option<Instant> = None;
+        let mut unconfirmed = UnconfirmedCollapse::default();
         while GENERATION.load(Ordering::SeqCst) == generation {
             let Some(window) = app.get_webview_window(LABEL) else {
                 break;
@@ -236,26 +350,39 @@ fn start_watcher(app: &AppHandle) {
             // 无人交互的弹出：到期自动收起，避免长时间遮挡游戏。
             if COLLAPSED.load(Ordering::SeqCst) {
                 expanded_since = None;
+                unconfirmed.since = None;
             } else if enabled {
                 expanded_since = None; // 用户正在交互，不自动收起
+                unconfirmed.since = None;
             } else {
                 let since = *expanded_since.get_or_insert(Instant::now());
-                if started.elapsed() >= AUTO_COLLAPSE && since.elapsed() >= AUTO_COLLAPSE {
+                // Read presentation state briefly; never hold CONTENT during window APIs.
+                let uncertain_due = CONTENT
+                    .try_lock()
+                    .ok()
+                    .is_some_and(|content| unconfirmed.due(&content.value, inside, Instant::now()));
+                if uncertain_due
+                    || (started.elapsed() >= AUTO_COLLAPSE && since.elapsed() >= AUTO_COLLAPSE)
+                {
                     let _ = resize(&window, COLLAPSED_WIDTH);
                     let _ = anchor(&window, COLLAPSED_WIDTH);
                     COLLAPSED.store(true, Ordering::SeqCst);
                     let _ = window.emit(
                         "overlay:collapsed",
-                        json!({"collapsed": true, "reason": "auto"}),
+                        json!({"collapsed": true, "reason": if uncertain_due { "unconfirmed" } else { "auto" }}),
                     );
                     expanded_since = None;
                     trace(
                         &app,
                         "info",
                         "overlay-collapse",
-                        format!(
+                        if uncertain_due {
+                            "reason=choice-region-unavailable collapsed after 3s unconfirmed; content retained".into()
+                        } else {
+                            format!(
                             "auto-collapsed after {AUTO_COLLAPSE:?} without interaction; stays click-through"
-                        ),
+                        )
+                        },
                     );
                 }
             }
@@ -339,9 +466,13 @@ fn opening_current(ticket: u64) -> Result<bool, String> {
         .allows_opening(ticket))
 }
 
-fn open_overlay(app: &AppHandle, level: u32, ticket: u64) -> Result<(), String> {
-    let (window, created) = if let Some(window) = app.get_webview_window(LABEL) {
-        (window, false)
+fn ensure_overlay_window(app: &AppHandle) -> Result<(WebviewWindow, bool), String> {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        #[cfg(target_os = "windows")]
+        crate::capture::register_overlay_handle(
+            window.hwnd().map_err(|e| e.to_string())?.0 as usize,
+        );
+        Ok((window, false))
     } else {
         let window =
             WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html?overlay=1".into()))
@@ -358,10 +489,55 @@ fn open_overlay(app: &AppHandle, level: u32, ticket: u64) -> Result<(), String> 
                 .build()
                 .map_err(|e| e.to_string())?;
         crate::app_icon::apply(&window)?;
-        (window, true)
+        #[cfg(target_os = "windows")]
+        crate::capture::register_overlay_handle(
+            window.hwnd().map_err(|e| e.to_string())?.0 as usize,
+        );
+        window
+            .set_ignore_cursor_events(true)
+            .map_err(|e| e.to_string())?;
+        Ok((window, true))
+    }
+}
+
+/// Load WebView/assets during champion selection. No show, focus, candidate
+/// publication or cursor watcher; an existing visible overlay stays untouched.
+#[tauri::command(async)]
+pub fn overlay_prepare(app: AppHandle) -> Result<Value, String> {
+    let started = Instant::now();
+    let _opening = match OPENING.try_lock() {
+        Ok(guard) => guard,
+        Err(std::sync::TryLockError::WouldBlock) => return Ok(json!({"status":"busy"})),
+        Err(_) => return Err("侧栏状态异常".into()),
     };
+    let (_, created) = ensure_overlay_window(&app)?;
+    trace(
+        &app,
+        "info",
+        "overlay-warmup",
+        format!(
+            "created={created} elapsed={}ms",
+            started.elapsed().as_millis()
+        ),
+    );
+    Ok(json!({"status":"ready"}))
+}
+
+fn open_overlay(app: &AppHandle, level: u32, ticket: u64) -> Result<(), String> {
+    let (window, created) = ensure_overlay_window(app)?;
     if !opening_current(ticket)? {
         window.hide().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    // Publications already update the WebView. Reopening an expanded, visible
+    // window must not reset size/position, pointer dwell or its collapse timer.
+    if !needs_open_layout(
+        window.is_visible().unwrap_or(false),
+        COLLAPSED.load(Ordering::SeqCst),
+    ) {
+        // Preserve monitor/DPI changes without repeating unchanged window writes.
+        resize(&window, WIDTH)?;
+        anchor(&window, WIDTH)?;
         return Ok(());
     }
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
@@ -413,6 +589,19 @@ pub fn overlay_publish(app: AppHandle, payload: Value) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn overlay_analysis_status(app: AppHandle, payload: Value) -> Result<(), String> {
+    let mut content = CONTENT.lock().map_err(|_| "侧栏内容状态异常")?;
+    if content.analysis_status(payload)? {
+        if let Some(window) = app.get_webview_window(LABEL) {
+            window
+                .emit("overlay:state", &content.value)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn overlay_ready(app: AppHandle, level: Option<u32>) -> Result<Value, String> {
     trace(
         &app,
@@ -432,13 +621,16 @@ pub fn overlay_ready(app: AppHandle, level: Option<u32>) -> Result<Value, String
 
 #[tauri::command]
 pub fn overlay_close(app: AppHandle) -> Result<(), String> {
-    let reset = {
+    let (reset, changed) = {
         let mut content = CONTENT.lock().map_err(|_| "侧栏内容状态异常")?;
-        content.reset()?;
-        content.value.clone()
+        let changed = content.reset()?;
+        (content.value.clone(), changed)
     };
     stop_watcher();
     if let Some(window) = app.get_webview_window(LABEL) {
+        if !changed && !window.is_visible().unwrap_or(true) {
+            return Ok(());
+        }
         // 隐藏不会卸载前端；发布有序清空状态，ready 也会重放该清空状态。
         let notified = window.emit("overlay:state", &reset);
         if let Err(error) = window.hide().map_err(|e| e.to_string()) {
@@ -459,6 +651,112 @@ pub fn overlay_close(app: AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn uncertain_cards() -> Value {
+        json!({"sessionId":"one","level":7,"ranking":{"ranking":[{"id":"a"},{"id":"b"},{"id":"c"}]},"analysis":{"phase":"waiting","code":"choice-region-unavailable"}})
+    }
+
+    #[test]
+    fn uncertain_panel_only_collapses_after_grace_without_destroying_content() {
+        let value = uncertain_cards();
+        let before = value.clone();
+        let now = Instant::now();
+        let mut clock = UnconfirmedCollapse::default();
+        assert!(!clock.due(&value, false, now));
+        assert!(!clock.due(&value, false, now + Duration::from_millis(2999)));
+        assert!(clock.due(&value, false, now + Duration::from_secs(3)));
+        assert_eq!(value, before);
+    }
+
+    #[test]
+    fn uncertainty_recovery_interaction_and_new_choice_reset_collapse_grace() {
+        let value = uncertain_cards();
+        let now = Instant::now();
+        let mut clock = UnconfirmedCollapse::default();
+        assert!(!clock.due(&value, false, now));
+        let mut confirmed = value.clone();
+        confirmed["analysis"]["code"] = json!("saved-result");
+        assert!(!clock.due(&confirmed, false, now + Duration::from_secs(2)));
+        assert!(!clock.due(&value, false, now + Duration::from_secs(4)));
+        assert!(!clock.due(&value, true, now + Duration::from_secs(8)));
+        assert!(!clock.due(&value, false, now + Duration::from_secs(9)));
+        let mut next = value.clone();
+        next["level"] = json!(11);
+        assert!(!clock.due(&next, false, now + Duration::from_secs(13)));
+        next["ranking"]["ranking"][0]["id"] = json!("refresh");
+        assert!(!clock.due(&next, false, now + Duration::from_secs(17)));
+        next["sessionId"] = json!("two");
+        assert!(!clock.due(&next, false, now + Duration::from_secs(21)));
+        assert!(clock.due(&next, false, now + Duration::from_secs(24)));
+        next["reset"] = json!(true);
+        assert!(!clock.due(&next, false, now + Duration::from_secs(25)));
+    }
+
+    #[test]
+    fn uncertainty_presentation_timer_is_independent_of_inflight_model_or_repeated_status() {
+        let mut value = uncertain_cards();
+        value["analysis"]["phase"] = json!("analyzing");
+        let now = Instant::now();
+        let mut clock = UnconfirmedCollapse::default();
+        assert!(!clock.due(&value, false, now));
+        value["sequence"] = json!(5);
+        assert!(clock.due(&value, false, now + Duration::from_secs(3)));
+        value["analysis"]["phase"] = json!("failed");
+        assert!(!clock.due(&value, false, now + Duration::from_secs(4)));
+        assert_eq!(value["ranking"]["ranking"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn repeated_close_is_idempotent_and_repeated_open_keeps_expanded_layout() {
+        let mut content = OverlayContent {
+            sequence: 0,
+            value: Value::Null,
+        };
+        assert!(content.reset().unwrap());
+        let sequence = content.sequence;
+        assert!(!content.reset().unwrap());
+        assert_eq!(content.sequence, sequence);
+        content
+            .publish(json!({"level":1,"ranking":{"ranking":[{"id":"one"}]}}))
+            .unwrap();
+        let ticket = content.opening_ticket(1).unwrap();
+        assert!(content.reset().unwrap());
+        assert!(!content.allows_opening(ticket));
+        assert!(!needs_open_layout(true, false));
+        assert!(needs_open_layout(true, true));
+        assert!(needs_open_layout(false, false));
+    }
+
+    #[test]
+    fn analysis_feedback_is_choice_scoped_and_preserves_scores() {
+        let cards = json!([{"id":"a","name":"A","description":"effect A","score":80},{"id":"b","name":"B","description":"effect B","score":70}]);
+        let mut content = OverlayContent {
+            sequence: 0,
+            value: Value::Null,
+        };
+        content
+            .publish(
+                json!({"sessionId":"one","level":7,"ranking":{"source":"model","ranking":cards}}),
+            )
+            .unwrap();
+        let mut update = json!({"sessionId":"one","level":7,"candidates":cards,"analysis":{"phase":"failed","code":"timeout","message":"请求超时"}});
+        assert!(content.analysis_status(update.clone()).unwrap());
+        assert_eq!(content.value["ranking"]["ranking"][0]["score"], 80);
+        assert!(!content.analysis_status(update.clone()).unwrap());
+        update["candidates"][0]["description"] = json!("changed");
+        assert!(!content.analysis_status(update.clone()).unwrap());
+        update["candidates"] = cards;
+        update["sessionId"] = json!("other");
+        assert!(!content.analysis_status(update.clone()).unwrap());
+        update["sessionId"] = json!("one");
+        update["level"] = json!(11);
+        assert!(!content.analysis_status(update.clone()).unwrap());
+        update["level"] = json!(7);
+        content.reset().unwrap();
+        assert!(!content.analysis_status(update.clone()).unwrap());
+        update["analysis"]["phase"] = json!("unknown");
+        assert!(content.analysis_status(update).is_err());
+    }
 
     #[test]
     fn first_publication_is_replayable_and_invalid_states_cannot_replace_it() {

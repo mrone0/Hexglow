@@ -8,6 +8,9 @@ import {augmentBand, nextTriggers, ownLevel} from '../src/level.ts';
 import {canRecoverPostgame, hasMissingPostgameEvidence, mergePostgameEvidence, PostgameRetryQueue} from '../src/postgameRecovery.ts';
 import {SaveQueue} from '../src/saveQueue.ts';
 import {readSession} from '../src/sessionReader.ts';
+import {KnowledgeWarmup} from '../src/knowledgeWarmup.ts';
+import {collectorPollDelay} from '../src/collectorCadence.ts';
+import {currentChoiceBand} from '../src/choiceContext.ts';
 
 // Extract the actual application callbacks: a parallel implementation of the
 // recovery protocol would not catch accidental await/guard/rebase regressions.
@@ -44,6 +47,7 @@ function evidence() {
 function snapshot(phase = 'Lobby', gameId = null) {
   return {platformSupported: true, connection: 'connected', phase, gameId, observedAt: new Date().toISOString(),
     liveData: phase === 'InProgress' ? {activePlayer: {riotId: 'me#1', level: 3},
+      events: {Events: [{EventID: 0, EventName: 'GameStart', EventTime: 0}]},
       allPlayers: [{riotId: 'me#1', championName: 'Ahri', team: 'ORDER', items: []}], gameData: {gameTime: 5}} : null,
     lcuSession: null, endOfGame: null, result: null, warnings: []};
 }
@@ -58,19 +62,20 @@ function harness({target = ended(), current = target} = {}) {
   const retries = new PostgameRetryQueue();
   retries.observe(target, Date.now() - 4000);
   const context = vm.createContext({
-    Date, Promise, structuredClone, clearTimeout, setTimeout,
+    Date, Promise, structuredClone, clearTimeout, setTimeout, collectorPollDelay, currentChoiceBand,
     canRecoverPostgame, hasMissingPostgameEvidence, mergePostgameEvidence, readSession, applySnapshot, hasContent, liveDetectionBand,
     augmentBand, nextTriggers, ownLevel,
     current: {current}, activeSession: {current: null}, archiveDetailRef: {current: null}, archiveDetail: null,
     analysisTarget: {current: {observe: vi.fn()}}, postgameRetries: {current: retries},
     recoveringPostgame: {current: false}, epoch: {current: 0}, collectionPaused: {current: false}, busyRef: {current: false},
-    snapshotRef: {current: snapshot()}, config: {current: {lockfile: '', historical: false, view: 'live'}},
+    snapshotRef: {current: snapshot()},snapshotPollStartedAt:{current:0},openingOcrArmed:{current:''},ocrCadence:{current:{reset:vi.fn()}}, config: {current: {lockfile: '', historical: false, view: 'live'}},
     writeQueue: {current: Promise.resolve()}, lastSaved: {current: Date.now()}, debounce: {current: null},
     reading: {current: false}, readingSince: {current: 0}, pollSeq: {current: 0},
     idleFailures: {current: 0}, nextPoll: {current: 0}, seenIds: {current: ''}, panelMisses: {current: 0},
+    autoRecommendationGate: {current: {resetObservation: vi.fn()}}, lastAutoScan: {current: null},
     trigger: {current: {matchId: '', fired: []}}, document: {hidden: false},
     isTauri: () => true, setSnapshot: vi.fn(), setSaved: vi.fn(), setBusy: vi.fn(), refreshHistory: async () => [],
-    detectAugments: vi.fn(), setError: error => errors.push(error),
+    detectAugments: vi.fn(), setError: error => errors.push(error),setDetection:vi.fn(),
     commit: session => { context.postgameRetries.current.observe(session); context.current.current = session; commits.push(session); },
     setArchiveDetail: update => { context.archiveDetailRef.current = typeof update === 'function' ? update(context.archiveDetailRef.current) : update; context.archiveDetail = context.archiveDetailRef.current; },
     invoke: async (command, args) => {
@@ -86,10 +91,12 @@ function harness({target = ended(), current = target} = {}) {
         return collectorReplies.shift();
       }
       if (command === 'get_session_by_match') return null;
+      if (command === 'knowledge_warmup') return {status: 'ready'};
       if (command === 'overlay_close') return;
       throw new Error(`Unexpected IPC: ${command}`);
     },
   });
+  context.knowledgeWarmup = {current: new KnowledgeWarmup(() => context.invoke('knowledge_warmup'))};
   context.saver = {current: new SaveQueue(value => context.invoke('save_session', {session: value}))};
   for (const name of callbackNames) {
     vm.runInContext(ts.transpileModule(extracted.get(name).getText(ast), {

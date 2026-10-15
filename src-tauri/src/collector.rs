@@ -12,6 +12,9 @@ use std::{
 };
 use tauri::{AppHandle, Manager};
 
+#[path = "recommendation_diagnostic.rs"]
+mod recommendation_diagnostic;
+
 const MAX_BODY: usize = 4 * 1024 * 1024;
 const LOG_LIMIT: u64 = 512 * 1024; // Each of two files; strict 1 MiB total.
 const LOG_ENTRY_LIMIT: usize = 2 * 1024; // Serialized JSON plus newline.
@@ -21,6 +24,10 @@ const LOG_RATE_WINDOW: Duration = Duration::from_secs(60);
 const DISCOVERY_IDLE_TTL: Duration = Duration::from_secs(15);
 const DISCOVERY_SUCCESS_TTL: Duration = Duration::from_secs(30);
 const POLL_BUDGET: Duration = Duration::from_secs(11);
+// Live data can be absent throughout loading. Bound that optional wait so the
+// already completed LCU phase/session can arm the first OCR promptly.
+const LIVE_SNAPSHOT_BUDGET: Duration = Duration::from_millis(500);
+const LIVE_START_BUDGET: Duration = Duration::from_millis(250);
 
 // Deliberately no Debug/Serialize: these must never enter diagnostics or IPC.
 #[derive(Clone)]
@@ -30,6 +37,7 @@ struct Credentials {
 }
 #[derive(Default)]
 struct State {
+    start_signal_game: Option<String>,
     discovery: Option<(Instant, Option<Credentials>)>,
     transition: Option<(String, String)>,
     errors: BTreeSet<String>,
@@ -175,6 +183,16 @@ fn discovery_ttl(found: bool) -> Duration {
     }
 }
 
+fn renew_discovery(state: &mut State, credentials: &Credentials, at: Instant) {
+    if let Some((observed, Some(cached))) = state.discovery.as_mut() {
+        if cached.port == credentials.port && cached.password == credentials.password {
+            // Successful authenticated reads keep the known client alive. Avoid
+            // launching a process scan every 30 seconds while the game is active.
+            *observed = at;
+        }
+    }
+}
+
 fn discover(manual: Option<&str>) -> (Option<Credentials>, Vec<String>) {
     let mut warnings = Vec::new();
     // Development only: lets a mock Live Client API stand in for the game during local testing.
@@ -233,14 +251,19 @@ fn discover(manual: Option<&str>) -> (Option<Credentials>, Vec<String>) {
 }
 
 fn riot_client() -> Result<Client, String> {
-    Client::builder()
-        .no_proxy()
-        .redirect(Policy::none())
-        .danger_accept_invalid_certs(true)
-        .connect_timeout(Duration::from_secs(2))
-        .timeout(Duration::from_secs(2))
-        .build()
-        .map_err(|_| "Local Riot API client initialization failed".into())
+    static CLIENT: OnceLock<Result<Client, String>> = OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            Client::builder()
+                .no_proxy()
+                .redirect(Policy::none())
+                .danger_accept_invalid_certs(true)
+                .connect_timeout(Duration::from_secs(2))
+                .timeout(Duration::from_secs(2))
+                .build()
+                .map_err(|_| "Local Riot API client initialization failed".into())
+        })
+        .clone()
 }
 // Only a fixed error class and numeric status may leave the transport layer.
 // reqwest's display error can contain URLs; response bodies may contain identities.
@@ -408,6 +431,76 @@ fn correlate_payloads(
     }
     game
 }
+fn live_game_started(live: &Value) -> bool {
+    let Some(events) = live["events"]["Events"].as_array() else {
+        return false;
+    };
+    if events.iter().any(|event| event["EventName"] == "GameEnd") {
+        return false;
+    }
+    events.iter().any(|event| {
+        event["EventName"] == "GameStart"
+            && event["EventID"]
+                .as_u64()
+                .is_some_and(|id| id <= 9_007_199_254_740_991)
+            && event["EventTime"]
+                .as_f64()
+                .is_some_and(|time| time.is_finite() && time >= 0.0)
+    })
+}
+
+fn needs_start_event(phase: &str, connected: bool, session: &Value, live: &Value) -> bool {
+    if phase != "InProgress"
+        || !connected
+        || game_id(session).is_none()
+        || !live.is_null() && !live.is_object()
+        || has_game_id_field(live) && game_id(live).is_none()
+        || matches!((game_id(session), game_id(live)), (Some(a), Some(b)) if a != b)
+        || live_game_started(live)
+    {
+        return false;
+    }
+    !live["events"]["Events"]
+        .as_array()
+        .is_some_and(|events| events.iter().any(|event| event["EventName"] == "GameEnd"))
+}
+
+/// Supplement only a real start event; never manufacture a level, game time,
+/// player, roster or candidate. Ended/ambiguous payloads remain unavailable.
+fn merge_start_event(live: &mut Value, events: &Value) -> bool {
+    if !live_game_started(&json!({"events":events})) {
+        return false;
+    }
+    let Some(start) = events["Events"].as_array().and_then(|entries| {
+        entries
+            .iter()
+            .find(|event| live_game_started(&json!({"events":{"Events":[event]}})))
+    }) else {
+        return false;
+    };
+    if live.is_null() {
+        *live = json!({});
+    }
+    if !live.is_object() {
+        return false;
+    }
+    let mut combined = live["events"]["Events"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if combined.iter().any(|event| event["EventName"] == "GameEnd") {
+        return false;
+    }
+    combined.push(
+        json!({"EventID":start["EventID"],"EventName":"GameStart","EventTime":start["EventTime"]}),
+    );
+    if !live["events"].is_object() {
+        live["events"] = json!({});
+    }
+    live["events"]["Events"] = json!(combined);
+    true
+}
+
 fn unknown(at: &str) -> Value {
     json!({"status":"unknown","source":"unknown","observedAt":at,"evidence":{}})
 }
@@ -1544,6 +1637,15 @@ pub(crate) fn log_event(app: &AppHandle, level: &str, event: &str, message: &str
     let _ = append_log(&logs, level, event, message);
 }
 
+/// Best-effort local state diagnostics, never model input or a raw error.
+#[tauri::command(async)]
+pub fn recommendation_diagnostic(app: AppHandle, entry: Value) -> Result<(), String> {
+    if let Some(message) = recommendation_diagnostic::prepare(entry)? {
+        log_event(&app, "info", "recommendation-state", &message);
+    }
+    Ok(())
+}
+
 const OCR_STATS_FILE: &str = "ocr-stats.json";
 
 fn ocr_stats_empty() -> Value {
@@ -1645,7 +1747,52 @@ pub(crate) fn record_ocr_scan(logs: &Path, source: &str, matched: usize) {
 #[tauri::command]
 pub fn ocr_stats(app: AppHandle) -> Result<Value, String> {
     let (_, logs) = directories(&app)?;
-    Ok(read_ocr_stats(&logs))
+    let mut stats = read_ocr_stats(&logs);
+    stats["panelProbes"] = read_panel_probe_stats(&logs);
+    Ok(stats)
+}
+
+static PANEL_STATS_LOCK: Mutex<()> = Mutex::new(());
+fn read_panel_probe_stats(logs: &Path) -> Value {
+    fs::read_to_string(logs.join("panel-probe-stats.json")).ok()
+        .and_then(|text|serde_json::from_str::<Value>(&text).ok())
+        .filter(|value| value.is_object() && value["schema"] == 1)
+        .unwrap_or_else(||json!({"schema":1,"checks":0,"likely":0,"uncertain":0,"unlikely":0,"ocr":0,"complete":0,"cache":0,"sinceAt":null,"lastAt":null}))
+}
+pub(crate) fn record_panel_probe(
+    logs: &Path,
+    hint: &str,
+    inferred: bool,
+    complete: bool,
+    cached: bool,
+) {
+    if !matches!(hint, "likely" | "uncertain" | "unlikely") {
+        return;
+    }
+    let Ok(_lock) = PANEL_STATS_LOCK.lock() else {
+        return;
+    };
+    let mut stats = read_panel_probe_stats(logs);
+    let at = now();
+    if stats["sinceAt"].is_null() {
+        stats["sinceAt"] = json!(at);
+    }
+    for key in [
+        Some("checks"),
+        Some(hint),
+        inferred.then_some("ocr"),
+        (inferred && complete).then_some("complete"),
+        cached.then_some("cache"),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        stats[key] = json!(stats[key].as_u64().unwrap_or(0).saturating_add(1));
+    }
+    stats["lastAt"] = json!(at);
+    if let Ok(text) = serde_json::to_string(&stats) {
+        let _ = fs::write(logs.join("panel-probe-stats.json"), text);
+    }
 }
 
 fn log_slot(state: &mut State, at: Instant) -> bool {
@@ -1747,23 +1894,50 @@ pub async fn collector_snapshot(
     let mut summoner = Value::Null;
     let mut phase = "Unknown";
     let mut lcu_connected = false;
+    // These three read-only endpoints are independent. Loading Live API can
+    // time out before it exposes players; do not make lifecycle discovery wait
+    // behind that timeout, or make OCR wait for three serial HTTP requests.
+    // All tasks share the original budget and are joined before correlation.
+    let lifecycle_reads = credentials.as_ref().map(|credentials| {
+        let phase_client = client.clone();
+        let phase_credentials = credentials.clone();
+        let session_client = client.clone();
+        let session_credentials = credentials.clone();
+        (
+            tauri::async_runtime::spawn(async move {
+                get_json(
+                    &phase_client,
+                    Some(&phase_credentials),
+                    "/lol-gameflow/v1/gameflow-phase",
+                    deadline,
+                )
+                .await
+            }),
+            tauri::async_runtime::spawn(async move {
+                get_json(
+                    &session_client,
+                    Some(&session_credentials),
+                    "/lol-gameflow/v1/session",
+                    deadline,
+                )
+                .await
+            }),
+        )
+    });
     // Always try Live API, including when HexLens starts during an existing game.
-    match get_json(&client, None, "/liveclientdata/allgamedata", deadline).await {
+    let live_deadline = deadline.min(Instant::now() + LIVE_SNAPSHOT_BUDGET);
+    match get_json(&client, None, "/liveclientdata/allgamedata", live_deadline).await {
         Ok(value) => live = value,
         Err(error) => warnings.push(format!("Live API: {error}")),
     }
-    if let Some(c) = credentials.as_ref() {
-        match get_json(
-            &client,
-            Some(c),
-            "/lol-gameflow/v1/gameflow-phase",
-            deadline,
-        )
-        .await
-        {
+    if let (Some(c), Some((phase_read, session_read))) = (credentials.as_ref(), lifecycle_reads) {
+        match phase_read.await.unwrap_or(Err(ApiError::Unavailable)) {
             Ok(value) => {
                 phase = phase_name(&value);
                 lcu_connected = true;
+                if let Ok(mut state) = state().lock() {
+                    renew_discovery(&mut state, c, Instant::now());
+                }
             }
             Err(error) => {
                 warnings.push(format!("LCU phase: {error}"));
@@ -1776,7 +1950,7 @@ pub async fn collector_snapshot(
                 }
             }
         }
-        match get_json(&client, Some(c), "/lol-gameflow/v1/session", deadline).await {
+        match session_read.await.unwrap_or(Err(ApiError::Unavailable)) {
             Ok(value) => {
                 session = value;
                 lcu_connected = true;
@@ -1846,6 +2020,18 @@ pub async fn collector_snapshot(
     } else {
         warnings.push("League client was not discovered".into());
     }
+    let mut start_source = live_game_started(&live).then_some("allgamedata");
+    if needs_start_event(phase, lcu_connected, &session, &live) {
+        let start_deadline = deadline.min(Instant::now() + LIVE_START_BUDGET);
+        match get_json(&client, None, "/liveclientdata/eventdata", start_deadline).await {
+            Ok(events) => {
+                if merge_start_event(&mut live, &events) {
+                    start_source = Some("eventdata");
+                }
+            }
+            Err(error) => warnings.push(format!("Live start event: {error}")),
+        }
+    }
     degrade_unknown_phase(
         phase,
         &mut lcu_connected,
@@ -1863,6 +2049,32 @@ pub async fn collector_snapshot(
     );
     if phase == "Unknown" && !live.is_null() {
         phase = "InProgress";
+    }
+    if phase == "InProgress" && live_game_started(&live) {
+        if let Some(game) = game.as_ref() {
+            let changed = state()
+                .lock()
+                .map(|mut state| {
+                    if state.start_signal_game.as_ref() == Some(game) {
+                        false
+                    } else {
+                        state.start_signal_game = Some(game.clone());
+                        true
+                    }
+                })
+                .unwrap_or(false);
+            if changed {
+                log_event(
+                    &app,
+                    "info",
+                    "game-start-signal",
+                    &format!(
+                        "gameId={game} source={}",
+                        start_source.unwrap_or("live-event")
+                    ),
+                );
+            }
+        }
     }
     let connection = match (lcu_connected, !live.is_null()) {
         (true, true) => "lcu-and-live",
@@ -2973,6 +3185,44 @@ mod tests {
     }
 
     #[test]
+    fn authenticated_reads_renew_only_the_same_discovered_client() {
+        let before = Instant::now() - Duration::from_secs(20);
+        let at = Instant::now();
+        let credentials = Credentials {
+            port: 12345,
+            password: "synthetic".into(),
+        };
+        let mut state = State {
+            discovery: Some((before, Some(credentials.clone()))),
+            ..State::default()
+        };
+        renew_discovery(
+            &mut state,
+            &Credentials {
+                port: 12345,
+                password: "different".into(),
+            },
+            at,
+        );
+        assert_eq!(state.discovery.as_ref().unwrap().0, before);
+        renew_discovery(
+            &mut state,
+            &Credentials {
+                port: 12346,
+                password: "synthetic".into(),
+            },
+            at,
+        );
+        assert_eq!(state.discovery.as_ref().unwrap().0, before);
+        renew_discovery(&mut state, &credentials, at);
+        assert_eq!(state.discovery.as_ref().unwrap().0, at);
+        state.discovery = Some((before, None));
+        renew_discovery(&mut state, &credentials, at);
+        assert_eq!(state.discovery.as_ref().unwrap().0, before);
+        assert!(state.discovery.as_ref().unwrap().1.is_none());
+    }
+
+    #[test]
     fn lockfiles_are_strict() {
         let c = parse_lockfile("LeagueClient:42:12345:secret:https\n").unwrap();
         assert_eq!(c.port, 12345);
@@ -3328,6 +3578,74 @@ mod tests {
         assert!(!warnings.is_empty());
     }
     #[test]
+    fn start_event_fallback_waits_for_real_events_without_any_loading_time_limit() {
+        let session = json!({"gameData":{"gameId":123}});
+        for _ in 0..100 {
+            assert!(needs_start_event(
+                "InProgress",
+                true,
+                &session,
+                &json!({"gameData":{"gameTime":0}})
+            ));
+        }
+        let events = json!({"Events":[{"EventID":0,"EventName":"GameStart","EventTime":0.0,"ignored":"private-extra"}]});
+        let mut live = Value::Null;
+        assert!(merge_start_event(&mut live, &events));
+        assert!(live_game_started(&live));
+        assert!(live.get("activePlayer").is_none());
+        assert!(live.get("allPlayers").is_none());
+        assert!(live.get("gameData").is_none());
+        assert!(live["events"]["Events"][0].get("ignored").is_none());
+        assert!(!needs_start_event("InProgress", true, &session, &live));
+    }
+
+    #[test]
+    fn start_event_fallback_cannot_repair_conflicting_identity_or_ended_evidence() {
+        let session = json!({"gameId":123});
+        for phase in [
+            "ChampSelect",
+            "GameStart",
+            "Reconnect",
+            "EndOfGame",
+            "Unknown",
+        ] {
+            assert!(!needs_start_event(phase, true, &session, &Value::Null));
+        }
+        for live in [
+            json!({"gameId":456}),
+            json!({"gameId":0}),
+            json!({"gameId":"invalid"}),
+            json!({"events":{"Events":[{"EventName":"GameEnd"}]}}),
+        ] {
+            assert!(!needs_start_event("InProgress", true, &session, &live));
+        }
+        assert!(!needs_start_event(
+            "InProgress",
+            false,
+            &session,
+            &Value::Null
+        ));
+        assert!(!needs_start_event(
+            "InProgress",
+            true,
+            &json!({"gameId":123,"gameData":{"gameId":456}}),
+            &Value::Null
+        ));
+        for events in [
+            json!({}),
+            json!({"Events":[]}),
+            json!({"Events":[{"EventName":"GameStart"}]}),
+            json!({"Events":[{"EventID":0,"EventName":"GameStart","EventTime":"0"}]}),
+            json!({"Events":[{"EventID":9_007_199_254_740_992u64,"EventName":"GameStart","EventTime":0}]}),
+            json!({"Events":[{"EventID":0,"EventName":"GameStart","EventTime":0},{"EventName":"GameEnd"}]}),
+        ] {
+            let mut live = Value::Null;
+            assert!(!merge_start_event(&mut live, &events));
+            assert!(live.is_null());
+        }
+    }
+
+    #[test]
     fn coherent_live_and_live_only_remain_available() {
         for (phase, connected) in [
             ("InProgress", true),
@@ -3397,6 +3715,25 @@ mod tests {
             assert!(id(&value).is_none());
         }
         assert_eq!(id(&json!("123")), Some("123".into()));
+    }
+    #[test]
+    fn pixel_probe_stats_are_separate_from_legacy_ocr_counts() {
+        let logs = TempLogs::new();
+        record_ocr_scan(&logs.0, "capture", 3);
+        let original = fs::read(logs.0.join(OCR_STATS_FILE)).unwrap();
+        record_panel_probe(&logs.0, "unlikely", false, false, false);
+        record_panel_probe(&logs.0, "likely", true, true, false);
+        record_panel_probe(&logs.0, "likely", false, false, true);
+        record_panel_probe(&logs.0, "unsafe-payload", true, true, false);
+        let stats = read_panel_probe_stats(&logs.0);
+        assert_eq!(stats["checks"], 3);
+        assert_eq!(stats["ocr"], 1);
+        assert_eq!(stats["complete"], 1);
+        assert_eq!(stats["cache"], 1);
+        assert_eq!(stats["likely"], 2);
+        assert_eq!(stats["unlikely"], 1);
+        assert!(stats["sinceAt"].is_string());
+        assert_eq!(fs::read(logs.0.join(OCR_STATS_FILE)).unwrap(), original);
     }
     #[test]
     fn ocr_stats_backfill_counts_then_only_increment() {

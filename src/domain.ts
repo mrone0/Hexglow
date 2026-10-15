@@ -1,3 +1,6 @@
+import {analysisDataIssue} from './analysisPreflight';
+import {updateOcrOpening,type OcrOpening} from './gameStart';
+
 export type AugmentSelection = {id:string; name:string; source:'manual-choice'; at:string; band?:number};
 export type Player = { id: string; name: string; champion: string; team: string; items: unknown[]; augments: string[]; augmentsConfirmed: boolean; augmentSelections?:AugmentSelection[] };
 export type Candidate = { id: string; name: string; description: string; source?:'manual'|'ocr' };
@@ -49,7 +52,7 @@ export function mergeMatchResult(current:MatchResult|undefined,incoming:Partial<
  return incoming as MatchResult;
 }
 export type TimelineEntry = { at: string; phase: string; connection: string };
-export type Session = { patch?:string; candidateBand?:number; sampleCount?:number; schemaVersion?: number; id: string; createdAt: string; updatedAt?: string; endedAt?: string; matchId: string; ownPlayerId: string; players: Player[]; candidates: Candidate[]; notes: string; liveData: unknown; decisions: { at: string; result: Recommendation; context: unknown; chosenId?: string }[]; outcome: string; review?: Review; result?: MatchResult; phase?: string; timeline?: TimelineEntry[]; samples?: { at: string; data: unknown }[]; lcuSession?: unknown; endOfGame?: unknown; postGameFilledAt?: string; archived?: boolean };
+export type Session = { ocrOpening?:OcrOpening; patch?:string; candidateBand?:number; sampleCount?:number; schemaVersion?: number; id: string; createdAt: string; updatedAt?: string; endedAt?: string; matchId: string; ownPlayerId: string; players: Player[]; candidates: Candidate[]; notes: string; liveData: unknown; decisions: { at: string; result: Recommendation; context: unknown; chosenId?: string }[]; outcome: string; review?: Review; result?: MatchResult; phase?: string; timeline?: TimelineEntry[]; samples?: { at: string; data: unknown }[]; lcuSession?: unknown; endOfGame?: unknown; postGameFilledAt?: string; archived?: boolean };
 export type PostGameAugmentsEntry = { key: string; augments: string[]; champion?: string; team?: string };
 export type PostGameAugments = { players: PostGameAugmentsEntry[]; fields: string[] };
 export type CollectorSnapshot = { platformSupported: boolean; connection: string; phase: string; gameId: string|null; liveData: any|null; lcuSession: unknown|null; endOfGame: unknown|null; postGameAugments?: PostGameAugments|null; result: MatchResult|null; observedAt: string; warnings: string[] };
@@ -160,20 +163,27 @@ export function applySnapshot(current: Session, snap: CollectorSnapshot): {sessi
   const hasLive = Array.isArray(snap.liveData?.allPlayers) && snap.liveData.allPlayers.length>0;
   const oldTime = (current.liveData as any)?.gameData?.gameTime;
   const nextTime = snap.liveData?.gameData?.gameTime;
-  const timeReset = hasLive && typeof oldTime==='number' && typeof nextTime==='number' && nextTime + 15 < oldTime;
+  const timeReset = typeof oldTime==='number' && typeof nextTime==='number' && nextTime + 15 < oldTime;
   const idChanged = !!current.matchId && !!snap.gameId && current.matchId !== String(snap.gameId);
   const nextStart = !!current.endedAt && (snap.phase==='ChampSelect' || snap.phase==='GameStart') && current.phase!==snap.phase && !hasLive;
   const currentEndEvent = snap.liveData?.events?.Events?.some((e:any)=>e.EventName==='GameEnd');
   const newUnknownGame = !!current.endedAt && hasLive && !snap.gameId && !currentEndEvent && (!snap.result || snap.result.status==='unknown');
   let completed:Session|undefined;
   let session=current;
-  if ((idChanged || timeReset || nextStart || newUnknownGame) && hasContent(current)) {
-    completed={...current,archived:true,updatedAt:snap.observedAt};
-    session=newSession();
+  if (idChanged || timeReset || nextStart || newUnknownGame) {
+    if(hasContent(current))completed={...current,archived:true,updatedAt:snap.observedAt};
+    const loadingShell=!hasContent(current)&&!current.endedAt&&!current.archived&&['ChampSelect','GameStart'].includes(current.phase||'');
+    session=loadingShell?{...newSession(),id:current.id,createdAt:current.createdAt,
+      timeline:current.timeline?.filter(entry=>['ChampSelect','GameStart'].includes(entry.phase))}:newSession();
   }
   session={...session,updatedAt:snap.observedAt,phase:snap.phase};
   if(snap.gameId) session.matchId=String(snap.gameId);
   if(hasLive) session=mergeLive(session,snap.liveData);
+  else if(snap.phase==='InProgress') {
+    // A partial current observation can reveal level/time before its roster.
+    // Keep known players, but do not substitute a stale level into a fresh gap.
+    session.liveData=snap.liveData;
+  }
   if(snap.lcuSession) session.lcuSession=snap.lcuSession;
   // The envelope is not sufficient: validate the raw payload's own ID and keep
   // the first evidence, even if later same-match responses are empty/partial.
@@ -193,14 +203,13 @@ export function applySnapshot(current: Session, snap: CollectorSnapshot): {sessi
   const samples=[...(session.samples||[])];
   if(hasLive && (!samples.length || Date.parse(snap.observedAt)-Date.parse(samples.at(-1)!.at)>=15000)) samples.push({at:snap.observedAt,data:snap.liveData});
   session.samples=samples.slice(-30);
+  const opening=updateOcrOpening(session,snap);
+  if(opening)session.ocrOpening=opening;
   return {session,completed};
 }
 export function blockers(s: Session): string[] {
-  const errors: string[] = [];
-  if (!s.players.some(p => p.id === s.ownPlayerId && p.champion)) errors.push('确认当前使用的英雄');
-  if (s.players.some(p=>!['ORDER','CHAOS'].includes(p.team)) || new Set(s.players.map(p=>p.team)).size !== 2) errors.push('等待 API 提供双方阵容');
-  if (s.candidates.length < 2 || s.candidates.some(c=>!c.name.trim() || !c.description.trim())) errors.push('填写候选名称与完整效果');
-  return errors;
+  const issue=analysisDataIssue(s);
+  return issue?[issue]:[];
 }
 export const resultLabel=(r?:MatchResult)=>r?.status==='win'?'胜利':r?.status==='loss'?'失败':'结果待确认';
 export const phaseLabel=(p?:string)=>({None:'客户端待机',Lobby:'游戏大厅',Matchmaking:'匹配中',ReadyCheck:'确认对局',ChampSelect:'英雄选择',GameStart:'正在载入',InProgress:'对局进行中',Reconnect:'等待重连',WaitingForStats:'等待结算',PreEndOfGame:'对局结束',EndOfGame:'赛后结算',Disconnected:'等待客户端',Unknown:'识别中'}[p||'']||p||'等待客户端');

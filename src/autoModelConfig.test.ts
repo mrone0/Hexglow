@@ -1,8 +1,17 @@
 import {describe,expect,it} from 'vitest';
-import {autoModelIdentity,automaticModelIssue} from './autoModelConfig';
+import {readAutoRecommendPreference,autoModelIdentity,automaticModelIssue} from './autoModelConfig';
 
 const model={provider:'openai',baseUrl:'https://models.example/v1',name:'example-model'};
 describe('automatic model opt-in configuration',()=>{
+  it('defaults a first installation on, and restores an explicit on or off preference',()=>{
+    expect(readAutoRecommendPreference(null,null)).toBe(true);
+    expect(readAutoRecommendPreference('true','')).toBe(true);
+    expect(readAutoRecommendPreference('false','legacy-enabled')).toBe(false);
+  });
+  it('migrates legacy saved preferences without overriding a previously saved off choice',()=>{
+    expect(readAutoRecommendPreference(null,'')).toBe(false);
+    expect(readAutoRecommendPreference(null,autoModelIdentity(model))).toBe(true);
+  });
   it('binds approval to the provider, full service path and model, not a key',()=>{
     expect(autoModelIdentity({...model,baseUrl:model.baseUrl+'/'})).toBe(autoModelIdentity(model));
     for(const change of [{provider:'jev'},{baseUrl:'https://other.example/v1'},{baseUrl:'https://models.example/v2'},{name:'other-model'}])expect(autoModelIdentity({...model,...change})).not.toBe(autoModelIdentity(model));

@@ -2,7 +2,9 @@ import {useEffect, useState} from 'react';
 import {invoke, isTauri} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import {AUGMENT_LEVELS,augmentRoundLabel} from './level';
-import {assessmentLabel, localRankingPresentation, type ScoredCandidate, type ScoreResult} from './liveRecommendation';
+import {type ScoredCandidate, type ScoreResult} from './liveRecommendation';
+import {overlayPresentation} from './overlayPresentation';
+import {normalizeRecommendationStatus, type RecommendationStatus} from './recommendationStatus';
 import './overlay.css';
 
 export type OverlayCandidate = ScoredCandidate;
@@ -13,8 +15,11 @@ export type OverlayState = {
   lines: string[];
   candidates: OverlayCandidate[];
   rankingReliable?: boolean;
+  modelScoresValid?: boolean;
   profile?: ScoreResult['profile'];
   source?: ScoreResult['source'];
+  contextChanged?: boolean;
+  analysis?: RecommendationStatus;
 };
 
 const RARITY_LABEL: Record<string, string> = {silver: '银', gold: '金', prismatic: '棱彩'};
@@ -29,7 +34,7 @@ const initial: OverlayState = {
   rankingReliable: false,
 };
 
-export type OverlayPayload = {sequence: number; level: number | null; reset?: boolean; ranking: ScoreResult};
+export type OverlayPayload = {sequence: number; level: number | null; reset?: boolean; ranking: ScoreResult; analysis?: RecommendationStatus};
 export type OverlayPublication = {sequence: number; state: OverlayState};
 
 export function reduceOverlayPublication(current: OverlayPublication, payload: OverlayPayload | null): OverlayPublication {
@@ -38,29 +43,35 @@ export function reduceOverlayPublication(current: OverlayPublication, payload: O
     sequence: payload.sequence,
     state: payload.reset || payload.level === null
       ? {...initial}
-      : {level: payload.level, status: 'matched', message: payload.ranking?.summary || '候选已识别', lines: [], candidates: payload.ranking?.ranking ?? [], rankingReliable: payload.ranking?.rankingReliable === true, profile: payload.ranking?.profile, source: payload.ranking?.source},
+      : {level: payload.level, status: 'matched', message: payload.ranking?.summary || '候选已识别', lines: [], candidates: payload.ranking?.ranking ?? [], rankingReliable: payload.ranking?.rankingReliable === true, modelScoresValid:payload.ranking?.modelScoresValid === true, profile: payload.ranking?.profile, source: payload.ranking?.source, contextChanged: payload.ranking?.contextChanged === true, analysis: normalizeRecommendationStatus(payload.analysis)},
   };
 }
 
-export function OverlayCandidates({result}: {result: ScoreResult}) {
-  const presentation = localRankingPresentation(result);
-  return <>{presentation.candidates.map(candidate => (
-    <article className={candidate.rank === 1 ? 'overlay-item top' : 'overlay-item'} key={candidate.id}>
-      <div className="overlay-item-head">
+export function OverlayCandidates({result, analysis}: {result: ScoreResult; analysis?: RecommendationStatus}) {
+  const presentation = overlayPresentation(result, analysis);
+  return <>{presentation.candidates.map((candidate, index) => (
+    <article className={candidate.recommended ? 'overlay-item top' : 'overlay-item'} key={candidate.id}>
+      <div className="overlay-item-meta">
         {candidate.rank !== null && <span className="overlay-rank">{candidate.tied ? '并列' : ''}第{candidate.rank}</span>}
+        {candidate.rank === null && <span className="overlay-option">候选 {String(index + 1).padStart(2, '0')}</span>}
+        {candidate.recommended && <span className="overlay-recommendation" title="当前候选中的模型评分最高，不代表胜率">{candidate.recommendationLabel}</span>}
+        {candidate.alreadyOwned && <span className="overlay-analysis-note">已拥有</span>}
+      </div>
+      <div className="overlay-item-head">
         <h3>{candidate.name}</h3>
-        {candidate.displayScore !== null && <b className="overlay-score" aria-label={`模型比较分 ${candidate.displayScore}，非胜率`}>{candidate.displayScore}</b>}
+        <div className="overlay-score-block">
+          {candidate.displayScore !== null
+            ? <b className="overlay-score" aria-label={`模型比较分 ${candidate.displayScore}，非胜率`}>{candidate.displayScore}</b>
+            : <span className="overlay-score-placeholder" aria-label={candidate.alreadyOwned ? '已拥有，不参与推荐' : result.source === 'model' ? '已分析 · 未评分' : '尚无模型评分'}>—</span>}
+        </div>
       </div>
-      {candidate.displayScore !== null && <span className="overlay-meter" aria-hidden="true"><i style={{width: `${candidate.displayScore}%`}} /></span>}
-      <div className="overlay-chips">
-        {candidate.rarity && <span className={`chip rarity-${candidate.rarity}`}>{RARITY_LABEL[candidate.rarity] ?? candidate.rarity}</span>}
-        {candidate.category && <span className="chip">{CATEGORY_LABEL[candidate.category] ?? candidate.category}</span>}
-        <span className="chip">{candidate.alreadyOwned ? '已拥有 · 不作为新选择' : result.source === 'recognition' ? '待模型分析' : assessmentLabel(candidate.assessment)}</span>
-      </div>
-      <p className="overlay-effect">{candidate.description}</p>
+      <details className="overlay-details">
+      <summary aria-label={`查看 ${candidate.name} 的完整效果与分析`}><span className="overlay-effect">{candidate.description}</span><span className="overlay-details-toggle">效果与分析 <i aria-hidden="true"/></span></summary>
+      <span className="overlay-attributes">{[RARITY_LABEL[candidate.rarity] ?? candidate.rarity, CATEGORY_LABEL[candidate.category] ?? candidate.category].filter(Boolean).join(' · ')}</span>
       {candidate.reason && <small className="overlay-reason">{candidate.reason}</small>}
       {candidate.evidence.length > 0 && <ul className="overlay-evidence" aria-label="已知依据">{candidate.evidence.map((item, index) => <li key={index}>{item}</li>)}</ul>}
       {!!candidate.risks?.length && <small className="overlay-risks">⚠ {candidate.risks.join('；')}</small>}
+      </details>
     </article>
   ))}</>;
 }
@@ -112,14 +123,29 @@ export function OverlayApp() {
     if (isTauri()) void invoke('overlay_set_collapsed', {collapsed: next}).catch(() => undefined);
   };
 
+  return <OverlayView state={state} collapsed={collapsed} onClose={close} onToggleCollapse={toggleCollapse}/>;
+}
+
+/** Pure view shared by the native sidebar and isolated visual fixtures. */
+export function OverlayView({state, collapsed=false, onClose, onToggleCollapse}: {
+  state: OverlayState;
+  collapsed?: boolean;
+  onClose: () => void;
+  onToggleCollapse: () => void;
+}) {
   const band = state.level === null ? null : AUGMENT_LEVELS.includes(state.level as 1 | 7 | 11 | 15) ? state.level : null;
-  const result: ScoreResult = {ranking: state.candidates, summary: state.message, rankingReliable: state.rankingReliable, profile: state.profile, source: state.source};
-  const presentation = localRankingPresentation(result);
+  const result: ScoreResult = {ranking: state.candidates, summary: state.message, rankingReliable: state.rankingReliable, modelScoresValid:state.modelScoresValid, profile: state.profile, source: state.source,contextChanged:state.contextChanged};
+  const presentation = overlayPresentation(result, state.analysis);
+  const regionUnconfirmed=state.analysis?.code==='choice-region-unavailable'&&['waiting','analyzing'].includes(state.analysis.phase);
+  const modeLabel = regionUnconfirmed?presentation.label:result.source==='model' && !presentation.candidates.some(candidate=>candidate.displayScore!==null)
+    ? presentation.candidates.length>0 && presentation.candidates.every(candidate=>candidate.alreadyOwned) ? '本组均已拥有' : '已分析 · 未评分'
+    : result.source!=='model' && state.analysis?.phase==='waiting' && state.analysis.code==='request-cooldown' ? '等待请求间隔' : presentation.label;
+  const tone = state.status === 'error' ? 'failed' : regionUnconfirmed?'previous':result.source === 'model' ? state.contextChanged ? 'previous' : 'complete' : normalizeRecommendationStatus(state.analysis).phase;
 
   if (collapsed) {
     return (
       <div className="overlay-root is-collapsed">
-        <button className="overlay-handle" onClick={toggleCollapse} aria-label="展开侧栏" title="展开海克斯侧栏">
+        <button className="overlay-handle" onClick={onToggleCollapse} aria-label="展开侧栏" title="展开海克斯侧栏">
           <span className="overlay-handle-mark">◇</span>
           <span className="overlay-handle-text">HEXGLOW</span>
           {band !== null && <span className="overlay-handle-level">{augmentRoundLabel(band)}</span>}
@@ -130,32 +156,33 @@ export function OverlayApp() {
 
   return (
     <div className="overlay-root">
-      <section className="overlay-card">
+      <section className="overlay-card" data-tone={tone}>
         <header className="overlay-head">
-          <div>
+          <div className="overlay-title">
             <span className="overlay-brand">HEXGLOW</span>
             <strong>{result.source === 'model' ? '模型推荐' : '海克斯候选'}</strong>
-            <span className="overlay-mode" title="识别本身不评分、不调用模型；默认手动分析，开启自动推荐后按设置触发">
-              {presentation.label}
-            </span>
           </div>
           <span className="overlay-level">{band ? augmentRoundLabel(band) : '待识别'}</span>
           <div className="overlay-actions">
-            <button className="overlay-close" onClick={toggleCollapse} aria-label="折叠侧栏" title="折叠为竖条">
-              –
+            <button className="overlay-close" onClick={onToggleCollapse} aria-label="折叠侧栏" title="折叠为竖条">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 5 5 5-5 5"/></svg>
             </button>
-            <button className="overlay-close" onClick={close} aria-label="关闭侧栏" title="关闭">
-              ×
+            <button className="overlay-close" onClick={onClose} aria-label="关闭侧栏" title="关闭">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8"/></svg>
             </button>
           </div>
         </header>
-        <p className="overlay-status" data-status={state.status}>
-          <i />
-          {state.candidates.length ? presentation.summary : state.message}
-        </p>
+        <div className="overlay-context" role="status" aria-live="polite" aria-atomic="true">
+          <div className="overlay-context-line">
+            <span className="overlay-champion">{state.profile?.champion || '本轮选择'}</span>
+            <span className="overlay-mode" title={state.candidates.length ? presentation.status : state.message}><i aria-hidden="true"/>{modeLabel}</span>
+          </div>
+          {(tone==='blocked'||tone==='failed'||state.status==='error') && <p className="overlay-status" data-status={state.status}>{state.status==='error' ? state.message : state.analysis?.message}</p>}
+          {tone==='previous' && <p className="overlay-status">局势已变化，以下为此前评分。</p>}
+        </div>
         <div className="overlay-list" tabIndex={0} aria-label="本轮海克斯候选，可滚动查看完整内容">
           {state.candidates.length ? (
-            <OverlayCandidates result={result} />
+            <OverlayCandidates result={result} analysis={state.analysis} />
           ) : state.lines.length ? (
             <div className="overlay-empty">
               <span>◇</span>
@@ -170,12 +197,12 @@ export function OverlayApp() {
           ) : (
             <div className="overlay-empty">
               <span>◇</span>
-              <p>截屏识别后显示候选与效果；默认手动分析，开启自动推荐后按设置触发。</p>
+              <p>截屏识别后显示候选与效果；自动推荐按已保存设置与数据授权触发。</p>
               <small>不展示胜率 · 结果仅本机可见</small>
             </div>
           )}
         </div>
-        <footer className="overlay-foot">{result.source === 'model' ? presentation.reliable ? '模型比较分，不代表胜率' : '模型依据不足，暂不排名或给分' : '识别本身不收费 · 自动推荐需单独开启'} · 滚动查看完整内容</footer>
+        <footer className="overlay-foot"><span>{presentation.footnote}</span><span className="overlay-foot-hint" aria-hidden="true">点按效果展开</span></footer>
       </section>
     </div>
   );

@@ -2,7 +2,16 @@ import {modelDestination} from './modelConsent';
 
 type AutomaticModel = {provider?:string;baseUrl:string;name:string;allowThirdParty?:boolean};
 
-/** Automatic billing needs its own opt-in, bound to both service and model. */
+export const AUTO_RECOMMEND_PREFERENCE_KEY='hexglow-auto-recommend-enabled';
+
+/** Keep an explicit off choice, including the previous version's saved off value. */
+export function readAutoRecommendPreference(value:string|null,legacyApproval:string|null):boolean {
+  if(value==='true')return true;
+  if(value==='false')return false;
+  return legacyApproval!=='';
+}
+
+/** Exact service/model identity is also used for legacy preference migration. */
 export function autoModelIdentity(model:AutomaticModel):string {
   const destination=modelDestination(model);
   return destination&&model.name.trim()?JSON.stringify([destination,model.name.trim()]):'';

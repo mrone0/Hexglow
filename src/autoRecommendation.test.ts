@@ -25,6 +25,14 @@ function ready(gate: AutoRecommendationGate, session: Session, time = 0): void {
 }
 
 describe('automatic recommendation identity', () => {
+  it('analyzes an early empty roster and never repeats after context completion or restart',()=>{
+    const complete=playing(),partial={...complete,players:[],ownPlayerId:''},gate=new AutoRecommendationGate();
+    ready(gate,partial);gate.markAttempt(partial,true);
+    expect(gate.blockReason(complete)).toBe('attempted');
+    expect(gate.observe(complete,2000)).toBe(false);
+    complete.decisions=[saved(partial)];
+    expect(new AutoRecommendationGate().blockReason(complete)).toBe('saved');
+  });
   it('uses an order-independent complete three-card identity', () => {
     const session = playing();
     expect(autoRecommendationKey(session)).not.toBeNull();
@@ -55,29 +63,29 @@ describe('automatic recommendation identity', () => {
     expect(autoRecommendationKey({...session, [field]: 'other'})).not.toBe(autoRecommendationKey(session));
   });
 
-  it('isolates the owner and champion', () => {
+  it('does not charge the same group again after owner or champion data changes', () => {
     const session = playing(), next = structuredClone(session);
     next.players[0].champion = 'changed';
-    expect(autoRecommendationKey(next)).not.toBe(autoRecommendationKey(session));
+    expect(autoRecommendationKey(next)).toBe(autoRecommendationKey(session));
     next.ownPlayerId = 'other';
-    expect(autoRecommendationKey(next)).not.toBe(autoRecommendationKey(session));
+    expect(autoRecommendationKey(next)).toBe(autoRecommendationKey(session));
   });
 
   it.each([
-    {phase: 'EndOfGame'}, {archived: true}, {endedAt: 'now'}, {id: ''}, {matchId: ''}, {ownPlayerId: ''},
+    {phase: 'EndOfGame'}, {archived: true}, {endedAt: 'now'}, {id: ''}, {matchId: ''},
     {candidateBand: undefined}, {candidateBand: 11}, {liveData: null}, {liveData: {activePlayer: {level: 11}}},
     {liveData: {activePlayer: {level: 0}}},
   ])('rejects a non-current or unidentified round: %j', changes => {
     expect(autoRecommendationKey({...playing(), ...changes})).toBeNull();
   });
 
-  it('requires one complete owner hero, without requiring a player display name', () => {
+  it('permits unknown owner and hero while preserving the same paid choice identity', () => {
     const session = playing();
     expect(autoRecommendationKey(session)).not.toBeNull();
-    expect(autoRecommendationKey({...session, players: session.players.slice(1)})).toBeNull();
-    expect(autoRecommendationKey({...session, players: [session.players[0], ...session.players]})).toBeNull();
+    expect(autoRecommendationKey({...session, players: [], ownPlayerId:''})).toBe(autoRecommendationKey(session));
+    expect(autoRecommendationKey({...session, players: session.players.slice(1)})).toBe(autoRecommendationKey(session));
     session.players[0].champion = ' ';
-    expect(autoRecommendationKey(session)).toBeNull();
+    expect(autoRecommendationKey(session)).not.toBeNull();
   });
 
   it('requires exactly three distinct complete OCR candidates', () => {
@@ -161,6 +169,20 @@ describe('automatic recommendation observation gate', () => {
     expect(gate.observe(session, AUTO_STABLE_MS + 1)).toBe(true);
   });
 
+  it('exposes the first actual observation only for the unattempted current candidate group', () => {
+    const gate=new AutoRecommendationGate(),session=playing();
+    expect(gate.firstObservedAt(session)).toBeNull();
+    gate.observe(session,100);
+    gate.observe(session,800);
+    expect(gate.firstObservedAt(session)).toBe(100);
+    expect(gate.firstObservedAt(reroll(session,1))).toBeNull();
+    gate.markAttempt(session,true);
+    expect(gate.firstObservedAt(session)).toBeNull();
+    const next=reroll(session,1);gate.observe(next,1000);
+    expect(gate.firstObservedAt(next)).toBe(1000);
+    gate.resetObservation();expect(gate.firstObservedAt(next)).toBeNull();
+  });
+
   it('does not count a retained old observation across a long gap or backwards clock', () => {
     for (const later of [AUTO_OBSERVATION_MAX_GAP_MS + 1, -1]) {
       const gate = new AutoRecommendationGate(), session = playing();
@@ -231,16 +253,42 @@ describe('automatic recommendation observation gate', () => {
     for (let index = 1; index <= AUTO_MAX_PER_ROUND; index++) {
       const next = reroll(session, index);ready(gate, next, index * 2000);gate.markAttempt(next, true);
     }
-    expect(gate.observe(reroll(session, 4), 10000)).toBe(false);
-    expect(gate.observe(reroll(session, 4), 11000)).toBe(false);
+    const extra=reroll(session,AUTO_MAX_PER_ROUND+1);
+    expect(gate.blockReason(extra)).toBe('round-limit');
+    expect(gate.observe(extra, 10000)).toBe(false);
+    expect(gate.observe(extra, 11000)).toBe(false);
   });
 
-  it('limits all groups in a round to three automatic attempts, even after owner identity changes', () => {
+  it('permits the initial panel plus three independent card refreshes, rejects the fifth group, and resets quota for the next round',()=>{
+    expect(AUTO_MAX_PER_ROUND).toBe(4);
+    const gate=new AutoRecommendationGate(),initial=playing();
+    let group=initial;
+    for(let index=0;index<4;index++){
+      if(index>0)group={...group,candidates:group.candidates.map((candidate,card)=>card===index-1?
+        {...candidate,id:`${candidate.id}-refreshed`,name:`${candidate.name}刷新`,description:`${candidate.description}刷新`}:candidate)};
+      expect(gate.blockReason(group)).toBeNull();
+      ready(gate,group,index*2000);gate.markAttempt(group,true);
+      expect(gate.blockReason(group)).toBe('attempted');
+    }
+    const fifth=reroll(group,5);
+    expect(gate.blockReason(fifth)).toBe('round-limit');
+    expect(gate.observe(fifth,9000)).toBe(false);expect(gate.observe(fifth,10000)).toBe(false);
+    const nextRound={...initial,candidateBand:11,liveData:{activePlayer:{level:11}}};
+    for(let index=0;index<4;index++){
+      const next=reroll(nextRound,index);ready(gate,next,12000+index*2000);gate.markAttempt(next,true);
+    }
+    expect(gate.blockReason(reroll(nextRound,5))).toBe('round-limit');
+    expect(gate.blockReason(fifth)).toBe('round-limit');
+    expect(gate.blockReason(initial)).toBe('attempted');
+  });
+
+  it('limits all groups in a round to four automatic attempts, even after owner identity changes', () => {
     const gate = new AutoRecommendationGate(), session = playing();
     for (let index = 0; index < AUTO_MAX_PER_ROUND; index++) {
       const next = reroll(session, index);ready(gate, next, index * 2000);gate.markAttempt(next, true);
     }
     const next = reroll(session, 10);next.ownPlayerId = 'other';
+    expect(gate.blockReason(next)).toBe('round-limit');
     expect(gate.observe(next, 8000)).toBe(false);
     expect(gate.observe(next, 9000)).toBe(false);
   });
@@ -252,7 +300,8 @@ describe('automatic recommendation observation gate', () => {
       {...session, candidateBand: 11, liveData: {activePlayer: {level: 11}}},
       {...session, matchId: '456'}, {...session, id: 'session-b'},
     ]) ready(gate, next, 10000);
-    expect(gate.observe(reroll(session, 3), 12000)).toBe(false);
+    expect(gate.blockReason(reroll(session,AUTO_MAX_PER_ROUND))).toBe('round-limit');
+    expect(gate.observe(reroll(session,AUTO_MAX_PER_ROUND), 12000)).toBe(false);
     expect(gate.observe(reroll(session, 0), 13000)).toBe(false);
   });
 
@@ -275,11 +324,11 @@ describe('automatic recommendation observation gate', () => {
     ready(gate, reroll(session, 1), 2000);
   });
 
-  it('does not mix saved decisions from another game, round, owner or changed candidate description', () => {
+  it('does not mix saved decisions from another game, round or changed candidate description', () => {
     const session = playing();
     const context = structuredClone(session);context.candidates[0].description = 'different';
     session.decisions = [saved(null), saved({}), saved({players: [null], candidates: [null]}), saved({...session, id: 'other'}),
-      saved({...session, matchId: 'other'}), saved({...session, ownPlayerId: 'other'}), saved({...session, candidateBand: 1}), saved(context)];
+      saved({...session, matchId: 'other'}), saved({...session, candidateBand: 1}), saved(context)];
     ready(new AutoRecommendationGate(), session);
   });
 

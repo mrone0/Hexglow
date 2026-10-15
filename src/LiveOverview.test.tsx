@@ -79,7 +79,7 @@ describe('main app realtime recommendation rendering', () => {
   it('defaults to manual recommendation separately from automatic tracking',()=>{
     const html=render();
     expect(html).toContain('自动跟踪中');
-    expect(html).toContain('自动模型推荐已关闭（默认手动，可在设置中开启）');
+    expect(html).toContain('自动模型推荐未运行，可在设置中检查开关、模型配置和授权');
     expect(html).not.toContain('自动模型推荐已开启');
   });
 
@@ -108,12 +108,49 @@ describe('main app realtime recommendation rendering', () => {
   it('shows recognition only before model analysis, without inferred scores or recommendation emphasis',()=>{
     const session=sessionFixture();
     const html=render(session,{localRecommendation:createLocalRecommendation(session,recognizedCandidates(session),observedAt)});
-    expect(html).toContain('已识别 · 待模型分析');
+    expect(html).toContain('已识别 · 待分析');
     expect(html).toContain('本轮已识别候选');
-    expect(html).toContain('尚未进行模型分析，风险未评估');
+    expect(html).toContain('尚未获得模型结果，风险未评估');
     expect(html).not.toContain('local-candidate top');
     expect(html).not.toContain('<small> 分</small>');
     expect(html).not.toContain('本地规则 · 非 AI');
+  });
+
+  it.each([
+    ['analyzing','模型分析中','分析中','模型正在分析'],
+    ['blocked','自动分析暂停','分析暂停','今日自动分析次数已用完'],
+    ['failed','模型分析失败','分析失败','模型请求超时，可在主窗口手动重试'],
+  ] as const)('shows the actual %s state in the main heading and every recognized candidate', (phase,label,chip,message)=>{
+    const session=sessionFixture();
+    const html=render(session,{autoRecommend:true,autoRecommendStatus:message,analysisStatus:{phase,code:'test',message},
+      localRecommendation:createLocalRecommendation(session,recognizedCandidates(session),observedAt)});
+    expect(html).toContain(`<span class="local-rule-badge">${label}</span>`);
+    expect(html.match(new RegExp(`<div class="local-candidate-meta"><span>${chip}</span>`,'g'))).toHaveLength(session.candidates.length);
+    expect(html).toContain(message);
+    expect(html).not.toContain('已识别 · 待分析');
+    expect(html).not.toContain('待模型分析');
+    expect(html).not.toContain('local-candidate top');
+    expect(html).not.toContain('综合推荐');
+    expect(html).not.toContain('<small> 分</small>');
+    expect(html).not.toContain('模型比较分');
+  });
+
+  it('keeps real model scores and recommendation markers when a late failure status arrives',()=>{
+    const session=sessionFixture(),decision=modelDecision(session);
+    session.decisions=[decision];
+    const html=render(session,{autoRecommend:true,autoRecommendStatus:'模型请求超时，可在主窗口手动重试',
+      analysisStatus:{phase:'failed',code:'timeout',message:'模型请求超时，可在主窗口手动重试'},
+      localRecommendation:createLocalRecommendation(session,modelRecommendation(session,decision.result),decision.at)});
+    expect(html).toContain('<span class="local-rule-badge">模型推荐</span>');
+    expect(html).toContain('本轮模型推荐');
+    expect(html).toContain('80<small> 分</small>');
+    expect(html).toContain('70<small> 分</small>');
+    expect(html).toContain('class="choice-slot recommended"');
+    expect(html).toContain('综合推荐');
+    expect(html).toContain('模型提供的理由');
+    expect(html).not.toContain('<span class="local-rule-badge">模型分析失败</span>');
+    expect(html).not.toContain('<div class="local-candidate-meta"><span>分析失败</span>');
+    expect(html).not.toContain('待模型分析');
   });
 
   it('only emphasizes a same-context model snapshot with usable evidence and a matching active cache',()=>{
@@ -121,6 +158,7 @@ describe('main app realtime recommendation rendering', () => {
     session.decisions=[decision];
     const html=render(session,{localRecommendation:createLocalRecommendation(session,modelRecommendation(session,decision.result),decision.at)});
     expect(html).toContain('本轮分析快照');
+    expect(html).toContain('<details class="model-analysis-section"><summary');
     expect(html).toContain('class="choice-slot recommended"');
     expect(html).toContain('模型比较 · 第1名');
     expect(html).not.toContain('海萤优先推荐');
@@ -150,6 +188,7 @@ describe('main app realtime recommendation rendering', () => {
     if(change==='different-analysis')cache={...cache!,at:'2026-10-06T08:21:00Z'};
     const html=render(session,{localRecommendation:cache});
     expect(html).toContain('历史分析快照，仅供查看');
+    expect(html).toContain('<details class="model-analysis-section" open=""><summary');
     expect(html).toContain('模型提供的理由');
     expect(html).not.toContain('class="choice-slot recommended"');
     expect(html).not.toContain('模型推荐方案');
@@ -288,13 +327,15 @@ describe('main app realtime recommendation rendering', () => {
     expect(html).not.toContain('81<small> 分</small>');
   });
 
-  it('opens all local candidate effects and risks by default',()=>{
+  it('keeps effects visible and preserves risks in collapsed details',()=>{
     const session=sessionFixture();
     const third={id:'1170',name:'万用瞄准镜',description:'第三个效果',rarity:'silver',category:'utility',score:60,reason:'第三项理由',risks:[]};
     const result={...scored,ranking:[...scored.ranking,third]};
     session.candidates.push({id:third.id,name:third.name,description:third.description,source:'ocr'});
     const html=render(session,{localRecommendation:createLocalRecommendation(session,result,observedAt)});
-    expect(html.match(/<details open=""><summary>效果与注意事项<\/summary>/g)).toHaveLength(3);
+    expect(html.match(/<details><summary>依据与注意事项<\/summary>/g)).toHaveLength(3);
+    expect(html.match(/class="candidate-effect"/g)).toHaveLength(3);
+    expect(html).toContain('第三个效果');
     expect(html).toContain('仍需结合战局判断');
     expect(html).toContain('暂无额外注意事项');
   });
@@ -330,13 +371,20 @@ describe('main app realtime recommendation rendering', () => {
 });
 
 describe('live versus retained session presentation',()=>{
+ it('shows candidates and analysis with an empty roster instead of an idle-game placeholder',()=>{
+  const session={...sessionFixture(),ownPlayerId:'',players:[],candidateBand:1,ocrOpening:{gameId:'100',loadingObserved:true,advanced:false},liveData:{gameData:{gameTime:15},events:{Events:[{EventID:0,EventName:'GameStart',EventTime:0}]}}};
+  const html=render(session,{ready:true,localRecommendation:createLocalRecommendation(session,recognizedCandidates(session),observedAt)});
+  expect(html).toContain('英雄信息待同步');expect(html).toContain('本轮已识别候选');
+  expect(html).toContain('获取模型分析');expect(html).not.toContain('先去享受游戏');
+  expect(html).not.toContain('我选了「');expect(html).not.toContain('Lv.1');
+ });
  it.each([
   ['live','InProgress','InProgress',true,'connected',false,'live'],
   ['lobby','Lobby','Lobby',false,'lcu-only',false,'previous'],
   ['ended','EndOfGame','EndOfGame',true,'lcu-and-live',false,'previous'],
   ['champion selection','ChampSelect','ChampSelect',false,'lcu-only',false,'previous'],
   ['disconnected','Disconnected','Disconnected',false,'disconnected',false,'unavailable'],
-  ['running without Live API','InProgress','InProgress',false,'lcu-only',false,'unavailable'],
+  ['running without Live API','InProgress','InProgress',false,'lcu-only',false,'live'],
   ['stale session phase','InProgress','Disconnected',false,'disconnected',false,'unavailable'],
   ['disconnected with retained payload','InProgress','InProgress',true,'disconnected',false,'unavailable'],
   ['explicit history','InProgress','InProgress',true,'connected',true,'historical'],
@@ -351,7 +399,7 @@ describe('live versus retained session presentation',()=>{
 
  it.each(['Lobby','EndOfGame','ChampSelect','Disconnected','InProgress'])('keeps %s retained values clearly labeled and all current-choice controls hidden',phase=>{
   const session={...sessionFixture(),phase};
-  const snapshot={...snapshotFixture(session),phase,liveData:phase==='EndOfGame'?session.liveData:null};
+  const snapshot={...snapshotFixture(session),phase,gameId:phase==='InProgress'?null:session.matchId,liveData:phase==='EndOfGame'?session.liveData:null};
   const html=render(session,{snapshot,detectionMessage:'待选 OCR 提示不应继续显示'});
   expect(html).toContain(phase==='Disconnected'||phase==='InProgress'?'最近对局记录':'上一局记录');
   expect(html).toContain('记录等级</span><strong>Lv.8');
@@ -368,7 +416,7 @@ describe('live versus retained session presentation',()=>{
   expect(liveOverviewState(session,null,false).mode).toBe('unavailable');
   expect(liveOverviewState(session,{...snapshotFixture(session),gameId:'other-game'},false).mode).toBe('unavailable');
   expect(liveOverviewState({...session,endedAt:observedAt},snapshotFixture(session),false).mode).toBe('previous');
-  expect(liveOverviewState(session,{...snapshotFixture(session),liveData:{}},false).mode).toBe('unavailable');
+  expect(liveOverviewState(session,{...snapshotFixture(session),gameId:null,liveData:{}},false).mode).toBe('unavailable');
  });
 
  it('uses a fresh live snapshot for both displayed level and recommendation band',()=>{

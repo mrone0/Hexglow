@@ -1,6 +1,6 @@
 [package]
 name = "lol-augment-assistant"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 license = "AGPL-3.0-only"
 build = "build.rs"
@@ -31,6 +31,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 url = "2"
 oar-ocr = "0.9"
 image = "0.25"
+rayon = "1"
 tauri-plugin-updater = "2"
 tauri-plugin-single-instance = "2"
 

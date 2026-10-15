@@ -9,6 +9,23 @@ function fixture(){
 }
 
 describe('automatic OCR and overlay signal gate',()=>{
+ it('starts first-round OCR from a real API event while level, roster and owner are absent',()=>{
+  const {session,snapshot}=fixture();
+  const partial={...session,players:[],ownPlayerId:'',candidateBand:undefined,ocrOpening:{gameId:'game',loadingObserved:true,advanced:false}};
+  expect(liveDetectionBand(partial,{...snapshot,liveData:{events:{Events:[{EventID:0,EventName:'GameStart',EventTime:0}]}}},false)).toBe(1);
+  expect(liveDetectionBand(partial,{...snapshot,liveData:{gameData:{gameTime:5}}},false)).toBeNull();
+  expect(liveDetectionBand(partial,{...snapshot,gameId:'different',liveData:{gameData:{gameTime:5}}},false)).toBeNull();
+ });
+ it('never starts OCR from an LCU loading transition alone',()=>{
+  const {session,snapshot}=fixture();
+  const partial={...session,players:[],ownPlayerId:'',liveData:null,timeline:[
+   {at:'2026-10-06T10:59:57Z',phase:'GameStart',connection:'lcu-only'},
+   {at:snapshot.observedAt,phase:'InProgress',connection:'lcu-only'}]};
+  const lcu={...snapshot,liveData:null,connection:'lcu-only'};
+  expect(liveDetectionBand(partial,lcu,false)).toBeNull();
+  expect(liveDetectionBand(partial,{...lcu,observedAt:'2026-10-06T11:01:01Z'},false)).toBeNull();
+  expect(liveDetectionBand({...partial,timeline:partial.timeline.slice(1)},lcu,false)).toBeNull();
+ });
  it('suspends a pending scan after missing live data and resumes the same round without deleting recorded candidates',()=>{
   const {session,snapshot}=fixture();
   const original=structuredClone(session);
@@ -36,7 +53,7 @@ describe('automatic OCR and overlay signal gate',()=>{
  it('does not infer a round from old player level when the new Live API payload lacks level',()=>{
   const {session,snapshot}=fixture();
   expect(liveDetectionBand(session,{...snapshot,liveData:{gameData:{gameTime:500}}},false)).toBeNull();
-  expect(liveDetectionBand(session,{...snapshot,liveData:{activePlayer:{level:3}}},false)).toBe(1);
+  expect(liveDetectionBand(session,{...snapshot,liveData:{activePlayer:{level:3}}},false)).toBeNull();
  });
 
  it('rejects a different game, completed session, explicit history and missing snapshot',()=>{

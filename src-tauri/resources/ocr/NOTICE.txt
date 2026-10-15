@@ -1,4 +1,4 @@
-PP-OCRv6 Small OCR models and character dictionary
+PP-OCRv6 Small detection/recognition and Tiny recognition models and dictionaries
 Copyright (c) 2016 PaddlePaddle Authors. All Rights Reserved.
 https://github.com/PaddlePaddle/PaddleOCR
 

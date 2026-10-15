@@ -1,13 +1,21 @@
 .knowledge-controls {
   display: grid;
-  grid-template-columns: 170px minmax(260px, 1fr) auto;
+  grid-template-columns: 170px minmax(0, 1fr) auto;
   gap: 14px;
   align-items: end;
-  margin-top: 20px;
+  margin: 20px 0 18px;
 }
 
-.knowledge-controls > button {
-  margin-bottom: 14px;
+.knowledge-panel .knowledge-controls > button {
+  margin: 0;
+}
+
+.knowledge-controls > label {
+  min-width: 0;
+}
+
+.knowledge-panel .knowledge-controls .choice-control {
+  margin-bottom: 0;
 }
 
 .knowledge-create {
@@ -33,7 +41,7 @@
   border: 1px solid #dfe3ed;
   border-radius: 14px;
   background: #fbfcff;
-  box-shadow: inset 0 1px 0 #fff;
+  box-shadow: none;
 }
 
 .knowledge-toolbar {
@@ -43,12 +51,14 @@
   gap: 14px;
   padding: 11px 12px;
   border-bottom: 1px solid #e5e7ef;
-  background: linear-gradient(180deg, #fbfbfe, #f5f6fa);
+  flex-wrap: wrap;
+  background: #f7f8fb;
 }
 
 .knowledge-mode {
   display: inline-flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
   gap: 3px;
   padding: 3px;
   border: 1px solid #dedfe9;
@@ -165,14 +175,16 @@
   justify-content: space-between;
   gap: 16px;
   margin: 12px 0 16px;
-  padding: 12px 14px;
-  border: 1px solid #e0e2eb;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #fafbfe, #f7f5fb);
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .knowledge-footer > .hint {
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .knowledge-footer-actions {
@@ -244,6 +256,12 @@
 
 .knowledge-location {
   margin: 12px 0 0;
+}
+
+.knowledge-location p,
+.knowledge-panel > .notice,
+.knowledge-panel > .error {
+  overflow-wrap: anywhere;
 }
 
 .knowledge-location > summary {
@@ -322,6 +340,7 @@
 
 .knowledge-form-field > label,
 .knowledge-form-section > label {
+  margin: 0;
   color: #46516a;
   font-weight: 650;
 }
@@ -345,15 +364,28 @@
 
 .knowledge-form-sections {
   display: grid;
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
 }
 
 .knowledge-form-section {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: 16px;
-  border: 1px solid #e2e3ee;
-  border-radius: 12px;
-  background: #fff;
+  padding: 18px 0 0;
+  border: 0;
+  border-top: 1px solid #e2e3ee;
+  border-radius: 0;
+  background: transparent;
+}
+
+.knowledge-form-section > .knowledge-form-help {
+  min-height: 3.4em;
+}
+
+.knowledge-panel .knowledge-form-section > textarea {
+  flex: 1;
+  margin: 0;
 }
 
 .knowledge-form-section > label > span {
@@ -414,14 +446,33 @@
   margin-bottom: 0;
 }
 
+.knowledge-form-metadata .knowledge-form-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-form-metadata .knowledge-form-help {
+  min-height: 3.4em;
+}
+
+.knowledge-form-metadata .knowledge-form-field > input,
+.knowledge-form-metadata .knowledge-form-field > textarea,
+.knowledge-form-metadata .choice-control {
+  margin-top: auto;
+}
+
 @media(max-width: 800px) {
   .knowledge-controls {
     grid-template-columns: 1fr;
     gap: 0;
   }
 
-  .knowledge-controls > button {
+  .knowledge-panel .knowledge-controls > button {
     width: 100%;
+    margin-top: 14px;
+  }
+
+  .knowledge-panel .knowledge-controls .choice-control {
     margin-bottom: 14px;
   }
 
@@ -456,11 +507,17 @@
   }
 
   .knowledge-form-section {
-    padding: 12px;
+    padding: 16px 0 0;
   }
 
+  .knowledge-form-sections,
   .knowledge-form-metadata {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .knowledge-form-section > .knowledge-form-help,
+  .knowledge-form-metadata .knowledge-form-help {
+    min-height: 0;
   }
 
   .knowledge-form-details > summary > span {

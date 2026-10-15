@@ -1,42 +1,26 @@
 import type {Session} from './domain';
-import {AUGMENT_LEVELS} from './level';
-import {localChoiceState} from './localChoice';
+import {candidateChoiceIdentity} from './choiceContext';
+import {recommendationChoiceAvailable} from './localChoice';
 
-export const AUTO_STABLE_MS = 1_000;
-export const AUTO_MAX_PER_ROUND = 3;
+// Two matching real captures are still required; do not wait a full second
+// after a complete first frame before asking the model.
+export const AUTO_STABLE_MS = 500;
+// Initial panel plus one independently refreshed option for each of its three cards.
+export const AUTO_MAX_PER_ROUND = 4;
 export const AUTO_OBSERVATION_MAX_GAP_MS = 15_000;
 
-type RecordValue = Record<string, unknown>;
 type Fingerprint = {key: string; round: string};
-const record = (value: unknown): RecordValue | null =>
-  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as RecordValue : null;
-const nonempty = (value: unknown): value is string => typeof value === 'string' && !!value.trim();
 
 /** Saved model snapshots may omit live-only fields; use only explicit choice identity. */
 function fingerprint(value: unknown): Fingerprint | null {
-  const session = record(value);
-  if (!session || !nonempty(session.id) || !nonempty(session.matchId) || !nonempty(session.ownPlayerId) ||
-    !AUGMENT_LEVELS.some(band => band === session.candidateBand) || !Array.isArray(session.players) ||
-    !Array.isArray(session.candidates) || session.candidates.length !== 3) return null;
-  const own = session.players.map(record).filter(player => player?.id === session.ownPlayerId);
-  if (own.length !== 1 || !nonempty(own[0]?.champion)) return null;
-  const candidates: string[][] = [];
-  for (const value of session.candidates) {
-    const candidate = record(value);
-    if (!candidate || !nonempty(candidate.id) || !nonempty(candidate.name) || !nonempty(candidate.description)) return null;
-    candidates.push([candidate.id, candidate.name, candidate.description]);
-  }
-  if (new Set(candidates.map(candidate => candidate[0])).size !== candidates.length) return null;
-  // Position changes, purchases, notes, knowledge and other players cannot trigger another paid request.
-  candidates.sort((left, right) => left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0);
-  const round = [session.id, session.matchId, session.candidateBand];
-  return {round: JSON.stringify(round), key: JSON.stringify([...round, session.ownPlayerId, own[0]!.champion, candidates])};
+  const identity=candidateChoiceIdentity(value,3);
+  return identity&&(value as Session).candidates.length===3?identity:null;
 }
 
 /** Null means this observation must never start an automatic model request. */
 export function autoRecommendationKey(session: Session): string | null {
   const identity = fingerprint(session);
-  if (!identity || session.candidates.some(candidate => candidate.source !== 'ocr') || !localChoiceState(session).available) return null;
+  if (!identity || session.candidates.some(candidate => candidate.source !== 'ocr') || !recommendationChoiceAvailable(session)) return null;
   return identity.key;
 }
 
@@ -50,12 +34,24 @@ export class AutoRecommendationGate {
     this.observation = null;
   }
 
-  private eligibleKey(session: Session): string | null {
+  blockReason(session: Session): 'ineligible' | 'attempted' | 'saved' | 'round-limit' | null {
     const key = autoRecommendationKey(session);
     const identity = fingerprint(session);
+    if (!key || !identity) return 'ineligible';
     const saved = key !== null && session.decisions.some(decision => !!decision.result && fingerprint(decision.context)?.key === key);
-    return key && identity && !this.attempted.has(key) && !saved &&
-      (this.automaticPerRound.get(identity.round) ?? 0) < AUTO_MAX_PER_ROUND ? key : null;
+    if (saved) return 'saved';
+    if (this.attempted.has(key)) return 'attempted';
+    return (this.automaticPerRound.get(identity.round) ?? 0) >= AUTO_MAX_PER_ROUND ? 'round-limit' : null;
+  }
+
+  private eligibleKey(session: Session): string | null {
+    return this.blockReason(session) === null ? autoRecommendationKey(session) : null;
+  }
+
+  /** Used to require a collector request begun after this choice first appeared. */
+  firstObservedAt(session: Session): number | null {
+    const key=this.eligibleKey(session);
+    return key&&this.observation?.key===key?this.observation.firstAt:null;
   }
 
   /** A pre-send check must not pretend that retained candidates were observed by OCR again. */

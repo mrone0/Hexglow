@@ -1,6 +1,6 @@
 import type {Recommendation, Session} from './domain';
-import {augmentBand, ownLevel} from './level';
-import {modelContextKey} from './modelPublication';
+import {currentChoiceBand} from './choiceContext';
+import {canRetainModelRecommendation,modelChoiceKey,modelContextKey,snapshotModelChoice,type ModelChoiceSnapshot} from './modelPublication';
 
 export type ScoredCandidate = {
   id: string;
@@ -22,7 +22,9 @@ export type ScoreResult = {
   ranking: ScoredCandidate[];
   summary: string;
   rankingReliable?: boolean;
+  modelScoresValid?: boolean;
   source?: 'model' | 'recognition';
+  contextChanged?: boolean;
   profile?: {champion?: string; role?: string; ranged?: boolean | null; damage?: string};
 };
 
@@ -76,6 +78,7 @@ export function modelRecommendation(session: Session, recommendation: Recommenda
   });
   const rankingReliable = ranking.length >= 2 && ranking.every(candidate => candidate.assessment === 'supported');
   return {...recognized, source: 'model', rankingReliable,
+    modelScoresValid: exact && dynamic && ranking.every(candidate => finiteScore(candidate.score)),
     summary: typeof recommendation.summary === 'string' ? recommendation.summary : '模型比较结果',
     ranking: ranking.map(candidate => ({...candidate, displayScore: rankingReliable ? candidate.displayScore : null}))};
 }
@@ -94,8 +97,8 @@ export function localRankingPresentation(result: ScoreResult) {
   return {
     reliable,
     source: result.source,
-    label: result.source === 'model' ? '模型推荐' : result.source === 'recognition' ? '已识别 · 待模型分析' : '历史结果 · 待模型分析',
-    summary: `${result.profile?.champion ? `本次英雄：${result.profile.champion}。` : ''}${reliable ? result.summary : result.source === 'recognition' ? '已识别候选与效果；默认手动分析，开启自动推荐后按设置触发。' : result.source === 'model' ? `${result.summary} 模型依据或置信度不足，暂不排名或给分。` : '历史结果来源未明确，不沿用本地规则分数；等待模型分析。'}`,
+    label: result.source === 'model' ? result.contextChanged?'此前模型推荐 · 上下文已变化':'模型推荐' : result.source === 'recognition' ? '已识别 · 待模型分析' : '历史结果 · 待模型分析',
+    summary: `${result.profile?.champion ? `本次英雄：${result.profile.champion}。` : ''}${reliable ? result.summary : result.source === 'recognition' ? '已识别候选与效果；自动推荐按已保存设置与数据授权触发，可在主窗口查看当前状态或手动分析。' : result.source === 'model' ? `${result.summary} 模型依据或置信度不足，暂不排名或给分。` : '历史结果来源未明确，不沿用本地规则分数；等待模型分析。'}${result.source==='model'&&result.contextChanged?' 局势或装备已变化，以下为此前分析快照；未自动重复调用模型，可手动刷新。':''}`,
     candidates: ordered.map(candidate => ({
       ...candidate,
       displayScore: reliable ? candidate.displayScore! : null,
@@ -109,6 +112,8 @@ export type LocalRecommendation = {
   sessionId: string;
   band: number;
   key: string;
+  choiceKey?: string | null;
+  analyzedSession?: ModelChoiceSnapshot;
   at: string;
   result: ScoreResult;
 };
@@ -146,8 +151,10 @@ export function createLocalRecommendation(
 ): LocalRecommendation {
   return {
     sessionId: session.id,
-    band: augmentBand(ownLevel(session.liveData) ?? 1),
+    band: currentChoiceBand(session) ?? session.candidateBand ?? 0,
     key: result.source === 'model' ? modelContextKey(session) : localRecommendationKey(session),
+    choiceKey: result.source === 'model' ? modelChoiceKey(session) : undefined,
+    analyzedSession: result.source === 'model' ? snapshotModelChoice(session) : undefined,
     at,
     result,
   };
@@ -162,10 +169,27 @@ export function selectLocalRecommendation(
     !local ||
     session.id !== local.sessionId ||
     session.phase !== 'InProgress' ||
-    augmentBand(ownLevel(session.liveData) ?? 1) !== local.band ||
+    session.archived || !!session.endedAt ||
+    currentChoiceBand(session) !== local.band ||
     session.candidateBand !== local.band ||
     (local.result.source !== 'model' && session.candidates.some(candidate => candidate.source !== 'ocr')) ||
-    (local.result.source === 'model' ? modelContextKey(session) : localRecommendationKey(session)) !== local.key
+    (local.result.source === 'model' ? !local.choiceKey||(local.analyzedSession?!canRetainModelRecommendation(local.analyzedSession,session):modelChoiceKey(session)!==local.choiceKey) : localRecommendationKey(session)!==local.key)
   ) return null;
+  if(local.result.source==='model'&&modelContextKey(session)!==local.key){
+    return local.result.contextChanged?local:{...local,result:{...local.result,contextChanged:true}};
+  }
   return local;
+}
+
+/** Rehydrate a durable result after restart instead of suppressing the call and showing only OCR. */
+export function restoreModelRecommendation(session:Session):LocalRecommendation|null {
+  for(const decision of [...session.decisions].reverse()){
+    const context=decision.context as Session|null;
+    if(!context||!Array.isArray(context.players)||!Array.isArray(context.candidates)||
+      decision.result.engine?.scoringMode!=='dynamic-model-v1'||!canRetainModelRecommendation(context,session))continue;
+    const analyzed={...context,liveData:session.liveData};
+    const cached=createLocalRecommendation(analyzed,modelRecommendation(analyzed,decision.result),decision.at);
+    return selectLocalRecommendation(session,cached);
+  }
+  return null;
 }

@@ -39,7 +39,7 @@
   padding: 18px 20px;
   background: #fbfbff;
 }
-/* 阵容两列等高对齐：列内卡片按行等分，跨列同行同高 */
+/* 按对应玩家行对齐，不让最长卡片把其余所有玩家都撑高。 */
 .teams > div {
   display: flex;
   flex-direction: column;
@@ -47,18 +47,41 @@
 .team-cards {
   flex: 1;
   display: grid;
-  grid-auto-rows: 1fr;
+  align-content: start;
   gap: 11px;
 }
 .teams .player {
   margin-bottom: 0;
 }
+@supports (grid-template-rows: subgrid) {
+  .teams { align-items: stretch; }
+  .teams > div { display: grid; grid-template-rows: subgrid; grid-row: span 6; row-gap: 11px; }
+  .teams .team-cards { grid-row: span 5; grid-template-rows: subgrid; }
+}
 
 .log-row {
   grid-template-columns: 92px 62px minmax(120px, 0.7fr) minmax(0, 1.4fr);
 }
+.log-console { overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.console-header { position: sticky; top: 0; z-index: 1; }
+.log-row > * { min-width: 0; overflow-wrap: anywhere; }
+.section-title { flex-wrap: wrap; }
+.section-title > span { max-width: none; overflow-wrap: anywhere; }
+.workspace > .panel, .workspace > .knowledge-panel { max-width: 1160px; margin-left: auto; margin-right: auto; }
+.workspace > .settings-card { margin-top: 18px; }
+.pill.engine { display: inline-flex; flex-wrap: wrap; }
+@media (max-width: 780px) {
+  .log-row { grid-template-columns: 80px 50px minmax(0,1fr); }
+  .log-row > span { grid-column: 1 / -1; }
+}
+@media (max-width: 680px) {
+  .nav-item { font-size: 0; padding: 11px 0; }
+  .rail-bottom { display: block; padding: 0; font-size: 0; letter-spacing: 0; }
+  .rail-bottom > i, .rail-bottom > br, .rail-bottom > span, .rail-bottom > small { display: none; }
+  .rail-bottom button { padding: 8px 4px; font-size: 12px; overflow-wrap: anywhere; }
+}
 
-/* �Ƽ������������ϸ������������������� */
+/* 分析明细中的因素、证据与来源标签。 */
 .ranking .factor-row {
   display: flex;
   flex-wrap: wrap;

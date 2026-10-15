@@ -49,7 +49,7 @@ export function KnowledgeFormEditor({kind,fields,disabled,onChange}:{kind:Knowle
    {sections[kind].map(({name,hint,placeholder},index)=><div className="knowledge-form-section" key={name}>
     <label htmlFor={`${uid}-section-${index}`}><span aria-hidden="true">{String(index+1).padStart(2,'0')}</span>{name}</label>
     <p className="knowledge-form-help" id={`${uid}-section-${index}-hint`}>{hint}</p>
-    <textarea id={`${uid}-section-${index}`} aria-describedby={`${uid}-section-${index}-hint`} rows={Math.min(12,Math.max(4,(fields.sections[name]||'').split('\n').length+1))} value={fields.sections[name]||''} disabled={disabled} placeholder={placeholder} onChange={e=>patch({sections:{...fields.sections,[name]:e.target.value}})}/>
+    <textarea id={`${uid}-section-${index}`} aria-describedby={`${uid}-section-${index}-hint`} rows={6} value={fields.sections[name]||''} disabled={disabled} placeholder={placeholder} onChange={e=>patch({sections:{...fields.sections,[name]:e.target.value}})}/>
    </div>)}
   </div>
   <details className="knowledge-form-details">

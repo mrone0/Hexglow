@@ -12,7 +12,9 @@ const TRAY_ID: &str = "hexglow-tray";
 const SHOW_ID: &str = "hexglow-show";
 const QUIT_ID: &str = "hexglow-quit";
 const EXIT_TIMEOUT: Duration = Duration::from_secs(10);
-const BACKGROUND_TICK_INTERVAL: Duration = Duration::from_secs(1);
+// A lightweight scheduler wake-up, not an API/OCR polling frequency. The frontend
+// applies separate cadence, backoff and single-flight limits before any work.
+const BACKGROUND_TICK_INTERVAL: Duration = Duration::from_millis(250);
 
 #[derive(Default)]
 struct ExitState {

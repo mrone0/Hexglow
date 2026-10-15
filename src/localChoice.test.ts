@@ -1,10 +1,17 @@
 import {describe,expect,it} from 'vitest';
 import {newSession,synchronizeSelections,type Session} from './domain';
-import {confirmLocalChoice,isCurrentChoiceDecision,localChoiceState} from './localChoice';
+import {confirmLocalChoice,isCurrentChoiceDecision,localChoiceState,recommendationChoiceAvailable} from './localChoice';
 
 function playing(){return {...newSession(),phase:'InProgress',candidateBand:1,ownPlayerId:'me',players:[{id:'me',name:'me',champion:'Ahri',team:'ORDER',items:[],augments:[],augmentsConfirmed:false}],candidates:[{id:'1001',name:'泰坦的坚决',description:'effect'},{id:'1018',name:'巨像的勇气',description:'effect'}],liveData:{activePlayer:{level:3}}};}
 function analysis(context:Session,chosenId?:string):Session['decisions'][number]{return {at:'2026-10-06T08:00:00.000Z',context:structuredClone(context),chosenId,result:{ranking:context.candidates.map(candidate=>({candidateId:candidate.id,score:50,reason:'分析',risks:[]})),summary:'分析总结',missingInformation:[]}};}
 describe('recording local selections without model analysis',()=>{
+  it('permits comparing a known opening panel without assigning a choice to an unknown player',()=>{
+    const session={...playing(),matchId:'100',ownPlayerId:'',players:[],ocrOpening:{gameId:'100',loadingObserved:true,advanced:false},liveData:{events:{Events:[{EventID:0,EventName:'GameStart',EventTime:0}]}}};
+    expect(recommendationChoiceAvailable(session)).toBe(true);
+    expect(localChoiceState(session).available).toBe(false);
+    expect(confirmLocalChoice(session,'1001')).toBe(session);
+    expect(session.players).toEqual([]);
+  });
   it('records and locks each round without claiming all owned choices are known',()=>{
     const session=confirmLocalChoice(playing(),'1001');
     expect(session.decisions).toEqual([]);
