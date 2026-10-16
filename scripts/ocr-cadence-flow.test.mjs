@@ -2,20 +2,20 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {applySnapshot, hasContent, newSession} from '../src/domain.ts';
-import {readSession} from '../src/sessionReader.ts';
-import {liveDetectionBand} from '../src/detectionGate.ts';
-import {augmentBand, nextTriggers, ownLevel} from '../src/level.ts';
-import {currentChoiceBand} from '../src/choiceContext.ts';
-import {collectorPollDelay} from '../src/collectorCadence.ts';
-import {OcrCadence,OCR_PANEL_GRACE_MS} from '../src/ocrCadence.ts';
-import * as ocrFreshness from '../src/ocrContextFreshness.ts';
-import {AutoRecommendationGate, autoRecommendationKey, AUTO_MAX_PER_ROUND} from '../src/autoRecommendation.ts';
-import {CandidateScanBurst, CANDIDATE_RECHECK_MS} from '../src/candidateScanBurst.ts';
-import {RecommendationProgress, recommendationProgressKey} from '../src/recommendationProgress.ts';
-import {analysisDataIssue} from '../src/analysisPreflight.ts';
-import {mergeDetectedCandidates} from '../src/candidates.ts';
-import {createLocalRecommendation, localRecommendationKey, recognizedCandidates, selectLocalRecommendation} from '../src/liveRecommendation.ts';
+import {applySnapshot, hasContent, newSession} from '../src/core/domain.ts';
+import {readSession} from '../src/persistence/sessionReader.ts';
+import {liveDetectionBand} from '../src/collection/detectionGate.ts';
+import {augmentBand, nextTriggers, ownLevel} from '../src/core/level.ts';
+import {currentChoiceBand} from '../src/core/choiceContext.ts';
+import {collectorPollDelay} from '../src/collection/collectorCadence.ts';
+import {OcrCadence,OCR_PANEL_GRACE_MS} from '../src/collection/ocrCadence.ts';
+import * as ocrFreshness from '../src/collection/ocrContextFreshness.ts';
+import {AutoRecommendationGate, autoRecommendationKey, AUTO_MAX_PER_ROUND} from '../src/recommendation/autoRecommendation.ts';
+import {CandidateScanBurst, CANDIDATE_RECHECK_MS} from '../src/collection/candidateScanBurst.ts';
+import {RecommendationProgress, recommendationProgressKey} from '../src/recommendation/recommendationProgress.ts';
+import {analysisDataIssue} from '../src/core/analysisPreflight.ts';
+import {mergeDetectedCandidates} from '../src/core/candidates.ts';
+import {createLocalRecommendation, localRecommendationKey, recognizedCandidates, selectLocalRecommendation} from '../src/recommendation/liveRecommendation.ts';
 
 // Extract production handlers without importing/mounting main.tsx. Every IPC is
 // synthetic and allowlisted; these tests never capture screens or use a model.

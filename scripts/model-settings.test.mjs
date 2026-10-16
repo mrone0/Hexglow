@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {describe,expect,it,vi} from 'vitest';
-import {modelDestination} from '../src/modelConsent.ts';
-import {AUTO_RECOMMEND_PREFERENCE_KEY,readAutoRecommendPreference,autoModelIdentity} from '../src/autoModelConfig.ts';
+import {modelDestination} from '../src/settings/modelConsent.ts';
+import {AUTO_RECOMMEND_PREFERENCE_KEY,readAutoRecommendPreference,autoModelIdentity} from '../src/settings/autoModelConfig.ts';
 
 // Execute the actual settings handlers without mounting Tauri or sending any request.
 const source=fs.readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');

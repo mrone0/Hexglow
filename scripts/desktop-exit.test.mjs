@@ -24,7 +24,7 @@ visit(ast);
 for (const name of ['save', 'app:before-exit', 'app:exit-error', 'exit-button']) {
   if (!extracted.has(name)) throw new Error(`Application exit handler not found: ${name}`);
 }
-const queueSource = fs.readFileSync(new URL('../src/saveQueue.ts', import.meta.url), 'utf8');
+const queueSource = fs.readFileSync(new URL('../src/persistence/saveQueue.ts', import.meta.url), 'utf8');
 const deferred = () => {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });

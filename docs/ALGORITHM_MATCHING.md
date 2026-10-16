@@ -295,21 +295,21 @@ SQL 在读取前裁掉重型采样和决策大上下文，随后生成有界摘�
 | 候选身份匹配 | OCR 整行标题匹配、中文有限容错与唯一布局验证；精确/容错置信度分别为 0.6/0.75；手填槽位通过名称解析到标准 ID | [scoring.rs](../src-tauri/src/scoring.rs)、[decision.rs](../src-tauri/src/decision.rs) |
 | 元数据语义 | 区分收益、代价和触发条件；1029 不把触发间隔当急速，1180 按防御和 AP 护盾缩放处理，同步生成知识 | [data-tags.mjs](../scripts/data-tags.mjs)、[augments.json](../src-tauri/data/augments.json) |
 | 英雄与装备适配 | 保留职业回退与法力判定；补充官方艾克画像、有限装备/已选机制；贡献最多 40 分，缺失项明确回退，不虚构特殊联动 | [scoring.rs](../src-tauri/src/scoring.rs)、[scoring-mechanics.json](../src-tauri/data/scoring-mechanics.json) |
-| 已选海克斯 | 名称和标准 ID 均能识别重复；按原决策快照传播实际选择，保留后续手动纠正与部分未知 | [domain.ts](../src/domain.ts)、[scoring.rs](../src-tauri/src/scoring.rs) |
+| 已选海克斯 | 名称和标准 ID 均能识别重复；按原决策快照传播实际选择，保留后续手动纠正与部分未知 | [domain.ts](../src/core/domain.ts)、[scoring.rs](../src-tauri/src/scoring.rs) |
 | 动态模型与未知因素 | 不注入或融合固定适配分；未知不参与模型均值、整体证据不足向中性收缩；精确候选 ID、已拥有排除、旧档案兼容 | [decision.rs](../src-tauri/src/decision.rs) |
 | 请求事实与来源 | 保留实际版本和画像警告；外发不含本地分；按实际脱敏状态核算请求预算；区分置信度来源 | [decision.rs](../src-tauri/src/decision.rs) |
-| 解释与引用 | 支持有界解释；校验本次路径及允许章节；正文标题扫描过滤伪标题；忽略未知引用；参考文档不冒充模型引用，章节清单仍有第 4.5 节所述限制 | [decision.rs](../src-tauri/src/decision.rs)、[Ranking.tsx](../src/Ranking.tsx) |
+| 解释与引用 | 支持有界解释；校验本次路径及允许章节；正文标题扫描过滤伪标题；忽略未知引用；参考文档不冒充模型引用，章节清单仍有第 4.5 节所述限制 | [decision.rs](../src-tauri/src/decision.rs)、[Ranking.tsx](../src/ui/Ranking.tsx) |
 | 截屏与 OCR | 定位真实前台游戏客户区；支持 DPI 和多显示器；直接 RGB 区域截屏；复用相同画面，跳过状态不污染统计 | [capture.rs](../src-tauri/src/capture.rs)、[ocr.rs](../src-tauri/src/ocr.rs) |
 | 离线模型与首轮准备 | 安装包包含固定哈希的模型和字典；启动时异步预热；缺失或不完整时提示重装，运行时不下载 | [ocr.rs](../src-tauri/src/ocr.rs)、[模型清单](../src-tauri/resources/ocr/manifest.json)、[prepare-ocr-models.ps1](../scripts/prepare-ocr-models.ps1) |
-| 手动纠正与迟到 OCR | 同档位保护手动候选；修订号作废旧扫描；增加主动重新识别入口 | [candidates.ts](../src/candidates.ts)、[LiveOverview.tsx](../src/LiveOverview.tsx)、[main.tsx](../src/main.tsx) |
-| 主窗口实时显示 | 实时状态和本地评分直接显示，不依赖模型配置；恢复同档 OCR 候选可直接重算；上下文变化使旧分失效，上一轮候选明确标记 | [LiveOverview.tsx](../src/LiveOverview.tsx)、[liveRecommendation.ts](../src/liveRecommendation.ts)、[main.tsx](../src/main.tsx) |
-| 侧栏状态 | 先缓存再发布，监听就绪重放；后端单调序号；关闭先清空；迟到的创建窗口或状态不能恢复旧推荐 | [overlay.rs](../src-tauri/src/overlay.rs)、[OverlayApp.tsx](../src/OverlayApp.tsx) |
-| 模型期间采集与跨局 | 分析固定快照，采集继续；分析期间暂停 OCR；结果合并回原局最新状态，保留结束证据和新增采样 | [analysis.ts](../src/analysis.ts)、[main.tsx](../src/main.tsx) |
-| 迟到结算恢复 | 严格局 ID、有限退避、独立单飞不阻塞 OCR；回包重读最新基准；删除/退出/分析作废旧请求；不凭空补胜负 | [postgameRecovery.ts](../src/postgameRecovery.ts)、[collector.rs](../src-tauri/src/collector.rs)、[postgame-recovery.test.mjs](../scripts/postgame-recovery.test.mjs) |
-| 保存顺序与请求次数 | 单进程写入串行、合并同局待写快照；超时仍等真实写入结束；模型失败和保存超时不能绕过已发起请求次数 | [saveQueue.ts](../src/saveQueue.ts)、[main.tsx](../src/main.tsx) |
+| 手动纠正与迟到 OCR | 同档位保护手动候选；修订号作废旧扫描；增加主动重新识别入口 | [candidates.ts](../src/core/candidates.ts)、[LiveOverview.tsx](../src/live/LiveOverview.tsx)、[main.tsx](../src/main.tsx) |
+| 主窗口实时显示 | 实时状态和本地评分直接显示，不依赖模型配置；恢复同档 OCR 候选可直接重算；上下文变化使旧分失效，上一轮候选明确标记 | [LiveOverview.tsx](../src/live/LiveOverview.tsx)、[liveRecommendation.ts](../src/recommendation/liveRecommendation.ts)、[main.tsx](../src/main.tsx) |
+| 侧栏状态 | 先缓存再发布，监听就绪重放；后端单调序号；关闭先清空；迟到的创建窗口或状态不能恢复旧推荐 | [overlay.rs](../src-tauri/src/overlay.rs)、[OverlayApp.tsx](../src/overlay/OverlayApp.tsx) |
+| 模型期间采集与跨局 | 分析固定快照，采集继续；分析期间暂停 OCR；结果合并回原局最新状态，保留结束证据和新增采样 | [analysis.ts](../src/recommendation/analysis.ts)、[main.tsx](../src/main.tsx) |
+| 迟到结算恢复 | 严格局 ID、有限退避、独立单飞不阻塞 OCR；回包重读最新基准；删除/退出/分析作废旧请求；不凭空补胜负 | [postgameRecovery.ts](../src/persistence/postgameRecovery.ts)、[collector.rs](../src-tauri/src/collector.rs)、[postgame-recovery.test.mjs](../scripts/postgame-recovery.test.mjs) |
+| 保存顺序与请求次数 | 单进程写入串行、合并同局待写快照；超时仍等真实写入结束；模型失败和保存超时不能绕过已发起请求次数 | [saveQueue.ts](../src/persistence/saveQueue.ts)、[main.tsx](../src/main.tsx) |
 | 桌面生命周期 | 单实例启动；关闭主窗口隐藏到托盘；托盘退出先保存，失败或超时则取消退出并提示 | [desktop.rs](../src-tauri/src/desktop.rs)、[main.rs](../src-tauri/src/main.rs) |
 | 档案读取与维护 | 轻量 SQL 投影；有快照时按原轮次还原选择；维护前等待落盘、完成后重读；增量计算清理预算，避免旧内存数据重新写回 | [storage.rs](../src-tauri/src/storage.rs)、[main.tsx](../src/main.tsx) |
-| 异常数据隔离 | 坏 JSON、非对象决策和结构错误档案不拖垮其余记录；前端校验完整记录与摘要；导出保留不可读记录原文 | [storage.rs](../src-tauri/src/storage.rs)、[sessionReader.ts](../src/sessionReader.ts) |
+| 异常数据隔离 | 坏 JSON、非对象决策和结构错误档案不拖垮其余记录；前端校验完整记录与摘要；导出保留不可读记录原文 | [storage.rs](../src-tauri/src/storage.rs)、[sessionReader.ts](../src/persistence/sessionReader.ts) |
 | 知识缓存与安全升级 | 按内容检测外部编辑；坏文档隔离；警告进入指纹；精确旧哈希升级并保留用户修改和删除 | [knowledge.rs](../src-tauri/src/knowledge.rs)、[seed-repair-hashes.json](../src-tauri/data/seed-repair-hashes.json) |
 | 兼容接口与检查 | 旧 `analyze / test_model` 复用当前结构化实现；相关存储命令移出同步 UI 路径；CI 纳入前端测试 | [lib.rs](../src-tauri/src/lib.rs)、[windows.yml](../.github/workflows/windows.yml) |
 

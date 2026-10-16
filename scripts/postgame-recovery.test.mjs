@@ -2,15 +2,15 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {applySnapshot, hasContent, newSession} from '../src/domain.ts';
-import {liveDetectionBand} from '../src/detectionGate.ts';
-import {augmentBand, nextTriggers, ownLevel} from '../src/level.ts';
-import {canRecoverPostgame, hasMissingPostgameEvidence, mergePostgameEvidence, PostgameRetryQueue} from '../src/postgameRecovery.ts';
-import {SaveQueue} from '../src/saveQueue.ts';
-import {readSession} from '../src/sessionReader.ts';
-import {KnowledgeWarmup} from '../src/knowledgeWarmup.ts';
-import {collectorPollDelay} from '../src/collectorCadence.ts';
-import {currentChoiceBand} from '../src/choiceContext.ts';
+import {applySnapshot, hasContent, newSession} from '../src/core/domain.ts';
+import {liveDetectionBand} from '../src/collection/detectionGate.ts';
+import {augmentBand, nextTriggers, ownLevel} from '../src/core/level.ts';
+import {canRecoverPostgame, hasMissingPostgameEvidence, mergePostgameEvidence, PostgameRetryQueue} from '../src/persistence/postgameRecovery.ts';
+import {SaveQueue} from '../src/persistence/saveQueue.ts';
+import {readSession} from '../src/persistence/sessionReader.ts';
+import {KnowledgeWarmup} from '../src/knowledge/knowledgeWarmup.ts';
+import {collectorPollDelay} from '../src/collection/collectorCadence.ts';
+import {currentChoiceBand} from '../src/core/choiceContext.ts';
 
 // Extract the actual application callbacks: a parallel implementation of the
 // recovery protocol would not catch accidental await/guard/rebase regressions.

@@ -68,7 +68,7 @@ describe('archive detail return navigation', () => {
   });
 
   it('adds only spacing for its page-level row without changing button styling', () => {
-    const css = fs.readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const css = fs.readFileSync(new URL('../src/styles/style.css', import.meta.url), 'utf8');
     expect(css.match(/\.archive-page-back\s*\{([^}]+)\}/)?.[1].trim()).toBe('margin-top: 16px;');
     expect(css).not.toMatch(/\.archive-page-back\s+button/);
   });

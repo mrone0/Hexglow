@@ -2,14 +2,14 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {applySnapshot, hasContent, newSession} from '../src/domain.ts';
-import {readSession} from '../src/sessionReader.ts';
-import {liveDetectionBand} from '../src/detectionGate.ts';
-import {augmentBand, nextTriggers, ownLevel} from '../src/level.ts';
-import {AutoRecommendationGate} from '../src/autoRecommendation.ts';
-import {KnowledgeWarmup} from '../src/knowledgeWarmup.ts';
-import {collectorPollDelay} from '../src/collectorCadence.ts';
-import {currentChoiceBand} from '../src/choiceContext.ts';
+import {applySnapshot, hasContent, newSession} from '../src/core/domain.ts';
+import {readSession} from '../src/persistence/sessionReader.ts';
+import {liveDetectionBand} from '../src/collection/detectionGate.ts';
+import {augmentBand, nextTriggers, ownLevel} from '../src/core/level.ts';
+import {AutoRecommendationGate} from '../src/recommendation/autoRecommendation.ts';
+import {KnowledgeWarmup} from '../src/knowledge/knowledgeWarmup.ts';
+import {collectorPollDelay} from '../src/collection/collectorCadence.ts';
+import {currentChoiceBand} from '../src/core/choiceContext.ts';
 
 // Execute the real collection handler and its real IPC warmup initializer with
 // synthetic snapshots only. Do not import main.tsx (which mounts the app), touch
